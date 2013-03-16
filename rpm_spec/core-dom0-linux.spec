@@ -42,6 +42,7 @@ License:	GPL
 URL:		http://www.qubes-os.org
 
 BuildRequires:  ImageMagick
+BuildRequires:  pandoc
 Requires:	qubes-core-dom0
 
 %define _builddir %(pwd)
@@ -61,6 +62,7 @@ ln -sf . %{name}-%{version}
 %build
 python -m compileall appmenus-scripts
 python -O -m compileall appmenus-scripts
+(cd doc; make manpages)
 
 %install
 mkdir -p $RPM_BUILD_ROOT%{python_sitearch}/qubes/modules
@@ -71,6 +73,8 @@ cp appmenus-scripts/qubes-core-appmenus.pyo $RPM_BUILD_ROOT%{python_sitearch}/qu
 mkdir -p $RPM_BUILD_ROOT/usr/libexec/qubes-appmenus
 cp appmenus-scripts/*.sh $RPM_BUILD_ROOT/usr/libexec/qubes-appmenus/
 cp appmenus-scripts/qubes-receive-appmenus $RPM_BUILD_ROOT/usr/libexec/qubes-appmenus/
+
+install -D appmenus-scripts/qvm-sync-appmenus $RPM_BUILD_ROOT/usr/bin/qvm-sync-appmenus
 
 mkdir -p $RPM_BUILD_ROOT/etc/qubes-rpc/policy
 cp appmenus-scripts/qubes.SyncAppMenus $RPM_BUILD_ROOT/etc/qubes-rpc/
@@ -83,6 +87,8 @@ done
 
 mkdir -p $RPM_BUILD_ROOT/usr/share/qubes-appmenus/
 cp appmenus-files/* $RPM_BUILD_ROOT/usr/share/qubes-appmenus/
+
+(cd doc; make DESTDIR=$RPM_BUILD_ROOT install)
 
 %post
 
@@ -123,6 +129,7 @@ fi
 /usr/share/qubes-appmenus/qubes-templatevm.directory.template
 /usr/share/qubes-appmenus/qubes-vm.directory.template
 /usr/share/qubes/icons/*.png
+/usr/bin/qvm-sync-appmenus
+%{_mandir}/man1/qvm-*.1*
 
 %changelog
-
