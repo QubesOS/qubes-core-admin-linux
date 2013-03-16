@@ -98,6 +98,42 @@ install -m 0664 -D dom0-updates/qubes.ReceiveUpdates.policy $RPM_BUILD_ROOT/etc/
 
 install -d $RPM_BUILD_ROOT/var/lib/qubes/updates
 
+### Udev config
+mkdir -p $RPM_BUILD_ROOT/etc/udev/rules.d
+cp udev/udev-qubes-block.rules $RPM_BUILD_ROOT/etc/udev/rules.d/99-qubes-block.rules
+cp udev/udev-qubes-usb.rules $RPM_BUILD_ROOT/etc/udev/rules.d/99-qubes-usb.rules
+
+mkdir -p $RPM_BUILD_ROOT/usr/libexec/qubes
+cp udev/udev-block-add-change $RPM_BUILD_ROOT/usr/libexec/qubes/
+cp udev/udev-block-remove $RPM_BUILD_ROOT/usr/libexec/qubes/
+cp udev/udev-block-cleanup $RPM_BUILD_ROOT/usr/libexec/qubes/
+cp udev/udev-usb-add-change $RPM_BUILD_ROOT/usr/libexec/qubes/
+cp udev/udev-usb-remove $RPM_BUILD_ROOT/usr/libexec/qubes/
+
+### pm-utils
+mkdir -p $RPM_BUILD_ROOT/usr/lib64/pm-utils/sleep.d
+cp pm-utils/01qubes-sync-vms-clock $RPM_BUILD_ROOT/usr/lib64/pm-utils/sleep.d/
+cp pm-utils/51qubes-suspend-netvm $RPM_BUILD_ROOT/usr/lib64/pm-utils/sleep.d/
+cp pm-utils/52qubes-pause-vms $RPM_BUILD_ROOT/usr/lib64/pm-utils/sleep.d/
+
+### Dracut module
+mkdir -p $RPM_BUILD_ROOT/etc/dracut.conf.d
+cp dracut/dracut.conf.d/* $RPM_BUILD_ROOT/etc/dracut.conf.d/
+
+mkdir -p $RPM_BUILD_ROOT%{_dracutmoddir}
+cp -r dracut/modules.d/* $RPM_BUILD_ROOT%{_dracutmoddir}/
+
+### Others
+mkdir -p $RPM_BUILD_ROOT/etc/sysconfig
+install -m 0644 -D system-config/limits-qubes.conf $RPM_BUILD_ROOT/etc/security/limits.d/99-qubes.conf
+install -D system-config/cpufreq-xen.modules $RPM_BUILD_ROOT/etc/sysconfig/modules/cpufreq-xen.modules
+cp system-config/iptables $RPM_BUILD_ROOT/etc/sysconfig
+cp system-config/ip6tables $RPM_BUILD_ROOT/etc/sysconfig
+install -m 0440 -D system-config/qubes.sudoers $RPM_BUILD_ROOT/etc/sudoers.d/qubes
+install -D system-config/polkit-1-qubes-allow-all.rules $RPM_BUILD_ROOT/etc/polkit-1/rules.d/00-qubes-allow-all.rules
+install -D system-config/qubes-dom0.modules $RPM_BUILD_ROOT/etc/sysconfig/modules/qubes-dom0.modules
+install -D system-config/qubes-sync-clock.cron $RPM_BUILD_ROOT/etc/cron.d/qubes-sync-clock.cron
+
 ### Icons
 mkdir -p $RPM_BUILD_ROOT/usr/share/qubes/icons
 for icon in icons/*.png; do
@@ -121,6 +157,10 @@ echo reposdir=/etc/yum.real.repos.d >> /etc/yum.conf
 sed '/^installonlypkgs\s*=/d' -i /etc/yum.conf
 echo 'installonlypkgs = kernel, kernel-qubes-vm' >> /etc/yum.conf
 
+# Remove unnecessary udev rules that causes problems in dom0 (#605)
+mkdir -p /var/lib/qubes/removed-udev-scripts
+mv -f /lib/udev/rules.d/69-xorg-vmmouse.rules /var/lib/qubes/removed-udev-scripts/ 2> /dev/null || :
+
 %preun
 if [ "$1" = 0 ] ; then
 	# no more packages left
@@ -135,6 +175,9 @@ fi
 %triggerin -- PackageKit
 # dom0 have no network, but still can receive updates (qubes-dom0-update)
 sed -i 's/^UseNetworkHeuristic=.*/UseNetworkHeuristic=false/' /etc/PackageKit/PackageKit.conf
+
+%triggerin -- xorg-x11-drv-vmmouse
+mv -f /lib/udev/rules.d/69-xorg-vmmouse.rules /var/lib/qubes/removed-udev-scripts/ 2> /dev/null || :
 
 %files
 /etc/qubes-rpc/policy/qubes.SyncAppMenus.policy
@@ -165,6 +208,31 @@ sed -i 's/^UseNetworkHeuristic=.*/UseNetworkHeuristic=false/' /etc/PackageKit/Pa
 /etc/qubes-rpc/qubes.ReceiveUpdates
 %attr(0664,root,qubes) %config(noreplace) /etc/qubes-rpc/policy/qubes.ReceiveUpdates
 %attr(0770,root,qubes) %dir /var/lib/qubes/updates
+# Dracut module
+/etc/dracut.conf.d/*
+%dir %{_dracutmoddir}/90qubes-pciback
+%{_dracutmoddir}/90qubes-pciback/*
+# Udev
+/usr/libexec/qubes/udev-block-add-change
+/usr/libexec/qubes/udev-block-cleanup
+/usr/libexec/qubes/udev-block-remove
+/usr/libexec/qubes/udev-usb-add-change
+/usr/libexec/qubes/udev-usb-remove
+/etc/udev/rules.d/99-qubes-block.rules
+/etc/udev/rules.d/99-qubes-usb.rules
+# pm-utils
+/usr/lib64/pm-utils/sleep.d/01qubes-sync-vms-clock
+/usr/lib64/pm-utils/sleep.d/51qubes-suspend-netvm
+/usr/lib64/pm-utils/sleep.d/52qubes-pause-vms
+# Others
+/etc/sysconfig/iptables
+/etc/sysconfig/ip6tables
+/etc/sysconfig/modules/qubes-dom0.modules
+/etc/sysconfig/modules/cpufreq-xen.modules
+/etc/sudoers.d/qubes
+/etc/polkit-1/rules.d/00-qubes-allow-all.rules
+/etc/security/limits.d/99-qubes.conf
+%attr(0644,root,root) /etc/cron.d/qubes-sync-clock.cron
 # Man
 %{_mandir}/man1/qvm-*.1*
 %{_mandir}/man1/qubes-*.1*
