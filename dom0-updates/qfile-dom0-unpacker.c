@@ -1,5 +1,4 @@
 #define _GNU_SOURCE
-#include <ioall.h>
 #include <grp.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -10,10 +9,14 @@
 #include <unistd.h>
 #include <sys/fsuid.h>
 #include <errno.h>
-#include "filecopy.h"
+#include <libqubes-rpc-filecopy.h>
 
 #define DEFAULT_MAX_UPDATES_BYTES (2L<<30)
 #define DEFAULT_MAX_UPDATES_FILES 2048
+ 
+void notify_progress(int p1, int p2)
+{
+}
 
 int prepare_creds_return_uid(char *username)
 {
@@ -35,8 +38,6 @@ int prepare_creds_return_uid(char *username)
 	setfsuid(pwd->pw_uid);
 	return pwd->pw_uid;
 }
-
-extern int do_unpack(void);
 
 int main(int argc, char ** argv)
 {

@@ -43,7 +43,9 @@ URL:		http://www.qubes-os.org
 
 BuildRequires:  ImageMagick
 BuildRequires:  pandoc
+BuildRequires:  qubes-utils-devel
 Requires:	qubes-core-dom0
+Requires:	qubes-utils
 
 %define _builddir %(pwd)
 
@@ -63,6 +65,7 @@ ln -sf . %{name}-%{version}
 python -m compileall appmenus-scripts
 python -O -m compileall appmenus-scripts
 (cd dom0-updates; make)
+(cd qrexec; make)
 (cd doc; make manpages)
 
 %install
@@ -98,17 +101,14 @@ install -m 0664 -D dom0-updates/qubes.ReceiveUpdates.policy $RPM_BUILD_ROOT/etc/
 
 install -d $RPM_BUILD_ROOT/var/lib/qubes/updates
 
-### Udev config
-mkdir -p $RPM_BUILD_ROOT/etc/udev/rules.d
-cp udev/udev-qubes-block.rules $RPM_BUILD_ROOT/etc/udev/rules.d/99-qubes-block.rules
-cp udev/udev-qubes-usb.rules $RPM_BUILD_ROOT/etc/udev/rules.d/99-qubes-usb.rules
-
-mkdir -p $RPM_BUILD_ROOT/usr/libexec/qubes
-cp udev/udev-block-add-change $RPM_BUILD_ROOT/usr/libexec/qubes/
-cp udev/udev-block-remove $RPM_BUILD_ROOT/usr/libexec/qubes/
-cp udev/udev-block-cleanup $RPM_BUILD_ROOT/usr/libexec/qubes/
-cp udev/udev-usb-add-change $RPM_BUILD_ROOT/usr/libexec/qubes/
-cp udev/udev-usb-remove $RPM_BUILD_ROOT/usr/libexec/qubes/
+# Qrexec
+mkdir -p $RPM_BUILD_ROOT/usr/lib/qubes/
+cp qrexec/qrexec-daemon $RPM_BUILD_ROOT/usr/lib/qubes/
+cp qrexec/qrexec-client $RPM_BUILD_ROOT/usr/lib/qubes/
+# XXX: Backward compatibility
+ln -s qrexec-client $RPM_BUILD_ROOT/usr/lib/qubes/qrexec_client
+cp qrexec/qrexec-policy $RPM_BUILD_ROOT/usr/lib/qubes/
+cp qrexec/qubes-rpc-multiplexer $RPM_BUILD_ROOT/usr/lib/qubes
 
 ### pm-utils
 mkdir -p $RPM_BUILD_ROOT/usr/lib64/pm-utils/sleep.d
@@ -212,14 +212,12 @@ mv -f /lib/udev/rules.d/69-xorg-vmmouse.rules /var/lib/qubes/removed-udev-script
 /etc/dracut.conf.d/*
 %dir %{_dracutmoddir}/90qubes-pciback
 %{_dracutmoddir}/90qubes-pciback/*
-# Udev
-/usr/libexec/qubes/udev-block-add-change
-/usr/libexec/qubes/udev-block-cleanup
-/usr/libexec/qubes/udev-block-remove
-/usr/libexec/qubes/udev-usb-add-change
-/usr/libexec/qubes/udev-usb-remove
-/etc/udev/rules.d/99-qubes-block.rules
-/etc/udev/rules.d/99-qubes-usb.rules
+# Qrexec
+%attr(4750,root,qubes) /usr/lib/qubes/qrexec-daemon
+/usr/lib/qubes/qrexec-client
+/usr/lib/qubes/qrexec_client
+/usr/lib/qubes/qubes-rpc-multiplexer
+/usr/lib/qubes/qrexec-policy
 # pm-utils
 /usr/lib64/pm-utils/sleep.d/01qubes-sync-vms-clock
 /usr/lib64/pm-utils/sleep.d/51qubes-suspend-netvm
