@@ -143,6 +143,11 @@ done
 ### Documentation
 (cd doc; make DESTDIR=$RPM_BUILD_ROOT install)
 
+%pre
+if ! grep -q ^qubes: /etc/group ; then
+		groupadd qubes
+fi
+
 %post
 
 for i in /usr/share/qubes/icons/*.png ; do
