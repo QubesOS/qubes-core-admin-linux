@@ -69,12 +69,9 @@ int opt_quiet = 0;
 #  define UNUSED(x) UNUSED_ ## x
 #endif
 
-
-/*
-we need to track the number of children, so that excessive QREXEC_EXECUTE_*
-commands do not fork-bomb dom0
-*/
 volatile int children_count;
+
+libvchan_t *vchan;
 
 void sigusr1_handler(int UNUSED(x))
 {
@@ -114,6 +111,12 @@ void unlink_qrexec_socket()
 	unlink(link_to_socket_name);
 }
 
+void handle_vchan_error(const char *op) {
+	fprintf(stderr, "Error while vchan %s, exiting\n", op);
+	exit(1);
+}
+
+
 int create_qrexec_socket(int domid, const char *domname)
 {
 	char socket_address[40];
@@ -146,6 +149,11 @@ void init(int xid)
 
 	if (xid <= 0) {
 		fprintf(stderr, "domain id=0?\n");
+		exit(1);
+	}
+	remote_domain_name = libvchan_get_domain_name(xid);
+	if (!remote_domain_name) {
+		fprintf(stderr, "Cannot get remote domain name\n");
 		exit(1);
 	}
 	startup_timeout_str = getenv("QREXEC_STARTUP_TIMEOUT");
@@ -201,7 +209,10 @@ void init(int xid)
 		exit(1);
 	}
 
-	peer_client_init(xid, REXEC_PORT);
+	vchan = libvchan_client_init(xid, REXEC_PORT);
+	/* wait for connection */
+	while (!libvchan_is_open(vchan))
+		libvchan_wait(vchan);
 	if (setgid(getgid()) < 0) {
 		perror("setgid()");
 		exit(1);
@@ -252,7 +263,8 @@ void terminate_client_and_flush_data(int fd)
 	s_hdr.type = MSG_SERVER_TO_AGENT_CLIENT_END;
 	s_hdr.client_id = fd;
 	s_hdr.len = 0;
-	write_all_vchan_ext(&s_hdr, sizeof(s_hdr));
+	if (libvchan_send(vchan, &s_hdr, sizeof(s_hdr)) < 0)
+		handle_vchan_error("send");
 }
 
 int get_cmdline_body_from_client_and_pass_to_agent(int fd, struct server_header
@@ -270,12 +282,17 @@ int get_cmdline_body_from_client_and_pass_to_agent(int fd, struct server_header
 		s_hdr->len -= default_user_keyword_len_without_colon; // -1 because of colon
 		s_hdr->len += strlen(default_user);
 	}
-	write_all_vchan_ext(s_hdr, sizeof(*s_hdr));
+	if (libvchan_send(vchan, s_hdr, sizeof(*s_hdr)) < 0)
+		handle_vchan_error("send");
 	if (use_default_user) {
-		write_all_vchan_ext(default_user, strlen(default_user));
-		write_all_vchan_ext(buf+default_user_keyword_len_without_colon, len-default_user_keyword_len_without_colon);
+		if (libvchan_send(vchan, default_user, strlen(default_user)) < 0)
+			handle_vchan_error("send default_user");
+		if (libvchan_send(vchan, buf+default_user_keyword_len_without_colon,
+					len-default_user_keyword_len_without_colon) < 0)
+			handle_vchan_error("send buf");
 	} else
-		write_all_vchan_ext(buf, len);
+		if (libvchan_send(vchan, buf, len) < 0)
+			handle_vchan_error("send buf");
 	return 1;
 }
 
@@ -329,7 +346,7 @@ void handle_message_from_client(int fd)
 	}
 	// We have already passed cmdline from client. 
 	// Now the client passes us raw data from its stdin.
-	len = buffer_space_vchan_ext();
+	len = libvchan_buffer_space(vchan);
 	if (len <= sizeof s_hdr)
 		return;
 	/* Read at most the amount of data that we have room for in vchan */
@@ -343,8 +360,10 @@ void handle_message_from_client(int fd)
 	s_hdr.len = ret;
 	s_hdr.type = MSG_SERVER_TO_AGENT_INPUT;
 
-	write_all_vchan_ext(&s_hdr, sizeof(s_hdr));
-	write_all_vchan_ext(buf, ret);
+	if (libvchan_send(vchan, &s_hdr, sizeof(s_hdr)) < 0)
+		handle_vchan_error("send hdr");
+	if (libvchan_send(vchan, buf, ret) < 0)
+		handle_vchan_error("send buf");
 	if (ret == 0)		// EOF - so don't select() on this client
 		clients[fd].state |= CLIENT_DONT_READ | CLIENT_EOF;
 	if (clients[fd].state & CLIENT_EXITED)
@@ -360,7 +379,7 @@ buffered data.
 void write_buffered_data_to_client(int client_id)
 {
 	switch (flush_client_data
-		(client_id, client_id, &clients[client_id].buffer)) {
+		(vchan, client_id, client_id, &clients[client_id].buffer)) {
 	case WRITE_STDIN_OK:	// no more buffered data
 		clients[client_id].state &= ~CLIENT_OUTQ_FULL;
 		break;
@@ -394,13 +413,14 @@ void get_packet_data_from_agent_and_pass_to_client(int client_id, struct client_
 
 	/* make both the header and data be consecutive in the buffer */
 	memcpy(buf, hdr, sizeof(*hdr));
-	read_all_vchan_ext(buf + sizeof(*hdr), len);
+	if (libvchan_recv(vchan, buf + sizeof(*hdr), len) < 0)
+		handle_vchan_error("recv buf");
 	if (clients[client_id].state & CLIENT_EXITED)
 		// ignore data for no longer running client
 		return;
 
 	switch (write_stdin
-		(client_id, client_id, buf, len + sizeof(*hdr),
+		(vchan, client_id, client_id, buf, len + sizeof(*hdr),
 		 &clients[client_id].buffer)) {
 	case WRITE_STDIN_OK:
 		break;
@@ -493,7 +513,8 @@ void handle_execute_predefined_command(void)
 	struct trigger_connect_params untrusted_params, params;
 
 	check_children_count_and_wait_if_too_many();
-	read_all_vchan_ext(&untrusted_params, sizeof(params));
+	if (libvchan_recv(vchan, &untrusted_params, sizeof(params)) < 0)
+		handle_vchan_error("recv params");
 
 	/* sanitize start */
 	ENSURE_NULL_TERMINATED(untrusted_params.exec_index);
@@ -568,7 +589,8 @@ void handle_message_from_agent(void)
 	struct client_header hdr;
 	struct server_header s_hdr, untrusted_s_hdr;
 
-	read_all_vchan_ext(&untrusted_s_hdr, sizeof untrusted_s_hdr);
+	if (libvchan_recv(vchan, &untrusted_s_hdr, sizeof(untrusted_s_hdr)) < 0)
+		handle_vchan_error("recv hdr");
 	/* sanitize start */
 	sanitize_message_from_agent(&untrusted_s_hdr);
 	s_hdr = untrusted_s_hdr;
@@ -611,7 +633,8 @@ void handle_message_from_agent(void)
 		// benefit of doubt - maybe client exited earlier
 		// just eat the packet data and continue
 		char buf[MAX_DATA_CHUNK];
-		read_all_vchan_ext(buf, s_hdr.len);
+		if (libvchan_recv(vchan, buf, s_hdr.len) < 0)
+			handle_vchan_error("recv buf");
 		return;
 	}
 	get_packet_data_from_agent_and_pass_to_client(s_hdr.client_id,
@@ -687,20 +710,20 @@ int main(int argc, char **argv)
 	 */
 	for (;;) {
 		max = fill_fdsets_for_select(&read_fdset, &write_fdset);
-		if (buffer_space_vchan_ext() <=
+		if (libvchan_buffer_space(vchan) <=
 		    sizeof(struct server_header))
 			FD_ZERO(&read_fdset);	// vchan full - don't read from clients
 
 		sigprocmask(SIG_BLOCK, &chld_set, NULL);
 		if (child_exited)
 			reap_children();
-		wait_for_vchan_or_argfd(max, &read_fdset, &write_fdset);
+		wait_for_vchan_or_argfd(vchan, max, &read_fdset, &write_fdset);
 		sigprocmask(SIG_UNBLOCK, &chld_set, NULL);
 
 		if (FD_ISSET(qrexec_daemon_unix_socket_fd, &read_fdset))
 			handle_new_client();
 
-		while (read_ready_vchan_ext())
+		while (libvchan_data_ready(vchan))
 			handle_message_from_agent();
 
 		for (i = 0; i <= max_client_fd; i++)
