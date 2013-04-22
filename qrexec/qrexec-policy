@@ -3,7 +3,7 @@ import sys
 import os
 import os.path
 import subprocess
-import xen.lowlevel.xl
+from qubes.qubes import libvirt_conn
 import qubes.guihelpers
 from optparse import OptionParser
 import fcntl
@@ -82,14 +82,12 @@ def find_policy(policy, domain, target):
     return get_default_policy()
 
 def is_domain_running(target):
-    xl_ctx = xen.lowlevel.xl.ctx()
-    domains = xl_ctx.list_domains()
-    for dominfo in domains:
-        domname = xl_ctx.domid_to_name(dominfo.domid)
-        if domname == target:
-            return True
-    return False
-
+    libvirt_dom = libvirt_conn.lookupByName(target)
+    if libvirt_dom:
+        return libvirt_dom.isActive()
+    else:
+        return False
+                
 def validate_target(target):
     # special targets
     if target in ['$dispvm', 'dom0']:
