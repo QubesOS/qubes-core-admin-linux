@@ -184,7 +184,7 @@ void init(int xid)
 				break;
 			}
 		}
-		fprintf(stderr, "Cannot connect to qrexec agent for %d seconds, still trying in the background\n", startup_timeout);
+		fprintf(stderr, "Cannot connect to '%s' qrexec agent for %d seconds, giving up\n", remote_domain_name, startup_timeout);
 		exit(1);
 	}
 	close(0);
