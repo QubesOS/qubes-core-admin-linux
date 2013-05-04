@@ -151,11 +151,6 @@ void init(int xid)
 		fprintf(stderr, "domain id=0?\n");
 		exit(1);
 	}
-	remote_domain_name = libvchan_get_domain_name(xid);
-	if (!remote_domain_name) {
-		fprintf(stderr, "Cannot get remote domain name\n");
-		exit(1);
-	}
 	startup_timeout_str = getenv("QREXEC_STARTUP_TIMEOUT");
 	if (startup_timeout_str) {
 		startup_timeout = atoi(startup_timeout_str);
