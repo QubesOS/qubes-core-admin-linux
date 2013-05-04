@@ -182,7 +182,7 @@ void init(int xid)
 		exit(1);
 	}
 
-	remote_domain_name = peer_client_init(xid, REXEC_PORT);
+	peer_client_init(xid, REXEC_PORT);
 	setuid(getuid());
 	/* When running as root, make the socket accessible; perms on /var/run/qubes still apply */
 	umask(0);
@@ -637,12 +637,13 @@ int main(int argc, char **argv)
 	int max;
 	sigset_t chld_set;
 
-	if (argc != 2 && argc != 3) {
-		fprintf(stderr, "usage: %s domainid [default user]\n", argv[0]);
+	if (argc != 3 && argc != 4) {
+		fprintf(stderr, "usage: %s domainid domain-name [default user]\n", argv[0]);
 		exit(1);
 	}
-	if (argc == 3)
-		default_user = argv[2];
+	remote_domain_name = argv[2];
+	if (argc == 4)
+		default_user = argv[3];
 	init(atoi(argv[1]));
 	sigemptyset(&chld_set);
 	sigaddset(&chld_set, SIGCHLD);
