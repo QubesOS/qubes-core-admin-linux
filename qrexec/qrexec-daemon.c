@@ -205,6 +205,10 @@ void init(int xid)
 	}
 
 	vchan = libvchan_client_init(xid, REXEC_PORT);
+	if (!vchan) {
+		perror("cannot connect to qrexec agent");
+		exit(1);
+	}
 	/* wait for connection */
 	while (!libvchan_is_open(vchan))
 		libvchan_wait(vchan);
