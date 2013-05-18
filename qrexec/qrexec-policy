@@ -3,7 +3,7 @@ import sys
 import os
 import os.path
 import subprocess
-from qubes.qubes import libvirt_conn
+from qubes.qubes import vmm
 import qubes.guihelpers
 from optparse import OptionParser
 import fcntl
@@ -82,7 +82,7 @@ def find_policy(policy, domain, target):
     return get_default_policy()
 
 def is_domain_running(target):
-    libvirt_dom = libvirt_conn.lookupByName(target)
+    libvirt_dom = vmm.libvirt_conn.lookupByName(target)
     if libvirt_dom:
         return libvirt_dom.isActive()
     else:
