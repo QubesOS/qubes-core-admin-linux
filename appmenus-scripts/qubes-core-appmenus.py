@@ -153,7 +153,6 @@ QubesVm.appmenus_remove = QubesVm_appmenus_remove
 
 # hooks for existing methods
 QubesVm.hooks_get_attrs_config.append(QubesVm_get_attrs_config)
-QubesVm.hooks_clone_disk_files.append(QubesVm_clone_disk_files)
 QubesVm.hooks_pre_rename.append(QubesVm_pre_rename)
 QubesVm.hooks_post_rename.append(QubesVm_post_rename)
 QubesVm.hooks_create_on_disk.append(QubesVm_create_on_disk)
