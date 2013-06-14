@@ -217,6 +217,8 @@ mv -f /lib/udev/rules.d/69-xorg-vmmouse.rules /var/lib/qubes/removed-udev-script
 /etc/dracut.conf.d/*
 %dir %{_dracutmoddir}/90qubes-pciback
 %{_dracutmoddir}/90qubes-pciback/*
+%dir %{_dracutmoddir}/90extra-modules
+%{_dracutmoddir}/90extra-modules/*
 # Qrexec
 %attr(4750,root,qubes) /usr/lib/qubes/qrexec-daemon
 /usr/lib/qubes/qrexec-client
