@@ -98,10 +98,10 @@ def do_execute(domain, target, user, exec_index, process_ident):
     elif target == "$dispvm":
         cmd = "/usr/lib/qubes/qfile-daemon-dvm " + exec_index + " " + domain + " " +user
     else:
-    # see the previous commit why "qvm-run -a" is broken and dangerous
-    # also, dangling "xl" would keep stderr open and may prevent closing connection
+        # see the previous commit why "qvm-run -a" is broken and dangerous
+        # also, dangling "xl" would keep stderr open and may prevent closing connection
         spawn_target_if_necessary(target)
-        cmd= QREXEC_CLIENT + " -d " + target + " '" + user 
+        cmd= QREXEC_CLIENT + " -d " + target + " '" + user
         cmd+=":QUBESRPC "+ exec_index + " " + domain + "'"
     os.execl(QREXEC_CLIENT, "qrexec-client", "-d", domain, "-l", cmd, "-c", process_ident)
 
