@@ -84,6 +84,20 @@ def is_domain_running(target):
         if domname == target:
             return True
     return False
+
+def validate_target(target):
+    # special targets
+    if target in ['$dispvm', 'dom0']:
+        return True
+
+    from qubes.qubes import QubesVmCollection
+
+    qc = QubesVmCollection()
+    qc.lock_db_for_reading()
+    qc.load()
+    qc.unlock_db()
+
+    return qc.get_vm_by_name(target) is not None
                 
 def spawn_target_if_necessary(target):
     if is_domain_running(target):
@@ -144,6 +158,13 @@ def main():
     exec_index=args[2]
     process_ident=args[3]
     
+    if not validate_target(target):
+        print >> sys.stderr, "Rpc failed (unknown domain):", domain, target, exec_index
+        text = "Domain '%s' doesn't exists (service %s called by domain %s)." % (
+                target, exec_index, domain)
+        subprocess.call(["/usr/bin/zenity", "--error", "--text", text])
+        os.execl(QREXEC_CLIENT, "qrexec-client", "-d", domain, "-l", "/bin/false", "-c", process_ident)
+
     policy_list=read_policy_file(exec_index)
     if policy_list==None:
         policy_editor(domain, target, exec_index)
