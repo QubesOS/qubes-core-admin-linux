@@ -98,9 +98,9 @@ int ask_on_connect_timeout(int xid, int timeout)
 #define ZENITY_CMD "zenity --title 'Qrexec daemon' --question --text "
 	snprintf(text, sizeof(text),
 			"%s"
-			"'Timeout while trying connecting to qrexec agent (Xen domain ID: %d). Do you want to wait next %d seconds?'",
+			"'Timeout while trying connecting to qrexec agent of VM %s. Do you want to wait next %d seconds?'",
 			ret==0 ? KDIALOG_CMD : ZENITY_CMD,
-			xid, timeout);
+			remote_domain_name, timeout);
 #undef KDIALOG_CMD
 #undef ZENITY_CMD
 	ret = system(text);
