@@ -162,7 +162,7 @@ void init(int xid)
 	}
 	close(0);
 	snprintf(qrexec_error_log_name, sizeof(qrexec_error_log_name),
-		 "/var/log/qubes/qrexec.%d.log", xid);
+		 "/var/log/qubes/qrexec.%s.log", remote_domain_name);
 	umask(0007);		// make the log readable by the "qubes" group
 	logfd =
 	    open(qrexec_error_log_name, O_WRONLY | O_CREAT | O_TRUNC,
