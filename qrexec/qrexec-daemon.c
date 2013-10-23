@@ -147,8 +147,6 @@ void init(int xid)
 	case 0:
 		break;
 	default:
-		if (getenv("QREXEC_STARTUP_NOWAIT"))
-			exit(0);
 		fprintf(stderr, "Waiting for VM's qrexec agent.");
 		for (i=0;i<startup_timeout;i++) {
 			sleep(1);

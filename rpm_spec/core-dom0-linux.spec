@@ -85,7 +85,7 @@ install -D appmenus-scripts/qvm-sync-appmenus $RPM_BUILD_ROOT/usr/bin/qvm-sync-a
 
 mkdir -p $RPM_BUILD_ROOT/etc/qubes-rpc/policy
 cp appmenus-scripts/qubes.SyncAppMenus $RPM_BUILD_ROOT/etc/qubes-rpc/
-cp appmenus-scripts/qubes.SyncAppMenus.policy $RPM_BUILD_ROOT/etc/qubes-rpc/policy/qubes.SyncAppMenus
+cp appmenus-scripts/qubes.SyncAppMenus.policy $RPM_BUILD_ROOT/etc/qubes-rpc/policy/
 
 mkdir -p $RPM_BUILD_ROOT/usr/share/qubes-appmenus/
 cp appmenus-files/* $RPM_BUILD_ROOT/usr/share/qubes-appmenus/
@@ -185,7 +185,7 @@ sed -i 's/^UseNetworkHeuristic=.*/UseNetworkHeuristic=false/' /etc/PackageKit/Pa
 mv -f /lib/udev/rules.d/69-xorg-vmmouse.rules /var/lib/qubes/removed-udev-scripts/ 2> /dev/null || :
 
 %files
-/etc/qubes-rpc/policy/qubes.SyncAppMenus
+/etc/qubes-rpc/policy/qubes.SyncAppMenus.policy
 /etc/qubes-rpc/qubes.SyncAppMenus
 %{python_sitearch}/qubes/modules/10appmenus.py
 %{python_sitearch}/qubes/modules/10appmenus.pyc
