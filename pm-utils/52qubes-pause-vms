@@ -1,23 +1,25 @@
-#!/bin/sh
+#!/usr/bin/python
 
-. "${PM_FUNCTIONS}"
+from qubes.qubes import QubesVmCollection,QubesException
+import sys
 
-pause_vms()
-{
-echo
-qvm-run --all --pause
-}
+qc = QubesVmCollection()
+qc.lock_db_for_reading()
+qc.load()
+qc.unlock_db()
 
+if sys.argv[1] in ["suspend", "hibernate"]:
+    for vm in qc.values():
+        if vm.is_running():
+            try:
+                vm.suspend()
+            except Exception as e:
+                print >>sys.stderr, "Failed to suspend VM %s: %s" % (vm.name, e.message)
 
-unpause_vms()
-{
-echo
-qvm-run --all --unpause
-}
-
-
-case "$1" in
-        thaw|resume) unpause_vms ;;
-        suspend|hibernate) pause_vms ;;
-        *) exit 0 ;;
-esac
+elif sys.argv[1] in ["resume", "thaw"]:
+    for vm in qc.values():
+        if vm.get_power_state() in ["Paused", "Suspended"]:
+            try:
+                vm.resume()
+            except Exception as e:
+                print >>sys.stderr, "Failed to resume VM %s: %s" % (vm.name, e.message)
