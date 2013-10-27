@@ -200,6 +200,7 @@ def main():
             user=policy_dict["action.user"]
         else:
             user="DEFAULT"
+        print >> sys.stderr, "Rpc allowed:", domain, target, exec_index
         do_execute(domain, target, user, exec_index, process_ident)
 
     print >> sys.stderr, "Rpc denied:", domain, target, exec_index
