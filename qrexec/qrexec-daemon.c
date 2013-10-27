@@ -61,10 +61,26 @@ char *default_user = "user";
 char default_user_keyword[] = "DEFAULT:";
 #define default_user_keyword_len_without_colon (sizeof(default_user_keyword)-2)
 
+/*
+we need to track the number of children, so that excessive QREXEC_EXECUTE_*
+commands do not fork-bomb dom0
+*/
+int children_count;
+
 void sigusr1_handler(int x)
 {
 	fprintf(stderr, "connected\n");
 	exit(0);
+}
+
+void sigchld_parent_handler(int x)
+{
+	children_count--;
+	/* starting value is 0 so we see dead real qrexec-daemon as -1 */
+	if (children_count < 0) {
+		fprintf(stderr, "failed\n");
+		exit(1);
+	}
 }
 
 void sigchld_handler(int x);
@@ -103,6 +119,7 @@ int ask_on_connect_timeout(int xid, int timeout)
 			remote_domain_name, timeout);
 #undef KDIALOG_CMD
 #undef ZENITY_CMD
+	children_count++;
 	ret = system(text);
 	ret = WEXITSTATUS(ret);
 	//              fprintf(stderr, "ret=%d\n", ret);
@@ -140,6 +157,7 @@ void init(int xid)
 			startup_timeout = MAX_STARTUP_TIME_DEFAULT;
 	}
 	signal(SIGUSR1, sigusr1_handler);
+	signal(SIGCHLD, sigchld_parent_handler);
 	switch (pid=fork()) {
 	case -1:
 		perror("fork");
@@ -209,12 +227,6 @@ void handle_new_client()
 	if (fd > max_client_fd)
 		max_client_fd = fd;
 }
-
-/* 
-we need to track the number of children, so that excessive QREXEC_EXECUTE_*
-commands do not fork-bomb dom0
-*/
-int children_count;
 
 void terminate_client_and_flush_data(int fd)
 {
