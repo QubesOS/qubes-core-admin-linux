@@ -7,7 +7,7 @@ import xen.lowlevel.xl
 import qubes.guihelpers
 from optparse import OptionParser
 import fcntl
- 
+
 POLICY_FILE_DIR="/etc/qubes-rpc/policy"
 # XXX: Backward compatibility, to be removed soon
 DEPRECATED_POLICY_FILE_DIR="/etc/qubes_rpc/policy"
@@ -24,21 +24,21 @@ def line_to_dict(line):
         return None
 
     if tokens[0][0] == '#':
-        return None  
+        return None
 
     dict={}
     dict['source']=tokens[0]
     dict['dest']=tokens[1]
-    
+
     dict['full-action']=tokens[2]
     action_list=tokens[2].split(',')
     dict['action']=action_list.pop(0)
-    
+
     for iter in action_list:
         paramval=iter.split("=")
         dict["action."+paramval[0]]=paramval[1]
-    
-    return dict 
+
+    return dict
 
 
 def read_policy_file(exec_index):
@@ -65,7 +65,7 @@ def get_default_policy():
     dict={}
     dict["action"]="deny"
     return dict
-    
+
 
 def find_policy(policy, domain, target):
     for iter in policy:
@@ -77,7 +77,7 @@ def find_policy(policy, domain, target):
     return get_default_policy()
 
 def is_domain_running(target):
-    xl_ctx = xen.lowlevel.xl.ctx()         
+    xl_ctx = xen.lowlevel.xl.ctx()
     domains = xl_ctx.list_domains()
     for dominfo in domains:
         domname = xl_ctx.domid_to_name(dominfo.domid)
@@ -98,14 +98,14 @@ def validate_target(target):
     qc.unlock_db()
 
     return qc.get_vm_by_name(target) is not None
-                
+
 def spawn_target_if_necessary(target):
     if is_domain_running(target):
         return
     null=open("/dev/null", "r+")
     subprocess.call(["qvm-run", "-a", "-q", target, "true"], stdin=null, stdout=null)
     null.close()
-                
+
 def do_execute(domain, target, user, exec_index, process_ident):
     if target == "dom0":
         cmd="/usr/lib/qubes/qubes-rpc-multiplexer "+exec_index + " " + domain
@@ -142,7 +142,7 @@ def add_always_allow(domain, target, exec_index, options):
 def policy_editor(domain, target, exec_index):
     text = "No policy definition found for " + exec_index + " action. "
     text+= "Please create a policy file in Dom0 in " + POLICY_FILE_DIR + "/" + exec_index
-    subprocess.call(["/usr/bin/zenity", "--info", "--text", text]) 
+    subprocess.call(["/usr/bin/zenity", "--info", "--text", text])
 
 def main():
     usage = "usage: %prog [options] <src-domain> <target-domain> <service> <process-ident>"
@@ -157,7 +157,7 @@ def main():
     target=args[1]
     exec_index=args[2]
     process_ident=args[3]
-    
+
     if not validate_target(target):
         print >> sys.stderr, "Rpc failed (unknown domain):", domain, target, exec_index
         text = "Domain '%s' doesn't exists (service %s called by domain %s)." % (
@@ -176,7 +176,7 @@ def main():
 
     if policy_dict["action"] == "ask" and options.assume_yes_for_ask:
         policy_dict["action"] = "allow"
-    
+
     if policy_dict["action"] == "ask":
         user_choice = confirm_execution(domain, target, exec_index)
         if user_choice == UserChoice.ALWAYS_ALLOW:
@@ -191,7 +191,7 @@ def main():
         if policy_dict["action"] == "allow":
             exit(0)
         else:
-            exit(1)    
+            exit(1)
 
     if policy_dict["action"] == "allow":
         if policy_dict.has_key("action.target"):
@@ -202,7 +202,7 @@ def main():
             user="DEFAULT"
         do_execute(domain, target, user, exec_index, process_ident)
 
-    print >> sys.stderr, "Rpc denied:", domain, target, exec_index    
+    print >> sys.stderr, "Rpc denied:", domain, target, exec_index
     os.execl(QREXEC_CLIENT, "qrexec-client", "-d", domain, "-l", "/bin/false", "-c", process_ident)
 
 main()
