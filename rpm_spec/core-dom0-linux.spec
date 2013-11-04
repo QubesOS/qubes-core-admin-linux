@@ -115,6 +115,8 @@ mkdir -p $RPM_BUILD_ROOT/usr/lib64/pm-utils/sleep.d
 cp pm-utils/01qubes-sync-vms-clock $RPM_BUILD_ROOT/usr/lib64/pm-utils/sleep.d/
 cp pm-utils/51qubes-suspend-netvm $RPM_BUILD_ROOT/usr/lib64/pm-utils/sleep.d/
 cp pm-utils/52qubes-pause-vms $RPM_BUILD_ROOT/usr/lib64/pm-utils/sleep.d/
+mkdir -p $RPM_BUILD_ROOT/usr/lib/systemd/system
+cp pm-utils/qubes-suspend.service $RPM_BUILD_ROOT/usr/lib/systemd/system/
 
 ### Dracut module
 mkdir -p $RPM_BUILD_ROOT/etc/dracut.conf.d
@@ -166,6 +168,8 @@ echo 'installonlypkgs = kernel, kernel-qubes-vm' >> /etc/yum.conf
 mkdir -p /var/lib/qubes/removed-udev-scripts
 mv -f /lib/udev/rules.d/69-xorg-vmmouse.rules /var/lib/qubes/removed-udev-scripts/ 2> /dev/null || :
 
+systemctl enable qubes-suspend.service >/dev/null 2>&1
+
 %preun
 if [ "$1" = 0 ] ; then
 	# no more packages left
@@ -175,6 +179,8 @@ if [ "$1" = 0 ] ; then
 	done
 
     xdg-desktop-menu uninstall /usr/share/qubes-appmenus/qubes-dispvm.directory /usr/share/qubes-appmenus/qubes-dispvm-firefox.desktop
+
+    systemctl disable qubes-suspend.service > /dev/null 2>&1
 fi
 
 %triggerin -- PackageKit
@@ -229,6 +235,7 @@ mv -f /lib/udev/rules.d/69-xorg-vmmouse.rules /var/lib/qubes/removed-udev-script
 /usr/lib64/pm-utils/sleep.d/01qubes-sync-vms-clock
 /usr/lib64/pm-utils/sleep.d/51qubes-suspend-netvm
 /usr/lib64/pm-utils/sleep.d/52qubes-pause-vms
+/usr/lib/systemd/system/qubes-suspend.service
 # Others
 /etc/sysconfig/iptables
 /etc/sysconfig/ip6tables

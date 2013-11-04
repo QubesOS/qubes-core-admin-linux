@@ -1,0 +1,16 @@
+[Unit]
+Description=Qubes suspend hooks
+Before=sleep.target
+StopWhenUnneeded=yes
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+StandardOutput=syslog
+ExecStartPre=/usr/lib64/pm-utils/sleep.d/51qubes-suspend-netvm suspend suspend
+ExecStart=/usr/lib64/pm-utils/sleep.d/52qubes-pause-vms suspend suspend
+ExecStop=/usr/lib64/pm-utils/sleep.d/52qubes-pause-vms resume suspend
+ExecStopPost=/usr/lib64/pm-utils/sleep.d/51qubes-suspend-netvm resume suspend
+
+[Install]
+WantedBy=sleep.target
