@@ -1,7 +1,5 @@
 #!/bin/sh
 
-. "${PM_FUNCTIONS}"
-
 get_running_netvms() {
     # Actually get running VMs with PCI devices attached
     RUNNING_VMS=`xl list | tail -n +3 | cut -f 1 -d " "`
