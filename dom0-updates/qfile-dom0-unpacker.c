@@ -48,7 +48,7 @@ int main(int argc, char ** argv)
 	long long bytes_limit = DEFAULT_MAX_UPDATES_BYTES;
 
 	if (argc < 3) {
-		fprintf(stderr, "Invalid parameters, usage: %s user dir\n", argv[0]);
+		fprintf(stderr, "Invalid parameters, usage: %s user dir [-v]\n", argv[0]);
 		exit(1);
 	}
 
@@ -71,5 +71,7 @@ int main(int argc, char ** argv)
 	}
 	setuid(uid);
 	set_size_limit(bytes_limit, files_limit);
+	if (argc > 3 && strcmp(argv[3],"-v")==0)
+		set_verbose(1);
 	return do_unpack();
 }
