@@ -26,7 +26,7 @@ import sys
 import os.path
 import shutil
 
-from qubes.qubes import QubesVm,QubesHVm,QubesTemplateVm
+from qubes.qubes import QubesVm,QubesHVm
 from qubes.qubes import QubesException,QubesHost,QubesVmLabels
 from qubes.qubes import vm_files,system_path,dry_run
 
@@ -43,10 +43,6 @@ def QubesVm_get_attrs_config(self, attrs):
     attrs["appmenus_templates_dir"] = { "eval": \
         'os.path.join(self.dir_path, vm_files["appmenus_templates_subdir"]) if self.updateable else ' + \
             'self.template.appmenus_templates_dir if self.template is not None else None' }
-    return attrs
-
-def QubesTemplateVm_get_attrs_config(self, attrs):
-    attrs['appmenus_templates_dir'] = { 'eval': 'os.path.join(self.dir_path, vm_files["appmenus_templates_subdir"])' }
     return attrs
 
 def QubesVm_appmenus_create(self, verbose=False, source_template = None):
@@ -97,12 +93,11 @@ def QubesVm_post_rename(self, old_name):
 
 def QubesVm_create_on_disk(self, verbose, source_template):
 
-    if isinstance(self, QubesHVm):
+    if isinstance(self, QubesHVm) and source_template is None:
         if verbose:
             print >> sys.stderr, "--> Creating appmenus directory: {0}".format(self.appmenus_templates_dir)
         os.mkdir (self.appmenus_templates_dir)
         shutil.copy (system_path["appmenu_start_hvm_template"], self.appmenus_templates_dir)
-        return
 
     source_whitelist_filename = 'vm-' + vm_files["appmenus_whitelist"]
     if self.is_netvm():
@@ -158,5 +153,3 @@ QubesVm.hooks_post_rename.append(QubesVm_post_rename)
 QubesVm.hooks_create_on_disk.append(QubesVm_create_on_disk)
 QubesVm.hooks_clone_disk_files.append(QubesVm_clone_disk_files)
 QubesVm.hooks_remove_from_disk.append(QubesVm_remove_from_disk)
-
-QubesTemplateVm.hooks_get_attrs_config.append(QubesTemplateVm_get_attrs_config)
