@@ -102,14 +102,14 @@ def QubesVm_create_on_disk(self, verbose, source_template):
     source_whitelist_filename = 'vm-' + vm_files["appmenus_whitelist"]
     if self.is_netvm():
         source_whitelist_filename = 'netvm-' + vm_files["appmenus_whitelist"]
-    if os.path.exists(os.path.join(source_template.dir_path, source_whitelist_filename)):
+    if source_template and os.path.exists(os.path.join(source_template.dir_path, source_whitelist_filename)):
         if verbose:
             print >> sys.stderr, "--> Creating default whitelisted apps list: {0}".\
                 format(self.dir_path + '/' + vm_files["whitelisted_appmenus"])
         shutil.copy(os.path.join(source_template.dir_path, source_whitelist_filename),
                 os.path.join(self.dir_path, vm_files["whitelisted_appmenus"]))
 
-    if self.updateable:
+    if source_template and self.updateable:
         if verbose:
             print >> sys.stderr, "--> Copying the template's appmenus templates dir:\n{0} ==>\n{1}".\
                     format(source_template.appmenus_templates_dir, self.appmenus_templates_dir)
