@@ -29,6 +29,8 @@ import shutil
 from optparse import OptionParser
 from qubes.qubes import QubesVmCollection,QubesException,system_path
 from qubes.qubes import QubesHVm
+from qubes.qubes import vm_files
+import qubes.imgconverter
 
 # fields required to be present (and verified) in retrieved desktop file
 required_fields = [ "Name", "Exec" ]
@@ -45,6 +47,7 @@ fields_regexp = {
     "Comment": std_re,
     "Categories": re.compile(r"^[a-zA-Z0-9/.; -]*$"),
     "Exec": re.compile(r"^[a-zA-Z0-9()%>/\\:.= -]*$"),
+    "Icon": re.compile(r"^[a-zA-Z0-9/_.-]*$"),
 }
 
 def fallback_hvm_appmenulist():
@@ -131,7 +134,14 @@ def create_template(path, values):
     desktop_file.write("Type=Application\n")
     desktop_file.write("Terminal=false\n")
     desktop_file.write("X-Qubes-VmName=%VMNAME%\n")
-    desktop_file.write("Icon=%VMDIR%/icon.png\n")
+
+    if 'Icon' in values:
+        icon_file = os.path.splitext(os.path.split(path)[1])[0] + '.png'
+        desktop_file.write("Icon={0}\n".format(os.path.join(
+            '%VMDIR%', vm_files['appmenus_icons_subdir'], icon_file)))
+    else:
+        desktop_file.write("Icon=%VMDIR%/icon.png\n")
+
     for key in ["Name", "GenericName" ]:
         if values.has_key(key):
             desktop_file.write("{0}=%VMNAME%: {1}\n".format(key, values[key]))
@@ -215,7 +225,22 @@ def main():
                 print >> sys.stderr, "---> Updating {0}".format(appmenu_file)
             else:
                 print >> sys.stderr, "---> Creating {0}".format(appmenu_file)
-        create_template(vm.appmenus_templates_dir + '/' + appmenu_file, new_appmenus[appmenu_file])
+
+        if 'Icon' in new_appmenus[appmenu_file]:
+            # the following line is used for time comparison
+#           del new_appmenus[appmenu_file]['Icon']
+
+            try:
+                qubes.imgconverter.Image.get_xdg_icon_from_vm(vm,
+                    new_appmenus[appmenu_file]['Icon']).save(
+                        os.path.join(vm.appmenus_template_icons_dir,
+                        os.path.splitext(appmenu_file)[0] + '.png'))
+            except Exception, e:
+                print >> sys.stderr, '----> Failed to get icon for {0}: {1!s}'.format(appmenu_file, e)
+                del new_appmenus[appmenu_file]['Icon']
+
+        create_template(os.path.join(vm.appmenus_templates_dir, appmenu_file),
+            new_appmenus[appmenu_file])
 
     # Delete appmenus of removed applications
     if options.verbose:
