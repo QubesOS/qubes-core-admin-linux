@@ -142,9 +142,14 @@ def QubesVm_clone_disk_files(self, src_vm, verbose):
 def QubesVm_remove_from_disk(self):
     self.appmenus_remove()
 
+def QubesVm_appmenus_recreate(self):
+    self.appmenus_remove()
+    self.appmenus_create()
+
 # new methods
 QubesVm.appmenus_create = QubesVm_appmenus_create
 QubesVm.appmenus_remove = QubesVm_appmenus_remove
+QubesVm.appmenus_recreate = QubesVm_appmenus_recreate
 
 # hooks for existing methods
 QubesVm.hooks_get_attrs_config.append(QubesVm_get_attrs_config)
