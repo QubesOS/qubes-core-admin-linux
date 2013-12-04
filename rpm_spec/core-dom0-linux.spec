@@ -88,7 +88,7 @@ cp appmenus-scripts/qubes.SyncAppMenus $RPM_BUILD_ROOT/etc/qubes-rpc/
 cp appmenus-scripts/qubes.SyncAppMenus.policy $RPM_BUILD_ROOT/etc/qubes-rpc/policy/qubes.SyncAppMenus
 
 mkdir -p $RPM_BUILD_ROOT/usr/share/qubes-appmenus/
-cp appmenus-files/* $RPM_BUILD_ROOT/usr/share/qubes-appmenus/
+cp -r appmenus-files/* $RPM_BUILD_ROOT/usr/share/qubes-appmenus/
 
 ### Dom0 updates
 install -D dom0-updates/qubes-dom0-updates.cron $RPM_BUILD_ROOT/etc/cron.daily/qubes-dom0-updates.cron
@@ -208,6 +208,7 @@ mv -f /lib/udev/rules.d/69-xorg-vmmouse.rules /var/lib/qubes/removed-udev-script
 /usr/share/qubes-appmenus/qubes-start.desktop
 /usr/share/qubes-appmenus/qubes-templatevm.directory.template
 /usr/share/qubes-appmenus/qubes-vm.directory.template
+/usr/share/qubes-appmenus/hvm
 /usr/share/qubes/icons/*.png
 /usr/bin/qvm-sync-appmenus
 # Dom0 updates
