@@ -5,4 +5,4 @@ Terminal=false
 Name=Internet Explorer
 Comment=Browse the Web
 Categories=Network;WebBrowser;
-Exec=C:\Program Files\Internet Explorer\iexplore.exe
+Exec=C:\\Program Files\\Internet Explorer\\iexplore.exe
