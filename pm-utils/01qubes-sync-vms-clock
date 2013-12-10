@@ -1,7 +1,5 @@
 #!/bin/sh
 
-. "${PM_FUNCTIONS}"
-
 sync_qubes_vms_wallclock()
 {
     # Sync all VMs based on dom0 clock
