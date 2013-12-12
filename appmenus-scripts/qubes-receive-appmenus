@@ -44,7 +44,7 @@ fields_regexp = {
     "GenericName": std_re,
     "Comment": std_re,
     "Categories": re.compile(r"^[a-zA-Z0-9/.; -]*$"),
-    "Exec": re.compile(r"^[a-zA-Z0-9%>/\\:.= -]*$"),
+    "Exec": re.compile(r"^[a-zA-Z0-9()%>/\\:.= -]*$"),
 }
 
 def fallback_hvm_appmenulist():
