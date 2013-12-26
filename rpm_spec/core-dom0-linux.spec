@@ -153,8 +153,9 @@ fi
 %post
 
 for i in /usr/share/qubes/icons/*.png ; do
-	xdg-icon-resource install --novendor --size 48 $i
+	xdg-icon-resource install --noupdate --novendor --size 48 $i
 done
+xdg-icon-resource forceupdate
 
 xdg-desktop-menu install /usr/share/qubes-appmenus/qubes-dispvm.directory /usr/share/qubes-appmenus/qubes-dispvm-firefox.desktop
 
