@@ -29,23 +29,32 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <string.h>
+#include <assert.h>
 #include "qrexec.h"
 #include "libqrexec-utils.h"
 
-enum client_flags {
+enum client_state {
     CLIENT_INVALID = 0,	// table slot not used
-    CLIENT_CMDLINE = 1,	// waiting for cmdline from client
-    CLIENT_DATA = 2,	// waiting for data from client
-    CLIENT_DONT_READ = 4,	// don't read from the client, the other side pipe is full, or EOF (additionally marked with CLIENT_EOF)
-    CLIENT_OUTQ_FULL = 8,	// don't write to client, its stdin pipe is full
-    CLIENT_EOF = 16,	// got EOF
-    CLIENT_EXITED = 32	// only send remaining data from client and remove from list
+    CLIENT_HELLO, // waiting for client hello
+    CLIENT_CMDLINE,	// waiting for cmdline from client
+    CLIENT_RUNNING // waiting for client termination (to release vchan port)
+};
+
+enum vchan_port_state {
+    VCHAN_PORT_UNUSED = -1
 };
 
 struct _client {
-    int state;		// combination of above enum client_flags
-    struct buffer buffer;	// buffered data to client, if any
+    int state;		// enum client_state
 };
+
+struct _policy_pending {
+    pid_t pid;
+    struct service_params params;
+    int reserved_vchan_port;
+};
+
+#define VCHAN_BASE_DATA_PORT (VCHAN_BASE_PORT+1)
 
 /*
    The "clients" array is indexed by client's fd.
@@ -54,6 +63,13 @@ struct _client {
 
 #define MAX_CLIENTS MAX_FDS
 struct _client clients[MAX_CLIENTS];	// data on all qrexec_client connections
+
+struct _policy_pending policy_pending[MAX_CLIENTS];
+int policy_pending_max = -1;
+
+/* indexed with vchan port number relative to VCHAN_BASE_DATA_PORT; stores
+ * either VCHAN_PORT_* or remote domain id for used port */
+int used_vchan_ports[MAX_CLIENTS];
 
 int max_client_fd = -1;		// current max fd of all clients; so that we need not to scan all the "clients" table
 int qrexec_daemon_unix_socket_fd;	// /var/run/qubes/qrexec.xid descriptor
@@ -93,10 +109,10 @@ void sigchld_parent_handler(int UNUSED(x))
     }
 }
 
-void sigchld_handler(int x);
+static void sigchld_handler(int UNUSED(x));
 
-const char *remote_domain_name;	// guess what
-int remote_domain_xid;	// guess what
+char *remote_domain_name;	// guess what
+int remote_domain_id;
 
 void unlink_qrexec_socket()
 {
@@ -104,14 +120,15 @@ void unlink_qrexec_socket()
     char link_to_socket_name[strlen(remote_domain_name) + sizeof(socket_address)];
 
     snprintf(socket_address, sizeof(socket_address),
-            QREXEC_DAEMON_SOCKET_DIR "/qrexec.%d", remote_domain_xid);
+            QREXEC_DAEMON_SOCKET_DIR "/qrexec.%d", remote_domain_id);
     snprintf(link_to_socket_name, sizeof link_to_socket_name,
             QREXEC_DAEMON_SOCKET_DIR "/qrexec.%s", remote_domain_name);
     unlink(socket_address);
     unlink(link_to_socket_name);
 }
 
-void handle_vchan_error(const char *op) {
+void handle_vchan_error(const char *op)
+{
     fprintf(stderr, "Error while vchan %s, exiting\n", op);
     exit(1);
 }
@@ -136,6 +153,74 @@ int create_qrexec_socket(int domid, const char *domname)
 }
 
 #define MAX_STARTUP_TIME_DEFAULT 60
+
+static void incompatible_protocol_error_message(
+        const char *domain_name, int remote_version)
+{
+    char text[1024];
+    int ret;
+    struct stat buf;
+    ret=stat("/usr/bin/kdialog", &buf);
+#define KDIALOG_CMD "kdialog --title 'Qrexec daemon' --warningyesno "
+#define ZENITY_CMD "zenity --title 'Qrexec daemon' --question --text "
+    snprintf(text, sizeof(text),
+            "%s"
+            "'Domain %s uses incompatible qrexec protocol (%d instead of %d). "
+            "You need to update either dom0 or VM packages.\n"
+            "To access this VM console do not close this error message and call:\n"
+            "sudo xl console vmname'",
+            ret==0 ? KDIALOG_CMD : ZENITY_CMD,
+            domain_name, remote_version, QREXEC_PROTOCOL_VERSION);
+#undef KDIALOG_CMD
+#undef ZENITY_CMD
+    system(text);
+}
+
+int handle_agent_hello(libvchan_t *ctrl, const char *domain_name)
+{
+    struct msg_header hdr;
+    struct peer_info info;
+
+    if (libvchan_recv(ctrl, &hdr, sizeof(hdr)) < sizeof(hdr)) {
+        fprintf(stderr, "Failed to read agent HELLO hdr\n");
+        return -1;
+    }
+
+    if (hdr.type != MSG_HELLO || hdr.len != sizeof(info)) {
+        fprintf(stderr, "Invalid HELLO packet received: type %d, len %d\n", hdr.type, hdr.len);
+        return -1;
+    }
+
+    if (libvchan_recv(ctrl, &info, sizeof(info)) < sizeof(info)) {
+        fprintf(stderr, "Failed to read agent HELLO body\n");
+        return -1;
+    }
+
+    if (info.version != QREXEC_PROTOCOL_VERSION) {
+        fprintf(stderr, "Incompatible agent protocol version (remote %d, local %d)\n", info.version, QREXEC_PROTOCOL_VERSION);
+        incompatible_protocol_error_message(domain_name, info.version);
+        return -1;
+    }
+
+    /* send own HELLO */
+    /* those messages are the same as received from agent, but set it again for
+     * readability */
+    hdr.type = MSG_HELLO;
+    hdr.len = sizeof(info);
+    info.version = QREXEC_PROTOCOL_VERSION;
+
+    if (libvchan_send(ctrl, &hdr, sizeof(hdr)) < sizeof(hdr)) {
+        fprintf(stderr, "Failed to send HELLO hdr to agent\n");
+        return -1;
+    }
+
+    if (libvchan_send(ctrl, &info, sizeof(info)) < sizeof(info)) {
+        fprintf(stderr, "Failed to send HELLO hdr to agent\n");
+        return -1;
+    }
+
+    return 0;
+}
 
 /* do the preparatory tasks, needed before entering the main event loop */
 void init(int xid)
@@ -204,14 +289,15 @@ void init(int xid)
         exit(1);
     }
 
-    vchan = libvchan_client_init(xid, REXEC_PORT);
+    vchan = libvchan_client_init(xid, VCHAN_BASE_PORT);
     if (!vchan) {
         perror("cannot connect to qrexec agent");
         exit(1);
     }
-    /* wait for connection */
-    while (!libvchan_is_open(vchan))
-        libvchan_wait(vchan);
+    if (handle_agent_hello(vchan, remote_domain_name) < 0) {
+        exit(1);
+    }
+
     if (setgid(getgid()) < 0) {
         perror("setgid()");
         exit(1);
@@ -220,6 +306,14 @@ void init(int xid)
         perror("setuid()");
         exit(1);
     }
+
+    /* initialize clients state arrays */
+    for (i = 0; i < MAX_CLIENTS; i++) {
+        clients[i].state = CLIENT_INVALID;
+        policy_pending[i].pid = 0;
+        used_vchan_ports[i] = VCHAN_PORT_UNUSED;
+    }
+
     /* When running as root, make the socket accessible; perms on /var/run/qubes still apply */
     umask(0);
     qrexec_daemon_unix_socket_fd =
@@ -231,58 +325,126 @@ void init(int xid)
     kill(getppid(), SIGUSR1);   // let the parent know we are ready
 }
 
-void handle_new_client(void)
+static int send_client_hello(int fd)
+{
+    struct msg_header hdr;
+    struct peer_info info;
+
+    hdr.type = MSG_HELLO;
+    hdr.len = sizeof(info);
+    info.version = QREXEC_PROTOCOL_VERSION;
+
+    if (!write_all(fd, &hdr, sizeof(hdr))) {
+        fprintf(stderr, "Failed to send MSG_HELLO hdr to client %d\n", fd);
+        return -1;
+    }
+    if (!write_all(fd, &info, sizeof(info))) {
+        fprintf(stderr, "Failed to send MSG_HELLO to client %d\n", fd);
+        return -1;
+    }
+    return 0;
+}
+
+static int allocate_vchan_port(int new_state)
+{
+    int i;
+
+    for (i = 0; i < MAX_CLIENTS; i++) {
+        if (used_vchan_ports[i] == VCHAN_PORT_UNUSED) {
+            used_vchan_ports[i] = new_state;
+            return VCHAN_BASE_DATA_PORT+i;
+        }
+    }
+    return -1;
+}
+
+static void release_vchan_port(int port, int expected_remote_id)
+{
+    /* release only if was reserved for connection to given domain */
+    if (used_vchan_ports[port-VCHAN_BASE_DATA_PORT] == expected_remote_id) {
+        used_vchan_ports[port-VCHAN_BASE_DATA_PORT] = VCHAN_PORT_UNUSED;
+    }
+}
+
+static void handle_new_client()
 {
     int fd = do_accept(qrexec_daemon_unix_socket_fd);
     if (fd >= MAX_CLIENTS) {
         fprintf(stderr, "too many clients ?\n");
         exit(1);
     }
-    clients[fd].state = CLIENT_CMDLINE;
-    buffer_init(&clients[fd].buffer);
+
+    if (send_client_hello(fd) < 0) {
+        close(fd);
+        clients[fd].state = CLIENT_INVALID;
+        return;
+    }
+
+    clients[fd].state = CLIENT_HELLO;
     if (fd > max_client_fd)
         max_client_fd = fd;
 }
 
-void terminate_client_and_flush_data(int fd)
+static void terminate_client(int fd)
 {
-    int i;
-    struct server_header s_hdr;
-
-    if (!(clients[fd].state & CLIENT_EXITED) && fork_and_flush_stdin(fd, &clients[fd].buffer))
-        children_count++;
-    close(fd);
     clients[fd].state = CLIENT_INVALID;
-    buffer_free(&clients[fd].buffer);
-    if (max_client_fd == fd) {
-        for (i = fd; i >= 0 && clients[i].state == CLIENT_INVALID;
-                i--);
-        max_client_fd = i;
-    }
-    s_hdr.type = MSG_SERVER_TO_AGENT_CLIENT_END;
-    s_hdr.client_id = fd;
-    s_hdr.len = 0;
-    if (libvchan_send(vchan, &s_hdr, sizeof(s_hdr)) < 0)
-        handle_vchan_error("send");
+    close(fd);
 }
 
-int get_cmdline_body_from_client_and_pass_to_agent(int fd, struct server_header
-        *s_hdr)
+static int handle_cmdline_body_from_client(int fd, struct msg_header *hdr)
 {
-    int len = s_hdr->len;
+    struct exec_params params;
+    int len = hdr->len-sizeof(params);
     char buf[len];
     int use_default_user = 0;
-    if (!read_all(fd, buf, len)) {
-        terminate_client_and_flush_data(fd);
+
+    if (!read_all(fd, &params, sizeof(params))) {
+        terminate_client(fd);
         return 0;
     }
+    if (!read_all(fd, buf, len)) {
+        terminate_client(fd);
+        return 0;
+    }
+
+    if (!params.connect_port) {
+        struct exec_params client_params;
+        /* allocate port and send it to the client */
+        params.connect_port = allocate_vchan_port(params.connect_domain);
+        if (params.connect_port <= 0) {
+            fprintf(stderr, "Failed to allocate new vchan port, too many clients?\n");
+            terminate_client(fd);
+            return 0;
+        }
+        client_params.connect_port = params.connect_port;
+        client_params.connect_domain = remote_domain_id;
+        hdr->len = sizeof(client_params);
+        if (!write_all(fd, hdr, sizeof(*hdr))) {
+            terminate_client(fd);
+            release_vchan_port(params.connect_port, params.connect_domain);
+            return 0;
+        }
+        if (!write_all(fd, &client_params, sizeof(client_params))) {
+            terminate_client(fd);
+            release_vchan_port(params.connect_port, params.connect_domain);
+            return 0;
+        }
+        /* restore original len value */
+        hdr->len = len+sizeof(params);
+    } else {
+        assert(params.connect_port >= VCHAN_BASE_DATA_PORT);
+        assert(params.connect_port < VCHAN_BASE_DATA_PORT+MAX_CLIENTS);
+    }
+
     if (!strncmp(buf, default_user_keyword, default_user_keyword_len_without_colon+1)) {
         use_default_user = 1;
-        s_hdr->len -= default_user_keyword_len_without_colon; // -1 because of colon
-        s_hdr->len += strlen(default_user);
+        hdr->len -= default_user_keyword_len_without_colon;
+        hdr->len += strlen(default_user);
     }
-    if (libvchan_send(vchan, s_hdr, sizeof(*s_hdr)) < 0)
+    if (libvchan_send(vchan, hdr, sizeof(*hdr)) < 0)
         handle_vchan_error("send");
+    if (libvchan_send(vchan, &params, sizeof(params)) < 0)
+        handle_vchan_error("send params");
     if (use_default_user) {
         if (libvchan_send(vchan, default_user, strlen(default_user)) < 0)
             handle_vchan_error("send default_user");
@@ -295,149 +457,82 @@ int get_cmdline_body_from_client_and_pass_to_agent(int fd, struct server_header
     return 1;
 }
 
-void handle_cmdline_message_from_client(int fd)
+static void handle_cmdline_message_from_client(int fd)
 {
-    struct client_header hdr;
-    struct server_header s_hdr;
+    struct msg_header hdr;
     if (!read_all(fd, &hdr, sizeof hdr)) {
-        terminate_client_and_flush_data(fd);
+        terminate_client(fd);
         return;
     }
     switch (hdr.type) {
-        case MSG_CLIENT_TO_SERVER_EXEC_CMDLINE:
-            s_hdr.type = MSG_SERVER_TO_AGENT_EXEC_CMDLINE;
-            break;
-        case MSG_CLIENT_TO_SERVER_JUST_EXEC:
-            s_hdr.type = MSG_SERVER_TO_AGENT_JUST_EXEC;
-            break;
-        case MSG_CLIENT_TO_SERVER_CONNECT_EXISTING:
-            s_hdr.type = MSG_SERVER_TO_AGENT_CONNECT_EXISTING;
+        case MSG_EXEC_CMDLINE:
+        case MSG_JUST_EXEC:
+        case MSG_SERVICE_CONNECT:
             break;
         default:
-            terminate_client_and_flush_data(fd);
+            terminate_client(fd);
             return;
     }
 
-    s_hdr.client_id = fd;
-    s_hdr.len = hdr.len;
-    if (!get_cmdline_body_from_client_and_pass_to_agent(fd, &s_hdr))
+    if (!handle_cmdline_body_from_client(fd, &hdr))
         // client disconnected while sending cmdline, above call already
         // cleaned up client info
         return;
-    clients[fd].state = CLIENT_DATA;
-    set_nonblock(fd);	// so that we can detect full queue without blocking
-    if (hdr.type == MSG_CLIENT_TO_SERVER_JUST_EXEC)
-        terminate_client_and_flush_data(fd);
+    clients[fd].state = CLIENT_RUNNING;
+}
 
+static void handle_client_hello(int fd)
+{
+    struct msg_header hdr;
+    struct peer_info info;
+
+    if (!read_all(fd, &hdr, sizeof hdr)) {
+        terminate_client(fd);
+        return;
+    }
+    if (hdr.type != MSG_HELLO || hdr.len != sizeof(info)) {
+        fprintf(stderr, "Invalid HELLO packet received from client %d: "
+                "type %d, len %d\n", fd, hdr.type, hdr.len);
+        terminate_client(fd);
+        return;
+    }
+    if (!read_all(fd, &info, sizeof info)) {
+        terminate_client(fd);
+        return;
+    }
+    if (info.version != QREXEC_PROTOCOL_VERSION) {
+        fprintf(stderr, "Incompatible client protocol version (remote %d, local %d)\n", info.version, QREXEC_PROTOCOL_VERSION);
+        terminate_client(fd);
+        return;
+    }
+    clients[fd].state = CLIENT_CMDLINE;
 }
 
 /* handle data received from one of qrexec_client processes */
-void handle_message_from_client(int fd)
+static void handle_message_from_client(int fd)
 {
-    struct server_header s_hdr;
     char buf[MAX_DATA_CHUNK];
-    unsigned int len;
-    int ret;
 
-    if (clients[fd].state == CLIENT_CMDLINE) {
-        handle_cmdline_message_from_client(fd);
-        return;
-    }
-    // We have already passed cmdline from client. 
-    // Now the client passes us raw data from its stdin.
-    len = libvchan_buffer_space(vchan);
-    if (len <= sizeof s_hdr)
-        return;
-    /* Read at most the amount of data that we have room for in vchan */
-    ret = read(fd, buf, len - sizeof(s_hdr));
-    if (ret < 0) {
-        perror("read client");
-        terminate_client_and_flush_data(fd);
-        return;
-    }
-    s_hdr.client_id = fd;
-    s_hdr.len = ret;
-    s_hdr.type = MSG_SERVER_TO_AGENT_INPUT;
-
-    if (libvchan_send(vchan, &s_hdr, sizeof(s_hdr)) < 0)
-        handle_vchan_error("send hdr");
-    if (libvchan_send(vchan, buf, ret) < 0)
-        handle_vchan_error("send buf");
-    if (ret == 0)		// EOF - so don't select() on this client
-        clients[fd].state |= CLIENT_DONT_READ | CLIENT_EOF;
-    if (clients[fd].state & CLIENT_EXITED)
-        //client already exited and all data sent - cleanup now
-        terminate_client_and_flush_data(fd);
-}
-
-/*
- * Called when there is buffered data for this client, and select() reports
- * that client's pipe is writable; so we should be able to flush some
- * buffered data.
- */
-void write_buffered_data_to_client(int client_id)
-{
-    switch (flush_client_data
-            (vchan, client_id, client_id, &clients[client_id].buffer)) {
-        case WRITE_STDIN_OK:	// no more buffered data
-            clients[client_id].state &= ~CLIENT_OUTQ_FULL;
-            break;
-        case WRITE_STDIN_ERROR:
-            // do not write to this fd anymore
-            clients[client_id].state |= CLIENT_EXITED;
-            if (clients[client_id].state & CLIENT_EOF)
-                terminate_client_and_flush_data(client_id);
-            else
-                // client will be removed when read returns 0 (EOF)
-                // clear CLIENT_OUTQ_FULL flag to no select on this fd anymore
-                clients[client_id].state &= ~CLIENT_OUTQ_FULL;
-            break;
-        case WRITE_STDIN_BUFFERED:	// no room for all data, don't clear CLIENT_OUTQ_FULL flag
-            break;
+    switch (clients[fd].state) {
+        case CLIENT_HELLO:
+            handle_client_hello(fd);
+            return;
+        case CLIENT_CMDLINE:
+            handle_cmdline_message_from_client(fd);
+            return;
+        case CLIENT_RUNNING:
+            // expected EOF
+            if (read(fd, buf, sizeof(buf)) != 0) {
+                fprintf(stderr, "Unexpected data received from client %d\n", fd);
+            }
+            terminate_client(fd);
+            return;
         default:
-            fprintf(stderr, "unknown flush_client_data?\n");
+            fprintf(stderr, "Invalid client state %d\n", clients[fd].state);
             exit(1);
     }
 }
 
-/*
- * The header (hdr argument) is already built. Just read the raw data from
- * the packet, and pass it along with the header to the client.
- */
-void get_packet_data_from_agent_and_pass_to_client(int client_id, struct client_header
-        *hdr)
-{
-    int len = hdr->len;
-    char buf[sizeof(*hdr) + len];
-
-    /* make both the header and data be consecutive in the buffer */
-    memcpy(buf, hdr, sizeof(*hdr));
-    if (libvchan_recv(vchan, buf + sizeof(*hdr), len) < 0)
-        handle_vchan_error("recv buf");
-    if (clients[client_id].state & CLIENT_EXITED)
-        // ignore data for no longer running client
-        return;
-
-    switch (write_stdin
-            (vchan, client_id, client_id, buf, len + sizeof(*hdr),
-             &clients[client_id].buffer)) {
-        case WRITE_STDIN_OK:
-            break;
-        case WRITE_STDIN_BUFFERED:	// some data have been buffered
-            clients[client_id].state |= CLIENT_OUTQ_FULL;
-            break;
-        case WRITE_STDIN_ERROR:
-            // do not write to this fd anymore
-            clients[client_id].state |= CLIENT_EXITED;
-            // if already got EOF, remove client
-            if (clients[client_id].state & CLIENT_EOF)
-                terminate_client_and_flush_data(client_id);
-            break;
-        default:
-            fprintf(stderr, "unknown write_stdin?\n");
-            exit(1);
-    }
-}
 
 /*
  * The signal handler executes asynchronously; therefore all it should do is
@@ -447,42 +542,72 @@ void get_packet_data_from_agent_and_pass_to_client(int client_id, struct client_
 
 int child_exited;
 
-void sigchld_handler(int UNUSED(x))
+static void sigchld_handler(int UNUSED(x))
 {
     child_exited = 1;
     signal(SIGCHLD, sigchld_handler);
 }
 
-/* clean zombies, update children_count */
-void reap_children(void)
-{
-    int status;
-    while (waitpid(-1, &status, WNOHANG) > 0)
-        children_count--;
-    child_exited = 0;
-}
+static void send_service_refused(libvchan_t *vchan, struct service_params *params) {
+    struct msg_header hdr;
 
-/* too many children - wait for one of them to terminate */
-void wait_for_child(void)
-{
-    int status;
-    waitpid(-1, &status, 0);
-    children_count--;
-}
+    hdr.type = MSG_SERVICE_REFUSED;
+    hdr.len = sizeof(*params);
 
-#define MAX_CHILDREN 10
-void check_children_count_and_wait_if_too_many(void)
-{
-    if (children_count > MAX_CHILDREN) {
-        fprintf(stderr,
-                "max number of children reached, waiting for child exit...\n");
-        wait_for_child();
-        fprintf(stderr, "now children_count=%d, continuing.\n",
-                children_count);
+    if (libvchan_send(vchan, &hdr, sizeof(hdr)) < sizeof(hdr)) {
+        fprintf(stderr, "Failed to send MSG_SERVICE_REFUSED hdr to agent\n");
+        exit(1);
+    }
+
+    if (libvchan_send(vchan, params, sizeof(*params)) < sizeof(*params)) {
+        fprintf(stderr, "Failed to send MSG_SERVICE_REFUSED to agent\n");
+        exit(1);
     }
 }
 
-void sanitize_name(char * untrusted_s_signed)
+/* clean zombies, check for denied service calls */
+static void reap_children()
+{
+    int status;
+    int i;
+
+    pid_t pid;
+    while ((pid=waitpid(-1, &status, WNOHANG)) > 0) {
+        /* FIXME: perhaps keep max(policy_pending) somewhere to optimize this
+         * search */
+        for (i = 0; i <= policy_pending_max; i++) {
+            if (policy_pending[i].pid == pid) {
+                status = WEXITSTATUS(status);
+                if (status != 0) {
+                    send_service_refused(vchan, &policy_pending[i].params);
+                }
+                /* in case of allowed calls, we will do the rest in
+                 * MSG_SERVICE_CONNECT from client handler */
+                policy_pending[i].pid = 0;
+                while (policy_pending_max > 0 &&
+                        policy_pending[policy_pending_max].pid > 0)
+                    policy_pending_max--;
+                break;
+            }
+        }
+    }
+    child_exited = 0;
+}
+
+static int find_policy_pending_slot() {
+    int i;
+
+    for (i = 0; i < MAX_CLIENTS; i++) {
+        if (policy_pending[i].pid == 0) {
+            if (i > policy_pending_max)
+                policy_pending_max = i;
+            return i;
+        }
+    }
+    return -1;
+}
+
+static void sanitize_name(char * untrusted_s_signed)
 {
     unsigned char * untrusted_s;
     for (untrusted_s=(unsigned char*)untrusted_s_signed; *untrusted_s; untrusted_s++) {
@@ -498,145 +623,128 @@ void sanitize_name(char * untrusted_s_signed)
     }
 }
 
-
-
 #define ENSURE_NULL_TERMINATED(x) x[sizeof(x)-1] = 0
 
 /*
  * Called when agent sends a message asking to execute a predefined command.
  */
 
-void handle_execute_predefined_command(void)
+static void handle_execute_service(void)
 {
     int i;
-    struct trigger_connect_params untrusted_params, params;
+    int policy_pending_slot;
+    pid_t pid;
+    struct trigger_service_params untrusted_params, params;
+    char remote_domain_id_str[10];
 
-    check_children_count_and_wait_if_too_many();
-    if (libvchan_recv(vchan, &untrusted_params, sizeof(params)) < 0)
+    if (libvchan_recv(vchan, &untrusted_params, sizeof(untrusted_params)) < 0)
         handle_vchan_error("recv params");
 
     /* sanitize start */
-    ENSURE_NULL_TERMINATED(untrusted_params.exec_index);
-    ENSURE_NULL_TERMINATED(untrusted_params.target_vmname);
-    ENSURE_NULL_TERMINATED(untrusted_params.process_fds.ident);
-    sanitize_name(untrusted_params.exec_index);
-    sanitize_name(untrusted_params.target_vmname);
-    sanitize_name(untrusted_params.process_fds.ident);
+    ENSURE_NULL_TERMINATED(untrusted_params.service_name);
+    ENSURE_NULL_TERMINATED(untrusted_params.target_domain);
+    ENSURE_NULL_TERMINATED(untrusted_params.request_id.ident);
+    sanitize_name(untrusted_params.service_name);
+    sanitize_name(untrusted_params.target_domain);
+    sanitize_name(untrusted_params.request_id.ident);
     params = untrusted_params;
     /* sanitize end */
 
-    switch (fork()) {
+    policy_pending_slot = find_policy_pending_slot();
+    if (policy_pending_slot < 0) {
+        fprintf(stderr, "Service request denied, too many pending requests\n");
+        send_service_refused(vchan, &untrusted_params.request_id);
+        return;
+    }
+
+    switch (pid=fork()) {
         case -1:
             perror("fork");
             exit(1);
         case 0:
             break;
         default:
-            children_count++;
+            policy_pending[policy_pending_slot].pid = pid;
+            policy_pending[policy_pending_slot].params = untrusted_params.request_id;
             return;
     }
     for (i = 3; i < MAX_FDS; i++)
         close(i);
     signal(SIGCHLD, SIG_DFL);
     signal(SIGPIPE, SIG_DFL);
+    snprintf(remote_domain_id_str, sizeof(remote_domain_id_str), "%d",
+            remote_domain_id);
     execl("/usr/lib/qubes/qrexec-policy", "qrexec-policy",
-            remote_domain_name, params.target_vmname,
-            params.exec_index, params.process_fds.ident, NULL);
+            remote_domain_id_str, remote_domain_name, params.target_domain,
+            params.service_name, params.request_id.ident, NULL);
     perror("execl");
     _exit(1);
 }
 
-void check_client_id_in_range(unsigned int untrusted_client_id)
+static void handle_connection_terminated()
 {
-    if (untrusted_client_id >= MAX_CLIENTS) {
-        fprintf(stderr, "from agent: client_id=%d\n",
-                untrusted_client_id);
+    struct exec_params untrusted_params, params;
+
+    if (libvchan_recv(vchan, &untrusted_params, sizeof(untrusted_params)) < 0)
+        handle_vchan_error("recv params");
+    /* sanitize start */
+    if (untrusted_params.connect_port < VCHAN_BASE_DATA_PORT ||
+            untrusted_params.connect_port >= VCHAN_BASE_DATA_PORT+MAX_CLIENTS) {
+        fprintf(stderr, "Invalid port in MSG_CONNECTION_TERMINATED (%d)\n",
+                untrusted_params.connect_port);
         exit(1);
     }
+    /* untrusted_params.connect_domain even if invalid will not harm - in worst
+     * case the port will not be released */
+    params = untrusted_params;
+    /* sanitize end */
+    release_vchan_port(params.connect_port, params.connect_domain);
 }
 
-
-void sanitize_message_from_agent(struct server_header *untrusted_header)
+static void sanitize_message_from_agent(struct msg_header *untrusted_header)
 {
     switch (untrusted_header->type) {
-        case MSG_AGENT_TO_SERVER_TRIGGER_CONNECT_EXISTING:
-            break;
-        case MSG_AGENT_TO_SERVER_STDOUT:
-        case MSG_AGENT_TO_SERVER_STDERR:
-        case MSG_AGENT_TO_SERVER_EXIT_CODE:
-            check_client_id_in_range(untrusted_header->client_id);
-            if (untrusted_header->len > MAX_DATA_CHUNK) {
-                fprintf(stderr, "agent feeded %d of data bytes?\n",
-                        untrusted_header->len);
+        case MSG_TRIGGER_SERVICE:
+            if (untrusted_header->len != sizeof(struct trigger_service_params)) {
+                fprintf(stderr, "agent sent invalid MSG_TRIGGER_SERVICE packet\n");
                 exit(1);
             }
             break;
-
-        case MSG_XOFF:
-        case MSG_XON:
-            check_client_id_in_range(untrusted_header->client_id);
+        case MSG_CONNECTION_TERMINATED:
+            if (untrusted_header->len != sizeof(struct exec_params)) {
+                fprintf(stderr, "agent sent invalid MSG_CONNECTION_TERMINATED packet\n");
+                exit(1);
+            }
             break;
         default:
-            fprintf(stderr, "unknown mesage type %d from agent\n",
+            fprintf(stderr, "unknown mesage type 0x%x from agent\n",
                     untrusted_header->type);
             exit(1);
     }
 }
 
-void handle_message_from_agent(void)
+static void handle_message_from_agent(void)
 {
-    struct client_header hdr;
-    struct server_header s_hdr, untrusted_s_hdr;
+    struct msg_header hdr, untrusted_hdr;
 
-    if (libvchan_recv(vchan, &untrusted_s_hdr, sizeof(untrusted_s_hdr)) < 0)
+    if (libvchan_recv(vchan, &untrusted_hdr, sizeof(untrusted_hdr)) < 0)
         handle_vchan_error("recv hdr");
     /* sanitize start */
-    sanitize_message_from_agent(&untrusted_s_hdr);
-    s_hdr = untrusted_s_hdr;
+    sanitize_message_from_agent(&untrusted_hdr);
+    hdr = untrusted_hdr;
     /* sanitize end */
 
-    if (s_hdr.type == MSG_AGENT_TO_SERVER_TRIGGER_CONNECT_EXISTING) {
-        handle_execute_predefined_command();
-        return;
-    }
+    //      fprintf(stderr, "got %x %x %x\n", hdr.type, hdr.client_id,
+    //              hdr.len);
 
-    if (s_hdr.type == MSG_XOFF) {
-        clients[s_hdr.client_id].state |= CLIENT_DONT_READ;
-        return;
+    switch (hdr.type) {
+        case MSG_TRIGGER_SERVICE:
+            handle_execute_service();
+            return;
+        case MSG_CONNECTION_TERMINATED:
+            handle_connection_terminated();
+            return;
     }
-
-    if (s_hdr.type == MSG_XON) {
-        clients[s_hdr.client_id].state &= ~CLIENT_DONT_READ;
-        return;
-    }
-
-    switch (s_hdr.type) {
-        case MSG_AGENT_TO_SERVER_STDOUT:
-            hdr.type = MSG_SERVER_TO_CLIENT_STDOUT;
-            break;
-        case MSG_AGENT_TO_SERVER_STDERR:
-            hdr.type = MSG_SERVER_TO_CLIENT_STDERR;
-            break;
-        case MSG_AGENT_TO_SERVER_EXIT_CODE:
-            hdr.type = MSG_SERVER_TO_CLIENT_EXIT_CODE;
-            break;
-        default:		/* cannot happen, already sanitized */
-            fprintf(stderr, "from agent: type=%d\n", s_hdr.type);
-            exit(1);
-    }
-    hdr.len = s_hdr.len;
-    if (clients[s_hdr.client_id].state == CLIENT_INVALID) {
-        // benefit of doubt - maybe client exited earlier
-        // just eat the packet data and continue
-        char buf[MAX_DATA_CHUNK];
-        if (libvchan_recv(vchan, buf, s_hdr.len) < 0)
-            handle_vchan_error("recv buf");
-        return;
-    }
-    get_packet_data_from_agent_and_pass_to_client(s_hdr.client_id,
-            &hdr);
-    if (s_hdr.type == MSG_AGENT_TO_SERVER_EXIT_CODE)
-        terminate_client_and_flush_data(s_hdr.client_id);
 }
 
 /*
@@ -645,21 +753,15 @@ void handle_message_from_agent(void)
  * to (because its pipe is full) to write_fdset. Return the highest used file
  * descriptor number, needed for the first select() parameter.
  */
-int fill_fdsets_for_select(fd_set * read_fdset, fd_set * write_fdset)
+static int fill_fdsets_for_select(fd_set * read_fdset, fd_set * write_fdset)
 {
     int i;
     int max = -1;
     FD_ZERO(read_fdset);
     FD_ZERO(write_fdset);
     for (i = 0; i <= max_client_fd; i++) {
-        if (clients[i].state != CLIENT_INVALID
-                && !(clients[i].state & CLIENT_DONT_READ)) {
+        if (clients[i].state != CLIENT_INVALID) {
             FD_SET(i, read_fdset);
-            max = i;
-        }
-        if (clients[i].state != CLIENT_INVALID
-                && clients[i].state & CLIENT_OUTQ_FULL) {
-            FD_SET(i, write_fdset);
             max = i;
         }
     }
@@ -690,25 +792,25 @@ int main(int argc, char **argv)
         fprintf(stderr, "usage: %s [-q] domainid domain-name [default user]\n", argv[0]);
         exit(1);
     }
+    remote_domain_id = atoi(argv[optind]);
     remote_domain_name = argv[optind+1];
     if (argc - optind >= 3)
         default_user = argv[optind+2];
-    remote_domain_xid = atoi(argv[optind]);
-    init(remote_domain_xid);
+    init(remote_domain_id);
     sigemptyset(&chld_set);
     sigaddset(&chld_set, SIGCHLD);
+    signal(SIGCHLD, sigchld_handler);
     /*
-       The main event loop. Waits for one of the following events:
-       - message from client
-       - message from agent
-       - new client
-       - child exited
+     * The main event loop. Waits for one of the following events:
+     * - message from client
+     * - message from agent
+     * - new client
+     * - child exited
      */
     for (;;) {
         max = fill_fdsets_for_select(&read_fdset, &write_fdset);
-        if (libvchan_buffer_space(vchan) <=
-            sizeof(struct server_header))
-            FD_ZERO(&read_fdset);   // vchan full - don't read from clients
+        if (libvchan_buffer_space(vchan) <= sizeof(struct msg_header))
+            FD_ZERO(&read_fdset);	// vchan full - don't read from clients
 
         sigprocmask(SIG_BLOCK, &chld_set, NULL);
         if (child_exited)
@@ -726,11 +828,7 @@ int main(int argc, char **argv)
             if (clients[i].state != CLIENT_INVALID
                 && FD_ISSET(i, &read_fdset))
                 handle_message_from_client(i);
-
-        for (i = 0; i <= max_client_fd; i++)
-            if (clients[i].state != CLIENT_INVALID
-                && FD_ISSET(i, &write_fdset))
-                write_buffered_data_to_client(i);
-
     }
 }
+
+// vim:ts=4:sw=4:et:

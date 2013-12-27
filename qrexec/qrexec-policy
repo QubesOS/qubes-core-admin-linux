@@ -12,6 +12,7 @@ POLICY_FILE_DIR="/etc/qubes-rpc/policy"
 # XXX: Backward compatibility, to be removed soon
 DEPRECATED_POLICY_FILE_DIR="/etc/qubes_rpc/policy"
 QREXEC_CLIENT="/usr/lib/qubes/qrexec-client"
+QUBES_RPC_MULTIPLEXER_PATH="/usr/lib/qubes/qubes-rpc-multiplexer"
 
 class UserChoice:
     ALLOW=0
@@ -46,13 +47,13 @@ def line_to_dict(line):
     return dict
 
 
-def read_policy_file(exec_index):
-    policy_file=POLICY_FILE_DIR+"/"+exec_index
+def read_policy_file(service_name):
+    policy_file=POLICY_FILE_DIR+"/"+service_name
     if not os.path.isfile(policy_file):
-        policy_file=DEPRECATED_POLICY_FILE_DIR+"/"+exec_index
+        policy_file=DEPRECATED_POLICY_FILE_DIR+"/"+service_name
         if not os.path.isfile(policy_file):
             return None
-        print >>sys.stderr, "RPC service '%s' uses deprecated policy location, please move to %s" % (exec_index, POLICY_FILE_DIR)
+        print >>sys.stderr, "RPC service '%s' uses deprecated policy location, please move to %s" % (service_name, POLICY_FILE_DIR)
     policy_list=list()
     f = open(policy_file)
     fcntl.flock(f, fcntl.LOCK_SH)
@@ -82,6 +83,8 @@ def find_policy(policy, domain, target):
     return get_default_policy()
 
 def is_domain_running(target):
+    if target == "dom0":
+        return True
     libvirt_dom = vmm.libvirt_conn.lookupByName(target)
     if libvirt_dom:
         return libvirt_dom.isActive()
@@ -109,30 +112,33 @@ def spawn_target_if_necessary(target):
     subprocess.call(["qvm-run", "-a", "-q", target, "true"], stdin=null, stdout=null)
     null.close()
 
-def do_execute(domain, target, user, exec_index, process_ident):
-    if target == "dom0":
-        cmd="/usr/lib/qubes/qubes-rpc-multiplexer "+exec_index + " " + domain
-    elif target == "$dispvm":
-        cmd = "/usr/lib/qubes/qfile-daemon-dvm " + exec_index + " " + domain + " " +user
+def do_execute(domain, target, user, service_name, process_ident):
+    if target == "$dispvm":
+        cmd = "/usr/lib/qubes/qfile-daemon-dvm " + service_name + " " + domain + " " +user
+        os.execl(QREXEC_CLIENT, "qrexec-client",
+                "-d", "dom0", "-c", process_ident, cmd)
     else:
         # see the previous commit why "qvm-run -a" is broken and dangerous
         # also, dangling "xl" would keep stderr open and may prevent closing connection
         spawn_target_if_necessary(target)
-        cmd= QREXEC_CLIENT + " -d " + target + " '" + user
-        cmd+=":QUBESRPC "+ exec_index + " " + domain + "'"
-    # stderr should be logged in source/target VM
-    null = open(os.devnull, 'w')
-    os.dup2(null.fileno(), 2)
-    os.execl(QREXEC_CLIENT, "qrexec-client", "-d", domain, "-l", cmd, "-c", process_ident)
+        if target == "dom0":
+            cmd = QUBES_RPC_MULTIPLEXER_PATH + " " + service_name + " " + domain
+        else:
+            cmd = user + ":QUBESRPC "+ service_name + " " + domain
+        # stderr should be logged in source/target VM
+        null = open(os.devnull, 'w')
+        os.dup2(null.fileno(), 2)
+        os.execl(QREXEC_CLIENT, "qrexec-client",
+                "-d", target, "-c", process_ident, cmd)
 
-def confirm_execution(domain, target, exec_index):
-    text = "Do you allow domain \"" +domain + "\" to execute " + exec_index
+def confirm_execution(domain, target, service_name):
+    text = "Do you allow domain \"" +domain + "\" to execute " + service_name
     text+= " operation on the domain \"" + target +"\"?<br>"
     text+= " \"Yes to All\" option will automatically allow this operation in the future."
     return qubes.guihelpers.ask(text, yestoall=True)
 
-def add_always_allow(domain, target, exec_index, options):
-    policy_file=POLICY_FILE_DIR+"/"+exec_index
+def add_always_allow(domain, target, service_name, options):
+    policy_file=POLICY_FILE_DIR+"/"+service_name
     if not os.path.isfile(policy_file):
         return None
     f = open(policy_file, 'r+')
@@ -145,13 +151,13 @@ def add_always_allow(domain, target, exec_index, options):
     f.write("".join(lines))
     f.close()
 
-def policy_editor(domain, target, exec_index):
-    text = "No policy definition found for " + exec_index + " action. "
-    text+= "Please create a policy file in Dom0 in " + POLICY_FILE_DIR + "/" + exec_index
+def policy_editor(domain, target, service_name):
+    text = "No policy definition found for " + service_name + " action. "
+    text+= "Please create a policy file in Dom0 in " + POLICY_FILE_DIR + "/" + service_name
     subprocess.call(["/usr/bin/zenity", "--info", "--text", text])
 
 def main():
-    usage = "usage: %prog [options] <src-domain> <target-domain> <service> <process-ident>"
+    usage = "usage: %prog [options] <src-domain-id> <src-domain> <target-domain> <service> <process-ident>"
     parser = OptionParser (usage)
     parser.add_option ("--assume-yes-for-ask", action="store_true", dest="assume_yes_for_ask", default=False,
                       help="Allow run of service without confirmation if policy say 'ask'")
@@ -159,22 +165,27 @@ def main():
                       help="Do not run the service, only evaluate policy; retcode=0 means 'allow'")
 
     (options, args) = parser.parse_args ()
-    domain=args[0]
-    target=args[1]
-    exec_index=args[2]
-    process_ident=args[3]
+    domain_id=args[0]
+    domain=args[1]
+    target=args[2]
+    service_name=args[3]
+    process_ident=args[4]
+
+    # Add source domain information, required by qrexec-client for establishing
+    # connection
+    process_ident+=","+domain+","+domain_id
 
     if not validate_target(target):
-        print >> sys.stderr, "Rpc failed (unknown domain):", domain, target, exec_index
+        print >> sys.stderr, "Rpc failed (unknown domain):", domain, target, service_name
         text = "Domain '%s' doesn't exist (service %s called by domain %s)." % (
-                target, exec_index, domain)
+                target, service_name, domain)
         subprocess.call(["/usr/bin/zenity", "--error", "--text", text])
-        os.execl(QREXEC_CLIENT, "qrexec-client", "-d", domain, "-l", "/bin/false", "-c", process_ident)
+        exit(1)
 
-    policy_list=read_policy_file(exec_index)
+    policy_list=read_policy_file(service_name)
     if policy_list==None:
-        policy_editor(domain, target, exec_index)
-        policy_list=read_policy_file(exec_index)
+        policy_editor(domain, target, service_name)
+        policy_list=read_policy_file(service_name)
         if policy_list==None:
             policy_list=list()
 
@@ -184,9 +195,9 @@ def main():
         policy_dict["action"] = "allow"
 
     if policy_dict["action"] == "ask":
-        user_choice = confirm_execution(domain, target, exec_index)
+        user_choice = confirm_execution(domain, target, service_name)
         if user_choice == UserChoice.ALWAYS_ALLOW:
-            add_always_allow(domain, target, exec_index, policy_dict["full-action"].lstrip('ask'))
+            add_always_allow(domain, target, service_name, policy_dict["full-action"].lstrip('ask'))
             policy_dict["action"] = "allow"
         elif user_choice == UserChoice.ALLOW:
             policy_dict["action"] = "allow"
@@ -206,10 +217,10 @@ def main():
             user=policy_dict["action.user"]
         else:
             user="DEFAULT"
-        print >> sys.stderr, "Rpc allowed:", domain, target, exec_index
-        do_execute(domain, target, user, exec_index, process_ident)
+        print >> sys.stderr, "Rpc allowed:", domain, target, service_name
+        do_execute(domain, target, user, service_name, process_ident)
 
-    print >> sys.stderr, "Rpc denied:", domain, target, exec_index
-    os.execl(QREXEC_CLIENT, "qrexec-client", "-d", domain, "-l", "/bin/false", "-c", process_ident)
+    print >> sys.stderr, "Rpc denied:", domain, target, service_name
+    exit(1)
 
 main()
