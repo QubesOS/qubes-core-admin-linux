@@ -246,7 +246,7 @@ void terminate_client_and_flush_data(int fd)
 	clients[fd].state = CLIENT_INVALID;
 	buffer_free(&clients[fd].buffer);
 	if (max_client_fd == fd) {
-		for (i = fd; clients[i].state == CLIENT_INVALID && i >= 0;
+		for (i = fd; i >= 0 && clients[i].state == CLIENT_INVALID;
 		     i--);
 		max_client_fd = i;
 	}
