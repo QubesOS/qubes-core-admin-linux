@@ -152,8 +152,8 @@ void init(int xid)
 	startup_timeout_str = getenv("QREXEC_STARTUP_TIMEOUT");
 	if (startup_timeout_str) {
 		startup_timeout = atoi(startup_timeout_str);
-		if (startup_timeout == 0)
-			// invalid number
+		if (startup_timeout <= 0)
+			// invalid or negative number
 			startup_timeout = MAX_STARTUP_TIME_DEFAULT;
 	}
 	signal(SIGUSR1, sigusr1_handler);
