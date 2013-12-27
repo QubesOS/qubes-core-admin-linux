@@ -38,6 +38,11 @@ def line_to_dict(line):
         paramval=iter.split("=")
         dict["action."+paramval[0]]=paramval[1]
 
+    # Warn if we're ignoring extra data after a space, such as:
+    # vm1 vm2 allow, user=foo
+    if len(tokens) > 3:
+        print >>sys.stderr, "Trailing data ignored in %s" % line
+
     return dict
 
 
