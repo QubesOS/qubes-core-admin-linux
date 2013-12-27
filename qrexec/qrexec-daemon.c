@@ -65,7 +65,7 @@ char default_user_keyword[] = "DEFAULT:";
 we need to track the number of children, so that excessive QREXEC_EXECUTE_*
 commands do not fork-bomb dom0
 */
-int children_count;
+volatile int children_count;
 
 void sigusr1_handler(int x)
 {
