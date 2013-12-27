@@ -173,7 +173,7 @@ void init(int xid)
 			fprintf(stderr, ".");
 			if (i==startup_timeout-1) {
 				if (ask_on_connect_timeout(xid, startup_timeout))
-					i=0;
+					i=-1;
 			}
 		}
 		fprintf(stderr, "Cannot connect to qrexec agent for %d seconds, giving up\n", startup_timeout);
