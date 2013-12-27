@@ -203,7 +203,14 @@ void init(int xid)
 	}
 
 	peer_client_init(xid, REXEC_PORT);
-	setuid(getuid());
+	if (setgid(getgid()) < 0) {
+		perror("setgid()");
+		exit(1);
+	}
+	if (setuid(getuid()) < 0) {
+		perror("setuid()");
+		exit(1);
+	}
 	/* When running as root, make the socket accessible; perms on /var/run/qubes still apply */
 	umask(0);
 	qrexec_daemon_unix_socket_fd =
