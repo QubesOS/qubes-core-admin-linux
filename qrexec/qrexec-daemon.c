@@ -110,8 +110,8 @@ int ask_on_connect_timeout(int xid, int timeout)
 	int ret;
 	struct stat buf;
 	ret=stat("/usr/bin/kdialog", &buf);
-#define KDIALOG_CMD "kdialog --title 'Qrexec daemon' --warningyesno "
-#define ZENITY_CMD "zenity --title 'Qrexec daemon' --question --text "
+#define KDIALOG_CMD "/usr/bin/kdialog --title 'Qrexec daemon' --warningyesno "
+#define ZENITY_CMD "/usr/bin/zenity --title 'Qrexec daemon' --question --text "
 	snprintf(text, sizeof(text),
 			"%s"
 			"'Timeout while trying connecting to qrexec agent of VM %s. Do you want to wait next %d seconds?'",
