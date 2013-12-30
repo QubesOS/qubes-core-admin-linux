@@ -30,7 +30,7 @@
 #include "qrexec.h"
 #include "libqrexec-utils.h"
 
-int connect_unix_socket(char *domname)
+int connect_unix_socket(const char *domname)
 {
 	int s, len;
 	struct sockaddr_un remote;
@@ -51,12 +51,12 @@ int connect_unix_socket(char *domname)
 	return s;
 }
 
-void do_exec(char *prog)
+void do_exec(const char *prog)
 {
 	execl("/bin/bash", "bash", "-c", prog, NULL);
 }
 
-int local_stdin_fd, local_stdout_fd;
+static int local_stdin_fd, local_stdout_fd;
 
 void do_exit(int code)
 {
@@ -70,7 +70,7 @@ void do_exit(int code)
 }
 
 
-void prepare_local_fds(char *cmdline)
+void prepare_local_fds(const char *cmdline)
 {
 	int pid;
 	if (!cmdline) {
@@ -83,7 +83,7 @@ void prepare_local_fds(char *cmdline)
 }
 
 
-void send_cmdline(int s, int type, char *cmdline)
+void send_cmdline(int s, int type, const char *cmdline)
 {
 	struct client_header hdr;
 	hdr.type = type;
@@ -190,7 +190,7 @@ void handle_daemon_data(int s)
 
 // perhaps we could save a syscall if we include both sides in both
 // rdset and wrset; to be investigated
-void handle_daemon_only_until_writable(s)
+void handle_daemon_only_until_writable(int s)
 {
 	fd_set rdset, wrset;
 
@@ -235,7 +235,7 @@ void select_loop(int s)
 	}
 }
 
-void usage(char *name)
+void usage(const char *name)
 {
 	fprintf(stderr,
 		"usage: %s -d domain_num [-l local_prog] -e -c remote_cmdline\n"

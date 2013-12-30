@@ -87,7 +87,7 @@ void sigchld_handler(int x);
 
 char *remote_domain_name;	// guess what
 
-int create_qrexec_socket(int domid, char *domname)
+int create_qrexec_socket(int domid, const char *domname)
 {
 	char socket_address[40];
 	char link_to_socket_name[strlen(domname) + sizeof(socket_address)];
@@ -222,7 +222,7 @@ void init(int xid)
 	kill(getppid(), SIGUSR1);	// let the parent know we are ready
 }
 
-void handle_new_client()
+void handle_new_client(void)
 {
 	int fd = do_accept(qrexec_daemon_unix_socket_fd);
 	if (fd >= MAX_CLIENTS) {
@@ -435,7 +435,7 @@ void sigchld_handler(int x)
 }
 
 /* clean zombies, update children_count */
-void reap_children()
+void reap_children(void)
 {
 	int status;
 	while (waitpid(-1, &status, WNOHANG) > 0)
@@ -444,7 +444,7 @@ void reap_children()
 }
 
 /* too many children - wait for one of them to terminate */
-void wait_for_child()
+void wait_for_child(void)
 {
 	int status;
 	waitpid(-1, &status, 0);
@@ -452,7 +452,7 @@ void wait_for_child()
 }
 
 #define MAX_CHILDREN 10
-void check_children_count_and_wait_if_too_many()
+void check_children_count_and_wait_if_too_many(void)
 {
 	if (children_count > MAX_CHILDREN) {
 		fprintf(stderr,
@@ -487,7 +487,7 @@ void sanitize_name(char * untrusted_s_signed)
 Called when agent sends a message asking to execute a predefined command.
 */
 
-void handle_execute_predefined_command()
+void handle_execute_predefined_command(void)
 {
 	int i;
 	struct trigger_connect_params untrusted_params, params;
@@ -564,7 +564,7 @@ void sanitize_message_from_agent(struct server_header *untrusted_header)
 	}
 }
 
-void handle_message_from_agent()
+void handle_message_from_agent(void)
 {
 	struct client_header hdr;
 	struct server_header s_hdr, untrusted_s_hdr;
