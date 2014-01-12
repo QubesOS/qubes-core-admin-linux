@@ -97,7 +97,10 @@ int create_qrexec_socket(int domid, const char *domname)
 	snprintf(link_to_socket_name, sizeof link_to_socket_name,
 		 QREXEC_DAEMON_SOCKET_DIR "/qrexec.%s", domname);
 	unlink(link_to_socket_name);
-	symlink(socket_address, link_to_socket_name);
+	if (symlink(socket_address, link_to_socket_name)) {
+		fprintf(stderr, "symlink(%s,%s) failed: %s\n", socket_address,
+			link_to_socket_name, strerror (errno));
+	}
 	return get_server_socket(socket_address);
 }
 
