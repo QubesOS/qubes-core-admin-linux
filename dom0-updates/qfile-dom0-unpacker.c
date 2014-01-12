@@ -68,11 +68,11 @@ int main(int argc, char ** argv)
 	incoming_dir = argv[2];
 	mkdir(incoming_dir, 0700);
 	if (chdir(incoming_dir)) {
-		fprintf(stderr, "Error chdir to %s", incoming_dir);
+		fprintf(stderr, "Error chdir to %s\n", incoming_dir);
 		exit(1);
 	}
 	if (chroot(incoming_dir)) {//impossible
-		fprintf(stderr, "Error chroot to %s", incoming_dir);
+		fprintf(stderr, "Error chroot to %s\n", incoming_dir);
 		exit(1);
 	}
 	if (setuid(uid) < 0) {
