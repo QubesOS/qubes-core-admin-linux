@@ -18,7 +18,7 @@ void notify_progress(int p1, int p2)
 {
 }
 
-int prepare_creds_return_uid(char *username)
+int prepare_creds_return_uid(const char *username)
 {
 	struct passwd *pwd;
 	// First try name
@@ -41,7 +41,7 @@ int prepare_creds_return_uid(char *username)
 
 int main(int argc, char ** argv)
 {
-	char *incoming_dir;
+	const char *incoming_dir;
 	int uid;
 	char *var;
 	long long files_limit = DEFAULT_MAX_UPDATES_FILES;
