@@ -11,7 +11,7 @@
 #include <errno.h>
 #include <libqubes-rpc-filecopy.h>
 
-#define DEFAULT_MAX_UPDATES_BYTES (2L<<30)
+#define DEFAULT_MAX_UPDATES_BYTES (2LL<<30)
 #define DEFAULT_MAX_UPDATES_FILES 2048
  
 void notify_progress(int p1, int p2)
