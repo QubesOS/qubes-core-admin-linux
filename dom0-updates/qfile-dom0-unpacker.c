@@ -33,9 +33,15 @@ int prepare_creds_return_uid(const char *username)
 	}
 	setenv("HOME", pwd->pw_dir, 1);
 	setenv("USER", pwd->pw_name, 1);
-	setgid(pwd->pw_gid);
+	if (setgid(pwd->pw_gid) < 0) {
+		perror("setgid");
+		exit(1);
+	}
 	initgroups(pwd->pw_name, pwd->pw_gid);
-	setfsuid(pwd->pw_uid);
+	if (setfsuid(pwd->pw_uid) < 0) {
+		perror("setfsuid");
+		exit(1);
+	}
 	return pwd->pw_uid;
 }
 
@@ -69,7 +75,10 @@ int main(int argc, char ** argv)
 		fprintf(stderr, "Error chroot to %s", incoming_dir);
 		exit(1);
 	}
-	setuid(uid);
+	if (setuid(uid) < 0) {
+		perror("setuid");
+		exit(1);
+	}
 	set_size_limit(bytes_limit, files_limit);
 	if (argc > 3 && strcmp(argv[3],"-v")==0)
 		set_verbose(1);
