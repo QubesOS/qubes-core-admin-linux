@@ -57,8 +57,8 @@ struct _client clients[MAX_CLIENTS];	// data on all qrexec_client connections
 
 int max_client_fd = -1;		// current max fd of all clients; so that we need not to scan all the "clients" table
 int qrexec_daemon_unix_socket_fd;	// /var/run/qubes/qrexec.xid descriptor
-char *default_user = "user";
-char default_user_keyword[] = "DEFAULT:";
+const char *default_user = "user";
+const char default_user_keyword[] = "DEFAULT:";
 #define default_user_keyword_len_without_colon (sizeof(default_user_keyword)-2)
 
 /*
@@ -85,7 +85,7 @@ void sigchld_parent_handler(int x)
 
 void sigchld_handler(int x);
 
-char *remote_domain_name;	// guess what
+const char *remote_domain_name;	// guess what
 
 int create_qrexec_socket(int domid, const char *domname)
 {
@@ -143,7 +143,7 @@ void init(int xid)
 	int i;
 	pid_t pid;
 	int startup_timeout = MAX_STARTUP_TIME_DEFAULT;
-	char *startup_timeout_str = NULL;
+	const char *startup_timeout_str = NULL;
 
 	if (xid <= 0) {
 		fprintf(stderr, "domain id=0?\n");
