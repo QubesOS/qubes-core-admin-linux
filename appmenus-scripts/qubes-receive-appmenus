@@ -216,6 +216,9 @@ def main():
     if not os.path.exists(vm.appmenus_templates_dir):
         os.mkdir(vm.appmenus_templates_dir)
 
+    if not os.path.exists(vm.appmenus_template_icons_dir):
+        os.mkdir(vm.appmenus_template_icons_dir)
+
     # Create new/update existing templates
     if options.verbose:
         print >> sys.stderr, "--> Got {0} appmenus, storing to disk".format(str(len(new_appmenus)))

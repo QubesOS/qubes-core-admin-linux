@@ -121,6 +121,7 @@ def QubesVm_appicons_create(self, srcdir=None):
             self.label.color)
 
 def QubesVm_appicons_remove(self):
+    if not os.path.exists(self.appmenus_icons_dir): return
     for icon in os.listdir(self.appmenus_icons_dir):
         os.unlink(os.path.join(self.appmenus_icons_dir, icon))
 
