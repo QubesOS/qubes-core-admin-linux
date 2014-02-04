@@ -86,6 +86,20 @@ void sigchld_parent_handler(int x)
 void sigchld_handler(int x);
 
 const char *remote_domain_name;	// guess what
+int remote_domain_xid;	// guess what
+
+void unlink_qrexec_socket()
+{
+	char socket_address[40];
+	char link_to_socket_name[strlen(remote_domain_name) + sizeof(socket_address)];
+
+	snprintf(socket_address, sizeof(socket_address),
+		 QREXEC_DAEMON_SOCKET_DIR "/qrexec.%d", remote_domain_xid);
+	snprintf(link_to_socket_name, sizeof link_to_socket_name,
+		 QREXEC_DAEMON_SOCKET_DIR "/qrexec.%s", remote_domain_name);
+	unlink(socket_address);
+	unlink(link_to_socket_name);
+}
 
 int create_qrexec_socket(int domid, const char *domname)
 {
@@ -101,6 +115,7 @@ int create_qrexec_socket(int domid, const char *domname)
 		fprintf(stderr, "symlink(%s,%s) failed: %s\n", socket_address,
 			link_to_socket_name, strerror (errno));
 	}
+	atexit(unlink_qrexec_socket);
 	return get_server_socket(socket_address);
 }
 
@@ -526,7 +541,7 @@ void handle_execute_predefined_command(void)
 	      remote_domain_name, params.target_vmname,
 	      params.exec_index, params.process_fds.ident, NULL);
 	perror("execl");
-	exit(1);
+	_exit(1);
 }
 
 void check_client_id_in_range(unsigned int untrusted_client_id)
@@ -668,7 +683,8 @@ int main(int argc, char **argv)
 	remote_domain_name = argv[2];
 	if (argc == 4)
 		default_user = argv[3];
-	init(atoi(argv[1]));
+	remote_domain_xid = atoi(argv[1]);
+	init(remote_domain_xid);
 	sigemptyset(&chld_set);
 	sigaddset(&chld_set, SIGCHLD);
 	/*
