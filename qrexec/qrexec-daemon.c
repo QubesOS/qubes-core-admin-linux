@@ -121,38 +121,6 @@ int create_qrexec_socket(int domid, const char *domname)
 
 #define MAX_STARTUP_TIME_DEFAULT 60
 
-/* ask on qrexec connect timeout */
-int ask_on_connect_timeout(int xid, int timeout)
-{
-	char text[1024];
-	int ret;
-	struct stat buf;
-	ret=stat("/usr/bin/kdialog", &buf);
-#define KDIALOG_CMD "/usr/bin/kdialog --title 'Qrexec daemon' --warningyesno "
-#define ZENITY_CMD "/usr/bin/zenity --title 'Qrexec daemon' --question --text "
-	snprintf(text, sizeof(text),
-			"%s"
-			"'Timeout while trying connecting to qrexec agent of VM %s. Do you want to wait next %d seconds?'",
-			ret==0 ? KDIALOG_CMD : ZENITY_CMD,
-			remote_domain_name, timeout);
-#undef KDIALOG_CMD
-#undef ZENITY_CMD
-	children_count++;
-	ret = system(text);
-	ret = WEXITSTATUS(ret);
-	//              fprintf(stderr, "ret=%d\n", ret);
-	switch (ret) {
-		case 1: /* NO */
-			return 0;
-		case 0: /*YES */
-			return 1;
-		default:
-			// this can be the case at system startup (netvm), when Xorg isn't running yet
-			// so just don't give possibility to extend the timeout
-			return 0;
-	}
-}
-
 /* do the preparatory tasks, needed before entering the main event loop */
 void init(int xid)
 {
@@ -190,12 +158,10 @@ void init(int xid)
 			sleep(1);
 			fprintf(stderr, ".");
 			if (i==startup_timeout-1) {
-				if (ask_on_connect_timeout(xid, startup_timeout))
-					i=-1;
+				break;
 			}
 		}
-		fprintf(stderr, "Cannot connect to qrexec agent for %d seconds, giving up\n", startup_timeout);
-		kill(pid, SIGTERM);
+		fprintf(stderr, "Cannot connect to qrexec agent for %d seconds, still trying in the background\n", startup_timeout);
 		exit(1);
 	}
 	close(0);
