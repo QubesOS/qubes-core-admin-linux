@@ -273,6 +273,8 @@ int main(int argc, char **argv)
 	if (optind >= argc || !domname)
 		usage(argv[0]);
 
+	register_exec_func(&do_exec);
+
 	s = connect_unix_socket(domname);
 	setenv("QREXEC_REMOTE_DOMAIN", domname, 1);
 	prepare_local_fds(local_cmdline);
