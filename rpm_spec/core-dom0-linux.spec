@@ -45,7 +45,7 @@ BuildRequires:  ImageMagick
 BuildRequires:  pandoc
 BuildRequires:  qubes-utils-devel >= 2.0.5
 Requires:	qubes-core-dom0
-Requires:	qubes-utils
+Requires:	qubes-utils >= 2.0.6
 
 %define _builddir %(pwd)
 
