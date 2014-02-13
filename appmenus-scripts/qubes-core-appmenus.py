@@ -101,6 +101,8 @@ def QubesVm_appicons_create(self, srcdir=None):
         srcdir = self.appmenus_template_icons_dir
     if srcdir is None:
         return
+    if not os.path.exists(srcdir):
+        return
 
     whitelist = os.path.join(self.dir_path, vm_files['appmenus_whitelist'])
     whitelist = [line.strip() for line in open(whitelist)]
