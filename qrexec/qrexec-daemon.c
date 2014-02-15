@@ -384,7 +384,7 @@ void get_packet_data_from_agent_and_pass_to_client(int client_id, struct client_
 	char buf[sizeof(*hdr) + len];
 
 	/* make both the header and data be consecutive in the buffer */
-	*(struct client_header *) buf = *hdr;
+	memcpy(buf, hdr, sizeof(*hdr));
 	read_all_vchan_ext(buf + sizeof(*hdr), len);
 	if (clients[client_id].state & CLIENT_EXITED)
 		// ignore data for no longer running client

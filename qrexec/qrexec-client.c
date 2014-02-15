@@ -139,7 +139,7 @@ void handle_daemon_data(int s)
 {
 	int status;
 	struct client_header hdr;
-	char buf[MAX_DATA_CHUNK];
+	char buf[MAX_DATA_CHUNK], *bufptr=buf;
 
 	if (!read_all(s, &hdr, sizeof hdr)) {
 		perror("read daemon");
@@ -176,7 +176,7 @@ void handle_daemon_data(int s)
 		write_all(2, buf, hdr.len);
 		break;
 	case MSG_SERVER_TO_CLIENT_EXIT_CODE:
-		status = *(unsigned int *) buf;
+		status = *(unsigned int *) bufptr;
 		if (WIFEXITED(status))
 			do_exit(WEXITSTATUS(status));
 		else
