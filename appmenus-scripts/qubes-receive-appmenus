@@ -64,7 +64,7 @@ def get_appmenus(vm):
         while appmenus_line_count > 0:
             untrusted_line = sys.stdin.readline(appmenus_line_size)
             if untrusted_line == "":
-                break;
+                break
             untrusted_appmenulist.append(untrusted_line.strip())
             appmenus_line_count -= 1
         if appmenus_line_count == 0:
@@ -74,7 +74,7 @@ def get_appmenus(vm):
         while appmenus_line_count > 0:
             untrusted_line = p.stdout.readline(appmenus_line_size)
             if untrusted_line == "":
-                break;
+                break
             untrusted_appmenulist.append(untrusted_line.strip())
             appmenus_line_count -= 1
         p.wait()
@@ -115,7 +115,7 @@ def get_appmenus(vm):
                     print >>sys.stderr, "Warning: ignoring key %s: %s" % (untrusted_key, untrusted_value)
             # else: ignore this key
         else:
-            print >>sys.stderr, "Warning: ignoring line: %s" % (untrusted_line);
+            print >>sys.stderr, "Warning: ignoring line: %s" % (untrusted_line)
 
     return appmenus
 
