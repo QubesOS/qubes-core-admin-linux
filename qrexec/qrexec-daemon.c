@@ -61,19 +61,26 @@ const char *default_user = "user";
 const char default_user_keyword[] = "DEFAULT:";
 #define default_user_keyword_len_without_colon (sizeof(default_user_keyword)-2)
 
+#ifdef __GNUC__
+#  define UNUSED(x) UNUSED_ ## x __attribute__((__unused__))
+#else
+#  define UNUSED(x) UNUSED_ ## x
+#endif
+
+
 /*
 we need to track the number of children, so that excessive QREXEC_EXECUTE_*
 commands do not fork-bomb dom0
 */
 volatile int children_count;
 
-void sigusr1_handler(int x)
+void sigusr1_handler(int UNUSED(x))
 {
 	fprintf(stderr, "connected\n");
 	exit(0);
 }
 
-void sigchld_parent_handler(int x)
+void sigchld_parent_handler(int UNUSED(x))
 {
 	children_count--;
 	/* starting value is 0 so we see dead real qrexec-daemon as -1 */
@@ -314,7 +321,7 @@ void handle_message_from_client(int fd)
 	// We have already passed cmdline from client. 
 	// Now the client passes us raw data from its stdin.
 	len = buffer_space_vchan_ext();
-	if (len <= sizeof s_hdr)
+	if (len <= (int)sizeof s_hdr)
 		return;
 	/* Read at most the amount of data that we have room for in vchan */
 	ret = read(fd, buf, len - sizeof(s_hdr));
@@ -412,7 +419,7 @@ flag in appropriate moment.
 
 int child_exited;
 
-void sigchld_handler(int x)
+void sigchld_handler(int UNUSED(x))
 {
 	child_exited = 1;
 	signal(SIGCHLD, sigchld_handler);
@@ -512,7 +519,7 @@ void handle_execute_predefined_command(void)
 
 void check_client_id_in_range(unsigned int untrusted_client_id)
 {
-	if (untrusted_client_id >= MAX_CLIENTS || untrusted_client_id < 0) {
+	if (untrusted_client_id >= MAX_CLIENTS) {
 		fprintf(stderr, "from agent: client_id=%d\n",
 			untrusted_client_id);
 		exit(1);
@@ -529,8 +536,7 @@ void sanitize_message_from_agent(struct server_header *untrusted_header)
 	case MSG_AGENT_TO_SERVER_STDERR:
 	case MSG_AGENT_TO_SERVER_EXIT_CODE:
 		check_client_id_in_range(untrusted_header->client_id);
-		if (untrusted_header->len > MAX_DATA_CHUNK
-		    || untrusted_header->len < 0) {
+		if (untrusted_header->len > MAX_DATA_CHUNK) {
 			fprintf(stderr, "agent feeded %d of data bytes?\n",
 				untrusted_header->len);
 			exit(1);
@@ -663,7 +669,7 @@ int main(int argc, char **argv)
 	for (;;) {
 		max = fill_fdsets_for_select(&read_fdset, &write_fdset);
 		if (buffer_space_vchan_ext() <=
-		    sizeof(struct server_header))
+		    (int)sizeof(struct server_header))
 			FD_ZERO(&read_fdset);	// vchan full - don't read from clients
 
 		sigprocmask(SIG_BLOCK, &chld_set, NULL);
