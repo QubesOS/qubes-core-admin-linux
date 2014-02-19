@@ -312,7 +312,8 @@ void handle_message_from_client(int fd)
 {
 	struct server_header s_hdr;
 	char buf[MAX_DATA_CHUNK];
-	int len, ret;
+	unsigned int len;
+	int ret;
 
 	if (clients[fd].state == CLIENT_CMDLINE) {
 		handle_cmdline_message_from_client(fd);
@@ -321,7 +322,7 @@ void handle_message_from_client(int fd)
 	// We have already passed cmdline from client. 
 	// Now the client passes us raw data from its stdin.
 	len = buffer_space_vchan_ext();
-	if (len <= (int)sizeof s_hdr)
+	if (len <= sizeof s_hdr)
 		return;
 	/* Read at most the amount of data that we have room for in vchan */
 	ret = read(fd, buf, len - sizeof(s_hdr));
@@ -669,7 +670,7 @@ int main(int argc, char **argv)
 	for (;;) {
 		max = fill_fdsets_for_select(&read_fdset, &write_fdset);
 		if (buffer_space_vchan_ext() <=
-		    (int)sizeof(struct server_header))
+		    sizeof(struct server_header))
 			FD_ZERO(&read_fdset);	// vchan full - don't read from clients
 
 		sigprocmask(SIG_BLOCK, &chld_set, NULL);
