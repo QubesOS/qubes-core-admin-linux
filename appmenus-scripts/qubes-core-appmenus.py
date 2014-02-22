@@ -172,6 +172,17 @@ def QubesVm_clone_disk_files(self, src_vm, verbose):
                     format(src_vm.appmenus_templates_dir, self.appmenus_templates_dir)
         shutil.copytree (src_vm.appmenus_templates_dir, self.appmenus_templates_dir)
 
+    if src_vm.updateable and src_vm.appmenus_template_icons_dir is not None \
+            and self.appmenus_template_icons_dir is not None and \
+            os.path.isdir(src_vm.appmenus_template_icons_dir):
+        if verbose:
+            print >> sys.stderr, "--> Copying the template's appmenus " \
+                                 "template icons dir:\n{0} ==>\n{1}".\
+                    format(src_vm.appmenus_template_icons_dir,
+                           self.appmenus_template_icons_dir)
+        shutil.copytree (src_vm.appmenus_template_icons_dir,
+                         self.appmenus_template_icons_dir)
+
     for whitelist in (
             vm_files["appmenus_whitelist"],
             'vm-' + vm_files["appmenus_whitelist"],
@@ -195,6 +206,8 @@ def QubesVm_label_setter(self, _):
 
 def QubesVm_appmenus_recreate(self):
     self.appmenus_remove()
+    self.appicons_remove()
+    self.appicons_create()
     self.appmenus_create()
 
 # new methods
