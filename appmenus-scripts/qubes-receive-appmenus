@@ -262,4 +262,12 @@ def main():
                     os.path.basename(system_path['appmenu_start_hvm_template']))):
             shutil.copy(system_path['appmenu_start_hvm_template'], vm.appmenus_templates_dir)
 
+    if hasattr(vm, 'appvms'):
+        for child_vm in vm.appvms.values():
+            try:
+                child_vm.appmenus_recreate()
+            except Exception, e:
+                print >> sys.stderr, "---> Failed to recreate appmenus for "  \
+                                     "'{0}': {1}".format(child_vm.name, str(e))
+
 main()
