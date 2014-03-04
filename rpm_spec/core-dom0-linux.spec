@@ -165,6 +165,9 @@ echo reposdir=/etc/yum.real.repos.d >> /etc/yum.conf
 sed '/^installonlypkgs\s*=/d' -i /etc/yum.conf
 echo 'installonlypkgs = kernel, kernel-qubes-vm' >> /etc/yum.conf
 
+sed '/^distroverpkg\s*=/d' -i /etc/yum.conf
+echo 'distroverpkg = qubes-release' >> /etc/yum.conf
+
 # Remove unnecessary udev rules that causes problems in dom0 (#605)
 mkdir -p /var/lib/qubes/removed-udev-scripts
 mv -f /lib/udev/rules.d/69-xorg-vmmouse.rules /var/lib/qubes/removed-udev-scripts/ 2> /dev/null || :
