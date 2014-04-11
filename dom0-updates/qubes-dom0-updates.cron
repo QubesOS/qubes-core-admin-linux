@@ -5,6 +5,11 @@ LOCAL_USER=`users | sed -e 's/root *//' | cut -d' ' -f 1`
 PIDFILE=/var/run/qubes/dom0-update-notification.pid
 NOTIFY_ICON=/usr/share/qubes/icons/dom0-update-avail.svg
 UPDATES_STAT_FILE=/var/lib/qubes/updates/dom0-updates-available
+UPDATES_DISABLE_FLAG=/var/lib/qubes/updates/disable-updates
+
+if [ -f "$UPDATES_DISABLE_FLAG" ]; then
+    exit 0
+fi
 
 # Do not allow multiple instances
 [ -r $PIDFILE ] && kill -0 `cat $PIDFILE` && exit 0
