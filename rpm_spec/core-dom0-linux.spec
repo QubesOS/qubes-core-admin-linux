@@ -194,6 +194,9 @@ sed -i 's/^UseNetworkHeuristic=.*/UseNetworkHeuristic=false/' /etc/PackageKit/Pa
 %triggerin -- xorg-x11-drv-vmmouse
 mv -f /lib/udev/rules.d/69-xorg-vmmouse.rules /var/lib/qubes/removed-udev-scripts/ 2> /dev/null || :
 
+%triggerin -- grub2-tools
+chmod -x /etc/grub.d/10_linux
+
 %files
 /etc/qubes-rpc/policy/qubes.SyncAppMenus
 /etc/qubes-rpc/qubes.SyncAppMenus
