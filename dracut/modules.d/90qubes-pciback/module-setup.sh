@@ -8,6 +8,6 @@ install() {
 }
 
 installkernel() {
-    modinfo -k $kernel pciback > /dev/null 2>&1 && instmods pciback
-    modinfo -k $kernel xen-pciback > /dev/null 2>&1 && instmods xen-pciback
+    modinfo -k $kernel pciback > /dev/null 2>&1 && hostonly='' instmods pciback
+    modinfo -k $kernel xen-pciback > /dev/null 2>&1 && hostonly='' instmods xen-pciback
 }
