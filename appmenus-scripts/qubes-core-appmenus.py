@@ -105,7 +105,10 @@ def QubesVm_appicons_create(self, srcdir=None):
         return
 
     whitelist = os.path.join(self.dir_path, vm_files['appmenus_whitelist'])
-    whitelist = [line.strip() for line in open(whitelist)]
+    if os.path.exists(whitelist):
+        whitelist = [line.strip() for line in open(whitelist)]
+    else:
+        whitelist = None
 
     if not os.path.exists(self.appmenus_icons_dir):
         os.mkdir(self.appmenus_icons_dir)
@@ -115,7 +118,7 @@ def QubesVm_appicons_create(self, srcdir=None):
 
     for icon in os.listdir(srcdir):
         desktop = os.path.splitext(icon)[0] + '.desktop'
-        if desktop not in whitelist:
+        if whitelist and desktop not in whitelist:
             continue
 
         qubes.imgconverter.tint(os.path.join(srcdir, icon),
