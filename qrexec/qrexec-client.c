@@ -30,6 +30,10 @@
 #include "qrexec.h"
 #include "libqrexec-utils.h"
 
+// whether qrexec-client should replace ESC with _ before printing the output
+int replace_esc_stdout = 0;
+int replace_esc_stderr = 0;
+
 int connect_unix_socket(const char *domname)
 {
 	int s, len;
@@ -135,6 +139,14 @@ void handle_input(int s)
 	}
 }
 
+void do_replace_esc(char *buf, int len) {
+	int i;
+
+	for (i = 0; i < len; i++)
+		if (buf[i] == '\033')
+			buf[i] = '_';
+}
+
 void handle_daemon_data(int s)
 {
 	int status;
@@ -156,6 +168,8 @@ void handle_daemon_data(int s)
 
 	switch (hdr.type) {
 	case MSG_SERVER_TO_CLIENT_STDOUT:
+		if (replace_esc_stdout)
+			do_replace_esc(buf, hdr.len);
 		if (local_stdin_fd == -1)
 			break;
 		if (hdr.len == 0) {
@@ -173,6 +187,8 @@ void handle_daemon_data(int s)
 		}
 		break;
 	case MSG_SERVER_TO_CLIENT_STDERR:
+		if (replace_esc_stderr)
+			do_replace_esc(buf, hdr.len);
 		write_all(2, buf, hdr.len);
 		break;
 	case MSG_SERVER_TO_CLIENT_EXIT_CODE:
@@ -238,8 +254,9 @@ void select_loop(int s)
 void usage(const char *name)
 {
 	fprintf(stderr,
-		"usage: %s -d domain_num [-l local_prog] -e -c remote_cmdline\n"
-		"-e means exit after sending cmd, -c: connect to existing process\n",
+		"usage: %s -d domain_num [-l local_prog] -e -t -T -c remote_cmdline\n"
+		"-e means exit after sending cmd, -c: connect to existing process\n"
+		"-t enables replacing ESC character with '_' in command output, -T is the same for stderr\n",
 		name);
 	exit(1);
 }
@@ -252,7 +269,7 @@ int main(int argc, char **argv)
 	int just_exec = 0;
 	int connect_existing = 0;
 	char *local_cmdline = NULL;
-	while ((opt = getopt(argc, argv, "d:l:ec")) != -1) {
+	while ((opt = getopt(argc, argv, "d:l:ectT")) != -1) {
 		switch (opt) {
 		case 'd':
 			domname = strdup(optarg);
@@ -265,6 +282,12 @@ int main(int argc, char **argv)
 			break;
 		case 'c':
 			connect_existing = 1;
+			break;
+		case 't':
+			replace_esc_stdout = 1;
+			break;
+		case 'T':
+			replace_esc_stderr = 1;
 			break;
 		default:
 			usage(argv[0]);
