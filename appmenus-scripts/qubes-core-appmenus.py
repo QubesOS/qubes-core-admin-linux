@@ -26,6 +26,7 @@ import sys
 import os
 import os.path
 import shutil
+import dbus
 
 from qubes.qubes import QubesVm,QubesHVm
 from qubes.qubes import QubesException,QubesHost,QubesVmLabels
@@ -206,6 +207,26 @@ def QubesVm_remove_from_disk(self):
 
 def QubesVm_label_setter(self, _):
     self.appicons_create()
+
+    # Apparently desktop environments heavily caches the icons,
+    # see #751 for details
+    if os.environ.get("DESKTOP_SESSION", "") == "kde-plasma":
+        try:
+            os.unlink(os.path.expandvars("$HOME/.kde/cache-$HOSTNAME/icon-cache.kcache"))
+        except:
+            pass
+        try:
+            notify_object = dbus.SessionBus().get_object("org.freedesktop.Notifications", "/org/freedesktop/Notifications")
+            notify_object.Notify(
+                "Qubes", 0, self.label.icon, "Qubes",
+                 "You will need to log off and log in again for the VM icons to update in the KDE launcher menu",
+                [], [], 10000,
+                dbus_interface="org.freedesktop.Notifications")
+        except:
+            pass
+    elif os.environ.get("DESKTOP_SESSION", "") == "xfce":
+        self.appmenus_remove()
+        self.appmenus_create()
 
 def QubesVm_appmenus_recreate(self):
     self.appmenus_remove()
