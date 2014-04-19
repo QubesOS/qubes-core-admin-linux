@@ -222,7 +222,7 @@ def main():
         print >> sys.stderr, "--> Got {0} appmenus, storing to disk".format(str(len(new_appmenus)))
     for appmenu_file in new_appmenus.keys():
         if options.verbose:
-            if os.path.exists(vm.appmenus_templates_dir + '/' + appmenu_file):
+            if os.path.exists(os.path.join(vm.appmenus_templates_dir, appmenu_file)):
                 print >> sys.stderr, "---> Updating {0}".format(appmenu_file)
             else:
                 print >> sys.stderr, "---> Creating {0}".format(appmenu_file)
@@ -253,7 +253,7 @@ def main():
         if not new_appmenus.has_key(appmenu_file):
             if options.verbose:
                 print >> sys.stderr, "---> Removing {0}".format(appmenu_file)
-            os.unlink(vm.appmenus_templates_dir + '/' + appmenu_file)
+            os.unlink(os.path.join(vm.appmenus_templates_dir, appmenu_file))
 
     if isinstance(vm, QubesHVm):
         if not os.path.exists(os.path.join(vm.appmenus_templates_dir,
