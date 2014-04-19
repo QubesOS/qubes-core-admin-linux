@@ -97,6 +97,7 @@ def get_appmenus(vm):
         # use search instead of match to skip file path
         untrusted_m = line_rx.search(untrusted_line)
         if untrusted_m:
+            filename = untrusted_m.group(1)
             untrusted_key = untrusted_m.group(2)
             untrusted_value = untrusted_m.group(3)
             # Look only at predefined keys
@@ -105,17 +106,14 @@ def get_appmenus(vm):
                     # now values are sanitized
                     key = untrusted_key
                     value = untrusted_value
-                    filename = untrusted_m.group(1)
 
                     if not appmenus.has_key(filename):
                         appmenus[filename] = {}
 
                     appmenus[filename][key]=value
                 else:
-                    print >>sys.stderr, "Warning: ignoring key %s: %s" % (untrusted_key, untrusted_value)
+                    print >>sys.stderr, "Warning: ignoring key %s of %s" % (untrusted_key, filename)
             # else: ignore this key
-        else:
-            print >>sys.stderr, "Warning: ignoring line: %s" % (untrusted_line)
 
     return appmenus
 
