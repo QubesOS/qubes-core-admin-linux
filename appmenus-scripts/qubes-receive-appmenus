@@ -88,8 +88,8 @@ def get_appmenus(vm):
 
     row_no = 0
     appmenus = {}
-    line_rx = re.compile(r"([a-zA-Z0-9.()-_]+.desktop):([a-zA-Z0-9-]+(?:\[[a-zA-Z@_]+\])?)=(.*)")
-    ignore_rx = re.compile(r".*([a-zA-Z0-9.-_]+.desktop):(#.*|\s+)$")
+    line_rx = re.compile(r"([a-zA-Z0-9.()_-]+.desktop):([a-zA-Z0-9-]+(?:\[[a-zA-Z@_]+\])?)=(.*)")
+    ignore_rx = re.compile(r".*([a-zA-Z0-9._-]+.desktop):(#.*|\s+)$")
     for untrusted_line in untrusted_appmenulist:
         # Ignore blank lines and comments
         if len(untrusted_line) == 0 or ignore_rx.match(untrusted_line):
