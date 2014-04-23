@@ -181,7 +181,7 @@ int handle_agent_hello(libvchan_t *ctrl, const char *domain_name)
     struct msg_header hdr;
     struct peer_info info;
 
-    if (libvchan_recv(ctrl, &hdr, sizeof(hdr)) < sizeof(hdr)) {
+    if (libvchan_recv(ctrl, &hdr, sizeof(hdr)) != sizeof(hdr)) {
         fprintf(stderr, "Failed to read agent HELLO hdr\n");
         return -1;
     }
@@ -191,7 +191,7 @@ int handle_agent_hello(libvchan_t *ctrl, const char *domain_name)
         return -1;
     }
 
-    if (libvchan_recv(ctrl, &info, sizeof(info)) < sizeof(info)) {
+    if (libvchan_recv(ctrl, &info, sizeof(info)) != sizeof(info)) {
         fprintf(stderr, "Failed to read agent HELLO body\n");
         return -1;
     }
@@ -209,12 +209,12 @@ int handle_agent_hello(libvchan_t *ctrl, const char *domain_name)
     hdr.len = sizeof(info);
     info.version = QREXEC_PROTOCOL_VERSION;
 
-    if (libvchan_send(ctrl, &hdr, sizeof(hdr)) < sizeof(hdr)) {
+    if (libvchan_send(ctrl, &hdr, sizeof(hdr)) != sizeof(hdr)) {
         fprintf(stderr, "Failed to send HELLO hdr to agent\n");
         return -1;
     }
 
-    if (libvchan_send(ctrl, &info, sizeof(info)) < sizeof(info)) {
+    if (libvchan_send(ctrl, &info, sizeof(info)) != sizeof(info)) {
         fprintf(stderr, "Failed to send HELLO hdr to agent\n");
         return -1;
     }
@@ -554,12 +554,12 @@ static void send_service_refused(libvchan_t *vchan, struct service_params *param
     hdr.type = MSG_SERVICE_REFUSED;
     hdr.len = sizeof(*params);
 
-    if (libvchan_send(vchan, &hdr, sizeof(hdr)) < sizeof(hdr)) {
+    if (libvchan_send(vchan, &hdr, sizeof(hdr)) != sizeof(hdr)) {
         fprintf(stderr, "Failed to send MSG_SERVICE_REFUSED hdr to agent\n");
         exit(1);
     }
 
-    if (libvchan_send(vchan, params, sizeof(*params)) < sizeof(*params)) {
+    if (libvchan_send(vchan, params, sizeof(*params)) != sizeof(*params)) {
         fprintf(stderr, "Failed to send MSG_SERVICE_REFUSED to agent\n");
         exit(1);
     }
@@ -809,7 +809,7 @@ int main(int argc, char **argv)
      */
     for (;;) {
         max = fill_fdsets_for_select(&read_fdset, &write_fdset);
-        if (libvchan_buffer_space(vchan) <= sizeof(struct msg_header))
+        if (libvchan_buffer_space(vchan) <= (int)sizeof(struct msg_header))
             FD_ZERO(&read_fdset);	// vchan full - don't read from clients
 
         sigprocmask(SIG_BLOCK, &chld_set, NULL);

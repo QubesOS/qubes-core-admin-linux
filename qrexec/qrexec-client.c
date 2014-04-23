@@ -155,7 +155,7 @@ static int connect_unix_socket(const char *domname)
     return s;
 }
 
-static void sigchld_handler(int x)
+static void sigchld_handler(int x __attribute__((__unused__)))
 {
     child_exited = 1;
     signal(SIGCHLD, sigchld_handler);
@@ -192,7 +192,7 @@ static void prepare_local_fds(char *cmdline)
 }
 
 /* ask the daemon to allocate vchan port */
-static void negotiate_connection_params(int s, int other_domid, int type,
+static void negotiate_connection_params(int s, int other_domid, unsigned type,
         void *cmdline_param, int cmdline_size,
         int *data_domain, int *data_port)
 {
@@ -255,11 +255,11 @@ static void send_exit_code(libvchan_t *vchan, int status)
 
     hdr.type = MSG_DATA_EXIT_CODE;
     hdr.len = sizeof(int);
-    if (libvchan_send(vchan, &hdr, sizeof(hdr)) < sizeof(hdr)) {
+    if (libvchan_send(vchan, &hdr, sizeof(hdr)) != sizeof(hdr)) {
         fprintf(stderr, "Failed to write exit code to the agent\n");
         do_exit(1);
     }
-    if (libvchan_send(vchan, &status, sizeof(status)) < sizeof(status)) {
+    if (libvchan_send(vchan, &status, sizeof(status)) != sizeof(status)) {
         fprintf(stderr, "Failed to write exit code(2) to the agent\n");
         do_exit(1);
     }
@@ -278,7 +278,7 @@ static void handle_input(libvchan_t *vchan)
     }
     hdr.type = is_service ? MSG_DATA_STDOUT : MSG_DATA_STDIN;
     hdr.len = ret;
-    if (libvchan_send(vchan, &hdr, sizeof(hdr)) < sizeof(hdr)) {
+    if (libvchan_send(vchan, &hdr, sizeof(hdr)) != sizeof(hdr)) {
         fprintf(stderr, "Failed to write STDIN data to the agent\n");
         do_exit(1);
     }
