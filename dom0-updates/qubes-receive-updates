@@ -64,6 +64,7 @@ def handle_dom0updates(updatevm):
         shutil.rmtree(updates_repodata_dir)
     if os.path.exists(updates_error_file):
         os.remove(updates_error_file)
+    os.environ['LC_ALL'] = 'C'
     qubes_gid = grp.getgrnam('qubes').gr_gid
     os.mkdir(updates_rpm_dir)
     os.chown(updates_rpm_dir, -1, qubes_gid)
