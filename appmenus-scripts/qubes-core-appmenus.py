@@ -234,11 +234,11 @@ def QubesVm_appmenus_recreate(self):
     self.appicons_create()
     self.appmenus_create()
 
-def QubesVm_set_attr(self, name, value):
+def QubesVm_set_attr(self, name, newvalue, oldvalue):
     if name == 'internal':
-        if value:
+        if newvalue and not oldvalue:
             self.appmenus_remove()
-        else:
+        elif not newvalue and oldvalue:
             self.appmenus_create()
 
 # new methods
