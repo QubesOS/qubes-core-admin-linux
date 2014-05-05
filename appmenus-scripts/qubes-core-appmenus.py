@@ -234,6 +234,13 @@ def QubesVm_appmenus_recreate(self):
     self.appicons_create()
     self.appmenus_create()
 
+def QubesVm_set_attr(self, name, value):
+    if name == 'internal':
+        if value:
+            self.appmenus_remove()
+        else:
+            self.appmenus_create()
+
 # new methods
 QubesVm.appmenus_create = QubesVm_appmenus_create
 QubesVm.appmenus_remove = QubesVm_appmenus_remove
@@ -249,3 +256,4 @@ QubesVm.hooks_create_on_disk.append(QubesVm_create_on_disk)
 QubesVm.hooks_clone_disk_files.append(QubesVm_clone_disk_files)
 QubesVm.hooks_remove_from_disk.append(QubesVm_remove_from_disk)
 QubesVm.hooks_label_setter.append(QubesVm_label_setter)
+QubesVm.hooks_set_attr.append(QubesVm_set_attr)
