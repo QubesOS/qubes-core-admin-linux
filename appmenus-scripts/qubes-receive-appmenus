@@ -231,14 +231,19 @@ def main():
             # the following line is used for time comparison
 #           del new_appmenus[appmenu_file]['Icon']
 
+            icondest = os.path.join(vm.appmenus_template_icons_dir,
+                os.path.splitext(appmenu_file)[0] + '.png')
+
             try:
                 qubes.imgconverter.Image.get_xdg_icon_from_vm(vm,
-                    new_appmenus[appmenu_file]['Icon']).save(
-                        os.path.join(vm.appmenus_template_icons_dir,
-                        os.path.splitext(appmenu_file)[0] + '.png'))
+                    new_appmenus[appmenu_file]['Icon']).save(icondest)
             except Exception, e:
                 print >> sys.stderr, '----> Failed to get icon for {0}: {1!s}'.format(appmenu_file, e)
-                del new_appmenus[appmenu_file]['Icon']
+
+                if os.path.exists(icondest):
+                    print >> sys.stderr, '-----> Found old icon, using it instead'
+                else:
+                    del new_appmenus[appmenu_file]['Icon']
 
         create_template(os.path.join(vm.appmenus_templates_dir, appmenu_file),
             new_appmenus[appmenu_file])
