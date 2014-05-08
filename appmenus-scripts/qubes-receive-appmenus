@@ -50,6 +50,52 @@ fields_regexp = {
     "Icon": re.compile(r"^[a-zA-Z0-9/_.-]*$"),
 }
 
+CATEGORIES_WHITELIST = set([
+    # Main Categories
+    # http://standards.freedesktop.org/menu-spec/1.1/apa.html 20140507
+    'AudioVideo', 'Audio', 'Video', 'Development', 'Education', 'Game',
+    'Graphics', 'Network', 'Office', 'Science', 'Settings', 'System',
+    'Utility',
+
+    # Additional Categories
+    # http://standards.freedesktop.org/menu-spec/1.1/apas02.html
+    'Building', 'Debugger', 'IDE', 'GUIDesigner', 'Profiling',
+    'RevisionControl', 'Translation', 'Calendar', 'ContactManagement',
+    'Database', 'Dictionary', 'Chart', 'Email', 'Finance', 'FlowChart', 'PDA',
+    'ProjectManagement', 'Presentation', 'Spreadsheet', 'WordProcessor',
+    '2DGraphics', 'VectorGraphics', 'RasterGraphics', '3DGraphics', 'Scanning',
+    'OCR', 'Photography', 'Publishing', 'Viewer', 'TextTools',
+    'DesktopSettings', 'HardwareSettings', 'Printing', 'PackageManager',
+    'Dialup', 'InstantMessaging', 'Chat', 'IRCClient', 'Feed', 'FileTransfer',
+    'HamRadio', 'News', 'P2P', 'RemoteAccess', 'Telephony', 'TelephonyTools',
+    'VideoConference', 'WebBrowser', 'WebDevelopment', 'Midi', 'Mixer',
+    'Sequencer', 'Tuner', 'TV', 'AudioVideoEditing', 'Player', 'Recorder',
+    'DiscBurning', 'ActionGame', 'AdventureGame', 'ArcadeGame', 'BoardGame',
+    'BlocksGame', 'CardGame', 'KidsGame', 'LogicGame', 'RolePlaying',
+    'Shooter', 'Simulation', 'SportsGame', 'StrategyGame', 'Art',
+    'Construction', 'Music', 'Languages', 'ArtificialIntelligence',
+    'Astronomy', 'Biology', 'Chemistry', 'ComputerScience',
+    'DataVisualization', 'Economy', 'Electricity', 'Geography', 'Geology',
+    'Geoscience', 'History', 'Humanities', 'ImageProcessing', 'Literature',
+    'Maps', 'Math', 'NumericalAnalysis', 'MedicalSoftware', 'Physics',
+    'Robotics', 'Spirituality', 'Sports', 'ParallelComputing', 'Amusement',
+    'Archiving', 'Compression', 'Electronics', 'Emulator', 'Engineering',
+    'FileTools', 'FileManager', 'TerminalEmulator', 'Filesystem', 'Monitor',
+    'Security', 'Accessibility', 'Calculator', 'Clock', 'TextEditor',
+    'Documentation', 'Adult', 'Core', 'KDE', 'GNOME', 'XFCE', 'GTK', 'Qt',
+    'Motif', 'Java', 'ConsoleOnly',
+
+    # Reserved Categories (not whitelisted)
+    # http://standards.freedesktop.org/menu-spec/1.1/apas03.html
+#   'Screensaver', 'TrayIcon', 'Applet', 'Shell',
+])
+
+def sanitise_categories(untrusted_value):
+    untrusted_categories = (c.strip() for c in untrusted_value.split(';') if c)
+    categories = (c for c in untrusted_categories if c in CATEGORIES_WHITELIST)
+
+    return ';'.join(categories) + ';'
+
 def fallback_hvm_appmenulist():
     p = subprocess.Popen(["grep",  "-rH", "=", "/usr/share/qubes-appmenus/hvm"],
             stdout=subprocess.PIPE)
@@ -105,7 +151,10 @@ def get_appmenus(vm):
                 if fields_regexp[untrusted_key].match(untrusted_value):
                     # now values are sanitized
                     key = untrusted_key
-                    value = untrusted_value
+                    if key == 'Categories':
+                        value = sanitise_categories(untrusted_value)
+                    else:
+                        value = untrusted_value
 
                     if not appmenus.has_key(filename):
                         appmenus[filename] = {}
