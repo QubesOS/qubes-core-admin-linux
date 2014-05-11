@@ -10,7 +10,7 @@ qubes-dom0-update - update software in dom0
 
 SYNOPSIS
 ========
-| qubes-dom0-update [--clean] [--check-only] [--gui] [<pkg list>]
+| qubes-dom0-update [--clean] [--check-only] [--gui] [<yum opts>] [<pkg list>]
 
 OPTIONS
 =======
@@ -23,6 +23,10 @@ OPTIONS
 
 <pkg list>
     Download (and install if run by root) new packages in dom0 instead of updating
+
+Besides above options, when no --gui or --check-only given, all other options
+are passed to yum call. So for example --enablerepo/--disablerepo options works
+as well.
 
 AUTHORS
 =======
