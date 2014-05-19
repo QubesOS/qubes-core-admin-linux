@@ -27,12 +27,15 @@ GUI=
 CHECK_ONLY=
 ALL_OPTS=$*
 QVMRUN_OPTS=
+CLEAN=
 # Filter out some yum options and collect packages list
 while [ $# -gt 0 ]; do
     case "$1" in
         --enablerepo=*|\
-        --disablerepo=*|\
+        --disablerepo=*)
+            ;;
         --clean)
+            CLEAN=1
             ;;
         --gui)
             GUI=1
@@ -69,6 +72,10 @@ fi
 if [ "$CHECK_ONLY" == "1" ] && ! xl domid $UPDATEVM > /dev/null 2>&1; then
     echo "ERROR: UpdateVM not running, not starting it in non-interactive mode" >&2
     exit 1
+fi
+
+if [ -n "$CLEAN" ]; then
+    rm -f /var/lib/qubes/updates/rpm/*
 fi
 
 # We should ensure the clocks in Dom0 and UpdateVM are in sync

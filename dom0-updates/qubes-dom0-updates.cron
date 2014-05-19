@@ -2,7 +2,6 @@
 
 # Get normal user name 
 LOCAL_USER=`users | sed -e 's/root *//' | cut -d' ' -f 1`
-PIDFILE=/var/run/qubes/dom0-update-notification.pid
 NOTIFY_ICON=/usr/share/qubes/icons/dom0-update-avail.svg
 UPDATES_STAT_FILE=/var/lib/qubes/updates/dom0-updates-available
 UPDATES_DISABLE_FLAG=/var/lib/qubes/updates/disable-updates
@@ -10,13 +9,6 @@ UPDATES_DISABLE_FLAG=/var/lib/qubes/updates/disable-updates
 if [ -f "$UPDATES_DISABLE_FLAG" ]; then
     exit 0
 fi
-
-# Do not allow multiple instances
-[ -r $PIDFILE ] && kill -0 `cat $PIDFILE` && exit 0
-# Teoretically the race can happen here, but this tool will be run once a few
-# hours, so no real problem
-echo $$ > $PIDFILE
-trap "rm $PIDFILE" EXIT
 
 # If no updates available - exit here
 qubes-dom0-update --check-only >/dev/null && exit
@@ -36,12 +28,4 @@ fi
 touch $UPDATES_STAT_FILE
 
 # Notify about updates using system tray
-su -c 'DISPLAY=:0 zenity --notification --window-icon=$NOTIFY_ICON --text="Qubes dom0 updates available."' $LOCAL_USER
-
-su -c 'DISPLAY=:0 zenity --question --title="Qubes Dom0 updates" \
-      --text="There are updates for dom0 available, do you want to download them now?"' $LOCAL_USER || exit 0
-
-su -c "DISPLAY=:0 qubes-dom0-update --gui" $LOCAL_USER
-
-# Check if user installed updates
-yum -q check-updates && rm $UPDATES_STAT_FILE
+su -c 'DISPLAY=:0 notify-send -t 0 "Qubes dom0 updates available."' $LOCAL_USER
