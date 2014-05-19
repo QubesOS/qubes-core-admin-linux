@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 #
 # The Qubes OS Project, http://www.qubes-os.org
 #
@@ -24,8 +25,9 @@ import subprocess
 import re
 import os
 import sys
-import fnmatch
 import shutil
+import pipes
+
 from optparse import OptionParser
 from qubes.qubes import QubesVmCollection,QubesException,system_path
 from qubes.qubes import QubesHVm
@@ -46,7 +48,7 @@ fields_regexp = {
     "GenericName": std_re,
     "Comment": std_re,
     "Categories": re.compile(r"^[a-zA-Z0-9/.;:'() -]*$"),
-    "Exec": re.compile(r"^[a-zA-Z0-9()%&>/{}\"\\:.= -]*$"),
+    "Exec": re.compile(r"^[a-zA-Z0-9()%&>/{}\"'\\:.= -]*$"),
     "Icon": re.compile(r"^[a-zA-Z0-9/_.-]*$"),
 }
 
@@ -144,8 +146,17 @@ def get_appmenus(vm):
         untrusted_m = line_rx.search(untrusted_line)
         if untrusted_m:
             filename = untrusted_m.group(1)
+            assert '/' not in filename
+            assert '\0' not in filename
+
             untrusted_key = untrusted_m.group(2)
+            assert '\0' not in untrusted_key
+            assert '\x1b' not in untrusted_key
+            assert '=' not in untrusted_key
+
             untrusted_value = untrusted_m.group(3)
+            # TODO add key-dependent asserts
+
             # Look only at predefined keys
             if fields_regexp.has_key(untrusted_key):
                 if fields_regexp[untrusted_key].match(untrusted_value):
@@ -161,14 +172,13 @@ def get_appmenus(vm):
 
                     appmenus[filename][key]=value
                 else:
-                    print >>sys.stderr, "Warning: ignoring key %s of %s" % (untrusted_key, filename)
+                    print >>sys.stderr, "Warning: ignoring key %r of %s" % (untrusted_key, filename)
             # else: ignore this key
 
     return appmenus
 
 
 def create_template(path, values):
-
     # check if all required fields are present
     for key in required_fields:
         if not values.has_key(key):
@@ -197,12 +207,11 @@ def create_template(path, values):
         if values.has_key(key):
             desktop_file.write("{0}={1}\n".format(key, values[key]))
 
-    desktop_file.write("Exec=qvm-run -q --tray -a %VMNAME% '{0}'\n".format(values['Exec']))
+    desktop_file.write("Exec=qvm-run -q --tray -a %VMNAME% {0}\n".format(pipes.quote(values['Exec'])))
     desktop_file.close()
 
 
 def main():
-
     env_vmname = os.environ.get("QREXEC_REMOTE_DOMAIN")
     usage = "usage: %prog [options] <vm-name>\n"\
             "Updates desktop file templates for given StandaloneVM or TemplateVM"
@@ -301,7 +310,7 @@ def main():
     if options.verbose:
         print >> sys.stderr, "--> Cleaning old files"
     for appmenu_file in os.listdir(vm.appmenus_templates_dir):
-        if not fnmatch.fnmatch(appmenu_file, '*.desktop'):
+        if not appmenu_file.endswith('.desktop'):
             continue
 
         if not new_appmenus.has_key(appmenu_file):

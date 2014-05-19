@@ -39,7 +39,7 @@ comps_file = None
 if os.path.exists('/usr/share/qubes/Qubes-comps.xml'):
     comps_file = '/usr/share/qubes/Qubes-comps.xml'
 
-package_regex = re.compile(r"^[abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._+-]{1,128}.rpm$")
+package_regex = re.compile(r"^[A-Za-z0-9._+-]{1,128}.rpm$")
 gpg_ok_regex = re.compile(r"pgp md5 OK$")
 
 def dom0updates_fatal(pkg, msg):
@@ -76,6 +76,10 @@ def handle_dom0updates(updatevm):
             dom0updates_fatal(updates_rpm_dir + '/' + untrusted_f, 'Domain ' + source + ' sent unexpected file: ' + untrusted_f)
         else:
             f = untrusted_f
+            assert '/' not in f
+            assert '\0' not in f
+            assert '\x1b' not in f
+
             full_path = updates_rpm_dir + "/" + f
             if os.path.islink(full_path) or not os.path.isfile(full_path):
                 dom0updates_fatal(full_path, 'Domain ' + source + ' sent not regular file')
