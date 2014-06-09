@@ -26,6 +26,3 @@ fi
 
 # Touch stat file for qubes-manager
 touch $UPDATES_STAT_FILE
-
-# Notify about updates using system tray
-su -c 'DISPLAY=:0 notify-send -t 0 "Qubes dom0 updates available."' $LOCAL_USER
