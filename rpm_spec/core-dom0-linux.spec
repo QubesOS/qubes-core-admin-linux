@@ -135,6 +135,9 @@ install -m 0440 -D system-config/qubes.sudoers $RPM_BUILD_ROOT/etc/sudoers.d/qub
 install -D system-config/polkit-1-qubes-allow-all.rules $RPM_BUILD_ROOT/etc/polkit-1/rules.d/00-qubes-allow-all.rules
 install -D system-config/qubes-dom0.modules $RPM_BUILD_ROOT/etc/sysconfig/modules/qubes-dom0.modules
 install -D system-config/qubes-sync-clock.cron $RPM_BUILD_ROOT/etc/cron.d/qubes-sync-clock.cron
+install -d $RPM_BUILD_ROOT/etc/udev/rules.d
+install -m 644 system-config/00-qubes-ignore-devices.rules $RPM_BUILD_ROOT/etc/udev/rules.d/
+install -m 644 system-config/60-persistent-storage.rules $RPM_BUILD_ROOT/etc/udev/rules.d/
 
 ### Icons
 mkdir -p $RPM_BUILD_ROOT/usr/share/qubes/icons
@@ -252,6 +255,8 @@ chmod -x /etc/grub.d/10_linux
 /etc/sudoers.d/qubes
 /etc/polkit-1/rules.d/00-qubes-allow-all.rules
 /etc/security/limits.d/99-qubes.conf
+%config /etc/udev/rules.d/00-qubes-ignore-devices.rules
+%config(noreplace) /etc/udev/rules.d/60-persistent-storage.rules
 %attr(0644,root,root) /etc/cron.d/qubes-sync-clock.cron
 # Man
 %{_mandir}/man1/qvm-*.1*
