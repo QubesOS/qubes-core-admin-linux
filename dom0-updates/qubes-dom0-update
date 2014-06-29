@@ -64,6 +64,35 @@ if [ "$GUI" == "1" -a -n "$PKGS" ]; then
     exit 1
 fi
 
+if [ "$GUI" == "1" ]; then
+    apps="yumex apper gpk-update-viewer"
+
+    if [ -n "$KDE_FULL_SESSION" ]; then
+        apps="apper yumex gpk-update-viewer"
+    fi
+
+    guiapp=
+    for app in $apps; do
+        if type $app &>/dev/null; then
+            guiapp=$app
+            break;
+        fi
+    done
+
+    if [ -z "$guiapp" ]; then
+        message1="You don't have installed any supported yum frontend."
+        message2="Install (using qubes-dom0-update) one of: $apps"
+
+        if [ "$KDE_FULL_SESSION" ]; then
+            kdialog --sorry "$message1<br/>$message2"
+        else
+            zenity --error --text "$message1\n$message2"
+        fi
+
+        exit 1
+    fi
+fi
+
 if [ "$GUI" != "1" ]; then
     QVMRUN_OPTS=--nogui
 fi
@@ -111,7 +140,7 @@ if [ "x$PKGS" != "x" ]; then
 elif [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
     # Above file exists only when at least one package was downloaded
     if [ "$GUI" == "1" ]; then
-        gpk-update-viewer
+        $guiapp
     else
         yum check-update
         if [ $? -eq 100 ]; then
