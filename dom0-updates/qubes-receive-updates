@@ -97,6 +97,7 @@ def handle_dom0updates(updatevm):
     if comps_file:
         createrepo_cmd += ["-g", comps_file]
     createrepo_cmd += ["-q", updates_dir]
+    old_umask = os.umask(002)
     subprocess.check_call(createrepo_cmd)
     os.chown(updates_repodata_dir, -1, qubes_gid)
     os.chmod(updates_repodata_dir, 0775)
@@ -109,6 +110,7 @@ def handle_dom0updates(updatevm):
         null.close()
     except:
         pass
+    os.umask(old_umask)
     exit(0)
 
 def main():
