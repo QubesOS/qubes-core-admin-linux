@@ -75,6 +75,10 @@ if [ "$GUI" == "1" ]; then
     for app in $apps; do
         if type $app &>/dev/null; then
             guiapp=$app
+            case $guiapp in
+                apper) guiapp="apper --updates" ;;
+                *) guiapp=$app ;;
+            esac
             break;
         fi
     done
