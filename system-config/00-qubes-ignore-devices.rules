@@ -3,3 +3,4 @@
 ACTION!="remove", SUBSYSTEM=="block", KERNEL=="loop*", ENV{DM_UDEV_DISABLE_DISK_RULES_FLAG}="1"
 # ENV{DM_NAME} not available yet
 ACTION!="remove", SUBSYSTEM=="block", ATTR{dm/name}=="snapshot-*", ENV{DM_UDEV_DISABLE_DISK_RULES_FLAG}="1"
+ACTION!="remove", SUBSYSTEM=="block", ATTR{dm/name}=="origin-*", ENV{DM_UDEV_DISABLE_DISK_RULES_FLAG}="1"
