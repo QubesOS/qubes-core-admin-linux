@@ -78,12 +78,12 @@ def QubesVm_appmenus_create(self, verbose=False, source_template = None):
 
     try:
         if source_template is not None:
-            subprocess.check_call ([system_path["appmenu_create_cmd"], source_template.appmenus_templates_dir, self.name, vmtype])
+            subprocess.check_call ([system_path["appmenu_create_cmd"], source_template.appmenus_templates_dir, self.name, vmtype, self.label.icon])
         elif self.appmenus_templates_dir is not None:
-            subprocess.check_call ([system_path["appmenu_create_cmd"], self.appmenus_templates_dir, self.name, vmtype])
+            subprocess.check_call ([system_path["appmenu_create_cmd"], self.appmenus_templates_dir, self.name, vmtype, self.label.icon])
         else:
             # Only add apps to menu
-            subprocess.check_call ([system_path["appmenu_create_cmd"], "none", self.name, vmtype])
+            subprocess.check_call ([system_path["appmenu_create_cmd"], "none", self.name, vmtype, self.label.icon])
     except subprocess.CalledProcessError:
         print >> sys.stderr, "Ooops, there was a problem creating appmenus for {0} VM!".format (self.name)
 

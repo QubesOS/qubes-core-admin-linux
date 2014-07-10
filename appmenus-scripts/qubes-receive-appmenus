@@ -197,7 +197,7 @@ def create_template(path, values):
         desktop_file.write("Icon={0}\n".format(os.path.join(
             '%VMDIR%', vm_files['appmenus_icons_subdir'], icon_file)))
     else:
-        desktop_file.write("Icon=%VMDIR%/icon.png\n")
+        desktop_file.write("Icon=%XDGICON%\n")
 
     for key in ["Name", "GenericName" ]:
         if values.has_key(key):
