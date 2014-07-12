@@ -2,4 +2,4 @@
 Encoding=UTF-8
 Type=Directory
 Name=Template: %VMNAME%
-Icon=/usr/share/qubes/icons/template.png
+Icon=qubes-logo

@@ -26,6 +26,7 @@ VMTYPE=$3
 if [ -z "$VMTYPE" ]; then
     VMTYPE=appvms
 fi
+XDGICON=$4
 VMDIR=/var/lib/qubes/$VMTYPE/$VMNAME
 APPSDIR=$VMDIR/apps
 
@@ -38,11 +39,11 @@ mkdir -p $APPSDIR
 if [ "$SRCDIR" != "none" ]; then
     echo "--> Converting Appmenu Templates..."
     if [ -r "$VMDIR/whitelisted-appmenus.list" ]; then
-        cat $VMDIR/whitelisted-appmenus.list | xargs -I{} /usr/libexec/qubes-appmenus/convert-apptemplate2vm.sh $SRCDIR/{} $APPSDIR $VMNAME $VMDIR
+        cat $VMDIR/whitelisted-appmenus.list | xargs -I{} /usr/libexec/qubes-appmenus/convert-apptemplate2vm.sh $SRCDIR/{} $APPSDIR $VMNAME $VMDIR $XDGICON
     else
-        find $SRCDIR -name "*.desktop" $CHECK_WHITELISTED -exec /usr/libexec/qubes-appmenus/convert-apptemplate2vm.sh {} $APPSDIR $VMNAME $VMDIR \;
+        find $SRCDIR -name "*.desktop" $CHECK_WHITELISTED -exec /usr/libexec/qubes-appmenus/convert-apptemplate2vm.sh {} $APPSDIR $VMNAME $VMDIR $XDGICON \;
     fi
-    /usr/libexec/qubes-appmenus/convert-apptemplate2vm.sh /usr/share/qubes-appmenus/qubes-appmenu-select.desktop $APPSDIR $VMNAME $VMDIR
+    /usr/libexec/qubes-appmenus/convert-apptemplate2vm.sh /usr/share/qubes-appmenus/qubes-appmenu-select.desktop $APPSDIR $VMNAME $VMDIR $XDGICON
 
     if [ "$VMTYPE" = "vm-templates" ]; then
         DIR_TEMPLATE=/usr/share/qubes-appmenus/qubes-templatevm.directory.template
@@ -51,7 +52,7 @@ if [ "$SRCDIR" != "none" ]; then
     else
         DIR_TEMPLATE=/usr/share/qubes-appmenus/qubes-vm.directory.template
     fi
-    /usr/libexec/qubes-appmenus/convert-dirtemplate2vm.sh $DIR_TEMPLATE $APPSDIR/$VMNAME-vm.directory $VMNAME $VMDIR
+    /usr/libexec/qubes-appmenus/convert-dirtemplate2vm.sh $DIR_TEMPLATE $APPSDIR/$VMNAME-vm.directory $VMNAME $VMDIR $XDGICON
 fi
 
 echo "--> Adding Apps to the Menu..."

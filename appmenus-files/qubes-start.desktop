@@ -2,7 +2,7 @@
 Version=1.0
 Type=Application
 Exec=qvm-start --quiet --tray %VMNAME%
-Icon=%VMDIR%/icon.png
+Icon=%XDGICON%
 Terminal=false
 Name=%VMNAME%: Start
 GenericName=%VMNAME%: Start
