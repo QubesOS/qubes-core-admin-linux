@@ -162,12 +162,18 @@ def QubesVm_create_on_disk(self, verbose, source_template):
         if verbose:
             print >> sys.stderr, "--> Copying the template's appmenus templates dir:\n{0} ==>\n{1}".\
                     format(source_template.appmenus_templates_dir, self.appmenus_templates_dir)
-        shutil.copytree (source_template.appmenus_templates_dir, self.appmenus_templates_dir)
-        shutil.copytree (source_template.appmenus_template_icons_dir, self.appmenus_template_icons_dir)
+        if os.path.isdir(source_template.appmenus_templates_dir):
+            shutil.copytree (source_template.appmenus_templates_dir, self.appmenus_templates_dir)
+        else:
+            os.mkdir(self.appmenus_templates_dir)
+        if os.path.isdir(source_template.appmenus_template_icons_dir):
+            shutil.copytree (source_template.appmenus_template_icons_dir, self.appmenus_template_icons_dir)
+        else:
+            os.mkdir(self.appmenus_template_icons_dir)
 
     # Create appmenus
-    self.appmenus_create(verbose=verbose)
     self.appicons_create()
+    self.appmenus_create(verbose=verbose)
 
 def QubesVm_clone_disk_files(self, src_vm, verbose):
     if src_vm.updateable and src_vm.appmenus_templates_dir is not None and self.appmenus_templates_dir is not None:
@@ -199,8 +205,8 @@ def QubesVm_clone_disk_files(self, src_vm, verbose):
                     os.path.join(self.dir_path, whitelist))
 
     # Create appmenus
-    self.appmenus_create(verbose=verbose)
     self.appicons_create()
+    self.appmenus_create(verbose=verbose)
 
 def QubesVm_remove_from_disk(self):
     self.appmenus_remove()
