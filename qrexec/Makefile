@@ -7,6 +7,6 @@ all: qrexec-daemon qrexec-client
 qrexec-daemon: qrexec-daemon.o
 	$(CC) -pie -g -o qrexec-daemon qrexec-daemon.o $(LIBS)
 qrexec-client: qrexec-client.o
-	$(CC) -pie -g -o qrexec-client qrexec-client.o $(LIBS) -lpthread
+	$(CC) -pie -g -o qrexec-client qrexec-client.o $(LIBS)
 clean:
 	rm -f *.o *~ qrexec-daemon qrexec-client

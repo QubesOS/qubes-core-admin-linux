@@ -27,7 +27,6 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <errno.h>
-#include <pthread.h>
 #include "qrexec.h"
 #include "libqrexec-utils.h"
 
@@ -226,25 +225,30 @@ void handle_daemon_only_until_writable(int s)
 	} while (!FD_ISSET(s, &wrset));
 }
 
-void *input_process_loop(void *arg) {
-	int s = *(int*)arg;
-	while (local_stdout_fd != -1)
-		handle_input(s);
-	return NULL;
-}
-
-
 void select_loop(int s)
 {
-	pthread_t input_thread;
-	if (pthread_create(&input_thread, NULL, input_process_loop, &s) != 0) {
-		perror("pthread_create");
-		do_exit(1);
-	}
+	fd_set select_set;
+	int max;
 	for (;;) {
-		handle_daemon_data(s);
+		handle_daemon_only_until_writable(s);
+		FD_ZERO(&select_set);
+		FD_SET(s, &select_set);
+		max = s;
+		if (local_stdout_fd != -1) {
+			FD_SET(local_stdout_fd, &select_set);
+			if (s < local_stdout_fd)
+				max = local_stdout_fd;
+		}
+		if (select(max + 1, &select_set, NULL, NULL, NULL) < 0) {
+			perror("select");
+			do_exit(1);
+		}
+		if (FD_ISSET(s, &select_set))
+			handle_daemon_data(s);
+		if (local_stdout_fd != -1
+		    && FD_ISSET(local_stdout_fd, &select_set))
+			handle_input(s);
 	}
-	pthread_join(input_thread, NULL);
 }
 
 void usage(const char *name)
