@@ -77,13 +77,23 @@ def QubesVm_appmenus_create(self, verbose=False, source_template = None):
         vmtype = 'appvms'
 
     try:
+        msgoutput = None if verbose else open(os.devnull, 'w')
         if source_template is not None:
-            subprocess.check_call ([system_path["appmenu_create_cmd"], source_template.appmenus_templates_dir, self.name, vmtype, self.label.icon])
+            subprocess.check_call([system_path["appmenu_create_cmd"],
+                                   source_template.appmenus_templates_dir,
+                                   self.name, vmtype, self.label.icon],
+                                  stdout=msgoutput, stderr=msgoutput)
         elif self.appmenus_templates_dir is not None:
-            subprocess.check_call ([system_path["appmenu_create_cmd"], self.appmenus_templates_dir, self.name, vmtype, self.label.icon])
+            subprocess.check_call ([system_path["appmenu_create_cmd"],
+                                    self.appmenus_templates_dir, self.name,
+                                    vmtype, self.label.icon],
+                                   stdout=msgoutput, stderr=msgoutput)
         else:
             # Only add apps to menu
-            subprocess.check_call ([system_path["appmenu_create_cmd"], "none", self.name, vmtype, self.label.icon])
+            subprocess.check_call ([system_path["appmenu_create_cmd"],
+                                    "none", self.name, vmtype,
+                                    self.label.icon],
+                                   stdout=msgoutput, stderr=msgoutput)
     except subprocess.CalledProcessError:
         print >> sys.stderr, "Ooops, there was a problem creating appmenus for {0} VM!".format (self.name)
 
@@ -95,7 +105,8 @@ def QubesVm_appmenus_remove(self):
         vmtype = 'vm-templates'
     else:
         vmtype = 'appvms'
-    subprocess.check_call ([system_path["appmenu_remove_cmd"], self.name, vmtype])
+    subprocess.check_call ([system_path["appmenu_remove_cmd"], self.name,
+                            vmtype], stderr=open(os.devnull, 'w'))
 
 def QubesVm_appicons_create(self, srcdir=None):
     if srcdir is None:
