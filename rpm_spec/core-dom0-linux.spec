@@ -171,10 +171,6 @@ echo 'installonlypkgs = kernel, kernel-qubes-vm' >> /etc/yum.conf
 sed '/^distroverpkg\s*=/d' -i /etc/yum.conf
 echo 'distroverpkg = qubes-release' >> /etc/yum.conf
 
-# Remove unnecessary udev rules that causes problems in dom0 (#605)
-mkdir -p /var/lib/qubes/removed-udev-scripts
-mv -f /lib/udev/rules.d/69-xorg-vmmouse.rules /var/lib/qubes/removed-udev-scripts/ 2> /dev/null || :
-
 systemctl enable qubes-suspend.service >/dev/null 2>&1
 
 %preun
@@ -195,7 +191,8 @@ fi
 sed -i 's/^UseNetworkHeuristic=.*/UseNetworkHeuristic=false/' /etc/PackageKit/PackageKit.conf
 
 %triggerin -- xorg-x11-drv-vmmouse
-mv -f /lib/udev/rules.d/69-xorg-vmmouse.rules /var/lib/qubes/removed-udev-scripts/ 2> /dev/null || :
+# Remove unnecessary udev rules that causes problems in dom0 (#605)
+rm -f /lib/udev/rules.d/69-xorg-vmmouse.rules
 
 %triggerin -- grub2-tools
 chmod -x /etc/grub.d/10_linux
