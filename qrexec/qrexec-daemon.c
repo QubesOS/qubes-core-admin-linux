@@ -61,6 +61,8 @@ const char *default_user = "user";
 const char default_user_keyword[] = "DEFAULT:";
 #define default_user_keyword_len_without_colon (sizeof(default_user_keyword)-2)
 
+int opt_quiet = 0;
+
 #ifdef __GNUC__
 #  define UNUSED(x) UNUSED_ ## x __attribute__((__unused__))
 #else
@@ -76,7 +78,8 @@ volatile int children_count;
 
 void sigusr1_handler(int UNUSED(x))
 {
-	fprintf(stderr, "connected\n");
+	if (!opt_quiet)
+		fprintf(stderr, "connected\n");
 	exit(0);
 }
 
@@ -85,7 +88,10 @@ void sigchld_parent_handler(int UNUSED(x))
 	children_count--;
 	/* starting value is 0 so we see dead real qrexec-daemon as -1 */
 	if (children_count < 0) {
-		fprintf(stderr, "failed\n");
+		if (!opt_quiet)
+			fprintf(stderr, "failed\n");
+		else
+			fprintf(stderr, "Connection to the VM failed\n");
 		exit(1);
 	}
 }
@@ -160,10 +166,12 @@ void init(int xid)
 	default:
 		if (getenv("QREXEC_STARTUP_NOWAIT"))
 			exit(0);
-		fprintf(stderr, "Waiting for VM's qrexec agent.");
+		if (!opt_quiet)
+			fprintf(stderr, "Waiting for VM's qrexec agent.");
 		for (i=0;i<startup_timeout;i++) {
 			sleep(1);
-			fprintf(stderr, ".");
+			if (!opt_quiet)
+				fprintf(stderr, ".");
 			if (i==startup_timeout-1) {
 				break;
 			}
@@ -645,18 +653,28 @@ int fill_fdsets_for_select(fd_set * read_fdset, fd_set * write_fdset)
 int main(int argc, char **argv)
 {
 	fd_set read_fdset, write_fdset;
-	int i;
+	int i, opt;
 	int max;
 	sigset_t chld_set;
 
-	if (argc != 3 && argc != 4) {
-		fprintf(stderr, "usage: %s domainid domain-name [default user]\n", argv[0]);
+	while ((opt=getopt(argc, argv, "q")) != -1) {
+		switch (opt) {
+			case 'q':
+				opt_quiet = 1;
+				break;
+			default: /* '?' */
+				fprintf(stderr, "usage: %s [-q] domainid domain-name [default user]\n", argv[0]);
+				exit(1);
+		}
+	}
+	if (argc - optind < 2 || argc - optind > 3) {
+		fprintf(stderr, "usage: %s [-q] domainid domain-name [default user]\n", argv[0]);
 		exit(1);
 	}
-	remote_domain_name = argv[2];
-	if (argc == 4)
-		default_user = argv[3];
-	remote_domain_xid = atoi(argv[1]);
+	remote_domain_name = argv[optind+1];
+	if (argc - optind >= 3)
+		default_user = argv[optind+2];
+	remote_domain_xid = atoi(argv[optind]);
 	init(remote_domain_xid);
 	sigemptyset(&chld_set);
 	sigaddset(&chld_set, SIGCHLD);
