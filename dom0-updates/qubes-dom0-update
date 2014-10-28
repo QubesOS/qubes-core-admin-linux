@@ -115,7 +115,7 @@ fi
 # becuase otherwise yum might complain about future timestamps
 qvm-sync-clock
 
-echo "Using $UPDATEVM as updatevm to download updates for Dom0, this may take some of time..." >&2
+echo "Using $UPDATEVM as UpdateVM to download updates for Dom0; this may take some time..." >&2
 
 # Start VM if not running already
 qvm-run $QVMRUN_OPTS -a $UPDATEVM true || exit 1

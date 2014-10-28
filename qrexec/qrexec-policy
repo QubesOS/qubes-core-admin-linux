@@ -168,7 +168,7 @@ def main():
 
     if not validate_target(target):
         print >> sys.stderr, "Rpc failed (unknown domain):", domain, target, exec_index
-        text = "Domain '%s' doesn't exists (service %s called by domain %s)." % (
+        text = "Domain '%s' doesn't exist (service %s called by domain %s)." % (
                 target, exec_index, domain)
         subprocess.call(["/usr/bin/zenity", "--error", "--text", text])
         os.execl(QREXEC_CLIENT, "qrexec-client", "-d", domain, "-l", "/bin/false", "-c", process_ident)
