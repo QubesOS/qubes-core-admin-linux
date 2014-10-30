@@ -198,6 +198,8 @@ rm -f /lib/udev/rules.d/69-xorg-vmmouse.rules
 chmod -x /etc/grub.d/10_linux
 
 %files
+%attr(2775,root,qubes) %dir /etc/qubes-rpc
+%attr(2775,root,qubes) %dir /etc/qubes-rpc/policy
 /etc/qubes-rpc/policy/qubes.SyncAppMenus
 /etc/qubes-rpc/qubes.SyncAppMenus
 %{python_sitearch}/qubes/modules/10appmenus.py
