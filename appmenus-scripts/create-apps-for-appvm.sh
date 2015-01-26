@@ -58,6 +58,6 @@ fi
 echo "--> Adding Apps to the Menu..."
 LC_COLLATE=C xdg-desktop-menu install $APPSDIR/*.directory $APPSDIR/*.desktop
 
-if [ -n "$KDE_SESSION_UID" ]; then
+if [ -n "$KDE_SESSION_UID" -a -z "$SKIP_CACHE_REBUILD" ]; then
     kbuildsycoca4
 fi
