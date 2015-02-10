@@ -519,7 +519,7 @@ void handle_execute_predefined_command(void)
 		close(i);
 	signal(SIGCHLD, SIG_DFL);
 	signal(SIGPIPE, SIG_DFL);
-	execl("/usr/lib/qubes/qrexec-policy", "qrexec-policy",
+	execl("/usr/lib/qubes/qrexec-policy", "qrexec-policy", "--",
 	      remote_domain_name, params.target_vmname,
 	      params.exec_index, params.process_fds.ident, NULL);
 	perror("execl");

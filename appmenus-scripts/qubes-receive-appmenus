@@ -207,7 +207,7 @@ def create_template(path, values):
         if values.has_key(key):
             desktop_file.write("{0}={1}\n".format(key, values[key]))
 
-    desktop_file.write("Exec=qvm-run -q --tray -a %VMNAME% {0}\n".format(pipes.quote(values['Exec'])))
+    desktop_file.write("Exec=qvm-run -q --tray -a %VMNAME% -- {0}\n".format(pipes.quote(values['Exec'])))
     desktop_file.close()
 
 
