@@ -374,10 +374,7 @@ static void handle_vchan_data(libvchan_t *vchan)
         case MSG_DATA_EXIT_CODE:
             libvchan_close(vchan);
             status = *(unsigned int *) buf;
-            if (WIFEXITED(status))
-                do_exit(WEXITSTATUS(status));
-            else
-                do_exit(255);
+            do_exit(status);
             break;
         default:
             fprintf(stderr, "unknown msg %d\n", hdr.type);
