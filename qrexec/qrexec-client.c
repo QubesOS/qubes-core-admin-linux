@@ -286,13 +286,16 @@ static void handle_input(libvchan_t *vchan)
         close(local_stdout_fd);
         local_stdout_fd = -1;
         if (local_stdin_fd == -1) {
-            // if pipe in opposite direction already closed, no need to stay alive
-            if (is_service && local_pid == 0) {
-                /* if this is "remote" service end and no real local process
-                 * exists (using own stdin/out) send also fake exit code */
-                send_exit_code(vchan, 0);
+            // if not a remote end of service call, wait for exit status
+            if (is_service) {
+                // if pipe in opposite direction already closed, no need to stay alive
+                if (local_pid == 0) {
+                    /* if this is "remote" service end and no real local process
+                     * exists (using own stdin/out) send also fake exit code */
+                    send_exit_code(vchan, 0);
+                }
+                do_exit(0);
             }
-            do_exit(0);
         }
     }
     if (!write_vchan_all(vchan, buf, ret)) {
