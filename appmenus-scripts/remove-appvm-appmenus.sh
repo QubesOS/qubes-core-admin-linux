@@ -18,6 +18,6 @@ if ls $APPSDIR/*.directory $APPSDIR/*.desktop > /dev/null 2>&1; then
     rm -f $HOME/.config/menus/applications-merged/user-$VMNAME-vm.menu
 fi
 
-if [ -n "$KDE_SESSION_UID" ]; then
+if [ -n "$KDE_SESSION_UID" -a -z "$SKIP_CACHE_REBUILD" ]; then
     kbuildsycoca4
 fi
