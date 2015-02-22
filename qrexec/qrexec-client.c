@@ -410,6 +410,7 @@ static void select_loop(libvchan_t *vchan)
     int vchan_fd;
     sigset_t selectmask;
     struct timespec zero_timeout = { 0, 0 };
+    struct timespec select_timeout = { 10, 0 };
 
     sigemptyset(&selectmask);
     sigaddset(&selectmask, SIGCHLD);
@@ -434,12 +435,18 @@ static void select_loop(libvchan_t *vchan)
                     &zero_timeout, &selectmask);
         } else
             ret = pselect(max_fd + 1, &select_set, NULL, NULL,
-                    NULL, &selectmask);
+                    &select_timeout, &selectmask);
         if (ret < 0) {
             if (errno == EINTR && local_pid > 0) {
                 continue;
             } else {
                 perror("select");
+                do_exit(1);
+            }
+        }
+        if (ret == 0) {
+            if (!libvchan_is_open(vchan)) {
+                /* remote disconnected witout a proper signaling */
                 do_exit(1);
             }
         }
