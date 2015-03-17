@@ -293,8 +293,8 @@ static void handle_input(libvchan_t *vchan)
                     /* if this is "remote" service end and no real local process
                      * exists (using own stdin/out) send also fake exit code */
                     send_exit_code(vchan, 0);
+                    do_exit(0);
                 }
-                do_exit(0);
             }
         }
     }
