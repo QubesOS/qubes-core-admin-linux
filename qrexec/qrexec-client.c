@@ -376,7 +376,11 @@ static void handle_vchan_data(libvchan_t *vchan)
             break;
         case MSG_DATA_EXIT_CODE:
             libvchan_close(vchan);
-            status = *(unsigned int *) buf;
+            if (hdr.len < sizeof(status))
+                status = 255;
+            else
+                memcpy(&status, buf, sizeof(status));
+
             do_exit(status);
             break;
         default:
@@ -524,7 +528,7 @@ int main(int argc, char **argv)
     char *local_cmdline = NULL;
     char *remote_cmdline = NULL;
     char *request_id;
-    char *src_domain_name;
+    char *src_domain_name = NULL;
     int src_domain_id = 0; /* if not -c given, the process is run in dom0 */
     struct service_params svc_params;
     while ((opt = getopt(argc, argv, "d:l:ec:tT")) != -1) {
@@ -577,6 +581,7 @@ int main(int argc, char **argv)
             msg_type = MSG_JUST_EXEC;
         else
             msg_type = MSG_EXEC_CMDLINE;
+        assert(src_domain_name);
         setenv("QREXEC_REMOTE_DOMAIN", src_domain_name, 1);
         s = connect_unix_socket(src_domain_name);
         negotiate_connection_params(s,
