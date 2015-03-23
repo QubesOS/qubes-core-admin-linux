@@ -130,8 +130,6 @@ cp -r dracut/modules.d/* $RPM_BUILD_ROOT%{_dracutmoddir}/
 mkdir -p $RPM_BUILD_ROOT/etc/sysconfig
 install -m 0644 -D system-config/limits-qubes.conf $RPM_BUILD_ROOT/etc/security/limits.d/99-qubes.conf
 install -D system-config/cpufreq-xen.modules $RPM_BUILD_ROOT/etc/sysconfig/modules/cpufreq-xen.modules
-cp system-config/iptables $RPM_BUILD_ROOT/etc/sysconfig
-cp system-config/ip6tables $RPM_BUILD_ROOT/etc/sysconfig
 install -m 0440 -D system-config/qubes.sudoers $RPM_BUILD_ROOT/etc/sudoers.d/qubes
 install -D system-config/polkit-1-qubes-allow-all.rules $RPM_BUILD_ROOT/etc/polkit-1/rules.d/00-qubes-allow-all.rules
 install -D system-config/qubes-dom0.modules $RPM_BUILD_ROOT/etc/sysconfig/modules/qubes-dom0.modules
@@ -248,8 +246,6 @@ chmod -x /etc/grub.d/10_linux
 /usr/lib64/pm-utils/sleep.d/52qubes-pause-vms
 /usr/lib/systemd/system/qubes-suspend.service
 # Others
-/etc/sysconfig/iptables
-/etc/sysconfig/ip6tables
 /etc/sysconfig/modules/qubes-dom0.modules
 /etc/sysconfig/modules/cpufreq-xen.modules
 /etc/sudoers.d/qubes
