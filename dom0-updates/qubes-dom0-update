@@ -16,6 +16,7 @@ if [ "$1" = "--help" ]; then
     echo "    --clean      clean yum cache before doing anything"
     echo "    --check-only only check for updates (no install)"
     echo "    --gui        use gpk-update-viewer for update selection"
+    echo "    --action=... use specific yum action, instead of automatic install/update"
     echo "    <pkg list>   download (and install if run by root) new packages"
     echo "                 in dom0 instead of updating"
     exit
@@ -26,6 +27,7 @@ YUM_OPTS=
 GUI=
 CHECK_ONLY=
 ALL_OPTS=$*
+YUM_ACTION=
 QVMRUN_OPTS=
 CLEAN=
 # Filter out some yum options and collect packages list
@@ -43,11 +45,17 @@ while [ $# -gt 0 ]; do
         --check-only)
             CHECK_ONLY=1
             ;;
+        --action=*)
+            YUM_ACTION=${1#--action=}
+            ;;
         -*)
             YUM_OPTS="$YUM_OPTS $1"
             ;;
         *)
             PKGS="$PKGS $1"
+            if [ -z "$YUM_ACTION" ]; then
+                YUM_ACTION=install
+            fi
             ;;
     esac
     shift
@@ -139,8 +147,12 @@ if [ -r /var/lib/qubes/updates/errors ]; then
     exit 1
 fi
 
+if [ -z "$YUM_ACTION" ]; then
+    YUM_ACTION=upgrade
+fi
+
 if [ "x$PKGS" != "x" ]; then
-    yum $YUM_OPTS install $PKGS
+    yum $YUM_OPTS $YUM_ACTION $PKGS
 elif [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
     # Above file exists only when at least one package was downloaded
     if [ "$GUI" == "1" ]; then
@@ -148,7 +160,7 @@ elif [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
     else
         yum check-update
         if [ $? -eq 100 ]; then
-            yum $YUM_OPTS update
+            yum $YUM_OPTS $YUM_ACTION
         fi
     fi
     yum -q check-update && rm -f $UPDATES_STAT_FILE
