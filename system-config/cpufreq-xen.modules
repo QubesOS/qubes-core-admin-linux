@@ -7,6 +7,7 @@ if modinfo cpufreq-xen > /dev/null 2>&1; then
     for f in /sys/devices/system/cpu/cpu[0-9]*/cpufreq/scaling_governor; do
         echo xen > $f
     done
-
 fi
-
+if modinfo xen-acpi-processor &>/dev/null; then
+    modprobe xen-acpi-processor
+fi
