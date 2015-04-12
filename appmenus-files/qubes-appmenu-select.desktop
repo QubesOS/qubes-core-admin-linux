@@ -2,7 +2,7 @@
 Version=1.0
 Type=Application
 Exec=qubes-vm-settings %VMNAME% applications
-Icon=qubes-logo
+Icon=qubes-appmenu-select
 Terminal=false
 Name=%VMNAME%: Add more shortcuts...
 GenericName=%VMNAME%: Add more shortcuts...
