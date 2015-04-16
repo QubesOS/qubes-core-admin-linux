@@ -598,10 +598,10 @@ int main(int argc, char **argv)
         else {
             data_vchan = libvchan_server_init(data_domain, data_port,
                     VCHAN_BUFFER_SIZE, VCHAN_BUFFER_SIZE);
-            while (data_vchan && !libvchan_is_open(data_vchan))
+            while (data_vchan && libvchan_is_open(data_vchan) == VCHAN_WAITING)
                 libvchan_wait(data_vchan);
         }
-        if (!data_vchan) {
+        if (!data_vchan || !libvchan_is_open(data_vchan)) {
             fprintf(stderr, "Failed to open data vchan connection\n");
             do_exit(1);
         }
@@ -635,8 +635,12 @@ int main(int argc, char **argv)
                 fprintf(stderr, "Failed to start data vchan server\n");
                 do_exit(1);
             }
-            while (!libvchan_is_open(data_vchan))
+            while (libvchan_is_open(data_vchan) == VCHAN_WAITING)
                 libvchan_wait(data_vchan);
+            if (!libvchan_is_open(data_vchan)) {
+                fprintf(stderr, "Failed to open data vchan connection\n");
+                do_exit(1);
+            }
             if (handle_agent_handshake(data_vchan, 0) < 0)
                 do_exit(1);
             select_loop(data_vchan);
