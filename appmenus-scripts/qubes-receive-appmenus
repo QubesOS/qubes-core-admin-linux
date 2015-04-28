@@ -186,31 +186,34 @@ def create_template(path, values):
             print >>sys.stderr, "Warning: not creating/updating '%s' because of missing '%s' key" % (path, key)
             return
 
-    desktop_file = open(path, "w")
-    desktop_file.write("[Desktop Entry]\n")
-    desktop_file.write("Version=1.0\n")
-    desktop_file.write("Type=Application\n")
-    desktop_file.write("Terminal=false\n")
-    desktop_file.write("X-Qubes-VmName=%VMNAME%\n")
+    desktop_entry = ""
+    desktop_entry += "[Desktop Entry]\n"
+    desktop_entry += "Version=1.0\n"
+    desktop_entry += "Type=Application\n"
+    desktop_entry += "Terminal=false\n"
+    desktop_entry += "X-Qubes-VmName=%VMNAME%\n"
 
     if 'Icon' in values:
         icon_file = os.path.splitext(os.path.split(path)[1])[0] + '.png'
-        desktop_file.write("Icon={0}\n".format(os.path.join(
-            '%VMDIR%', vm_files['appmenus_icons_subdir'], icon_file)))
+        desktop_entry += "Icon={0}\n".format(os.path.join(
+            '%VMDIR%', vm_files['appmenus_icons_subdir'], icon_file))
     else:
-        desktop_file.write("Icon=%XDGICON%\n")
+        desktop_entry += "Icon=%XDGICON%\n"
 
     for key in ["Name", "GenericName" ]:
         if values.has_key(key):
-            desktop_file.write("{0}=%VMNAME%: {1}\n".format(key, values[key]))
+            desktop_entry += "{0}=%VMNAME%: {1}\n".format(key, values[key])
     
     for key in [ "Comment", "Categories" ]:
         if values.has_key(key):
-            desktop_file.write("{0}={1}\n".format(key, values[key]))
+            desktop_entry += "{0}={1}\n".format(key, values[key])
 
-    desktop_file.write("Exec=qvm-run -q --tray -a %VMNAME% -- {0}\n".format(pipes.quote(values['Exec'])))
-    desktop_file.close()
-
+    desktop_entry += "Exec=qvm-run -q --tray -a %VMNAME% -- {0}\n".format(
+        pipes.quote(values['Exec']))
+    if not os.path.exists(path) or desktop_entry != open(path, "r").read():
+        desktop_file = open(path, "w")
+        desktop_file.write(desktop_entry)
+        desktop_file.close()
 
 def main():
     env_vmname = os.environ.get("QREXEC_REMOTE_DOMAIN")
@@ -294,8 +297,14 @@ def main():
                 os.path.splitext(appmenu_file)[0] + '.png')
 
             try:
-                qubes.imgconverter.Image.get_xdg_icon_from_vm(vm,
-                    new_appmenus[appmenu_file]['Icon']).save(icondest)
+                icon = qubes.imgconverter.Image.get_xdg_icon_from_vm(vm,
+                    new_appmenus[appmenu_file]['Icon'])
+                if os.path.exists(icondest):
+                    old_icon = qubes.imgconverter.Image.load_from_file(icondest)
+                else:
+                    old_icon = None
+                if old_icon is None or icon != old_icon:
+                    icon.save(icondest)
             except Exception, e:
                 print >> sys.stderr, '----> Failed to get icon for {0}: {1!s}'.format(appmenu_file, e)
 
@@ -329,7 +338,7 @@ def main():
         os.putenv('SKIP_CACHE_REBUILD', '1')
         for child_vm in vm.appvms.values():
             try:
-                child_vm.appmenus_recreate()
+                child_vm.appmenus_update()
             except Exception, e:
                 print >> sys.stderr, "---> Failed to recreate appmenus for "  \
                                      "'{0}': {1}".format(child_vm.name, str(e))

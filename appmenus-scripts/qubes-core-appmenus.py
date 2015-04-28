@@ -133,9 +133,11 @@ def QubesVm_appicons_create(self, srcdir=None):
         if whitelist and desktop not in whitelist:
             continue
 
-        qubes.imgconverter.tint(os.path.join(srcdir, icon),
-            os.path.join(self.appmenus_icons_dir, icon),
-            self.label.color)
+        src_icon = os.path.join(srcdir, icon)
+        dst_icon = os.path.join(self.appmenus_icons_dir, icon)
+        if not os.path.exists(dst_icon) or \
+                        os.path.getmtime(src_icon) > os.path.getmtime(dst_icon):
+            qubes.imgconverter.tint(src_icon, dst_icon, self.label.color)
 
 def QubesVm_appicons_remove(self):
     if not os.path.exists(self.appmenus_icons_dir): return
@@ -246,9 +248,22 @@ def QubesVm_label_setter(self, _):
         self.appmenus_create()
 
 def QubesVm_appmenus_recreate(self):
+    """
+    Force recreation of all appmenus and icons. For example when VM label
+    color was changed
+    """
     self.appmenus_remove()
     self.appicons_remove()
     self.appicons_create()
+    self.appmenus_create()
+
+def QubesVm_appmenus_update(self):
+    """
+    Similar to appmenus_recreate, but do not touch unchanged files
+    """
+    self.appmenus_remove()
+    self.appicons_create()
+    self.appicons_cleanup()
     self.appmenus_create()
 
 def QubesVm_set_attr(self, name, newvalue, oldvalue):
@@ -262,6 +277,7 @@ def QubesVm_set_attr(self, name, newvalue, oldvalue):
 QubesVm.appmenus_create = QubesVm_appmenus_create
 QubesVm.appmenus_remove = QubesVm_appmenus_remove
 QubesVm.appmenus_recreate = QubesVm_appmenus_recreate
+QubesVm.appmenus_update = QubesVm_appmenus_update
 QubesVm.appicons_create = QubesVm_appicons_create
 QubesVm.appicons_remove = QubesVm_appicons_remove
 
