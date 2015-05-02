@@ -52,7 +52,7 @@ fields_regexp = {
     "Icon": re.compile(r"^[a-zA-Z0-9/_.-]*$"),
 }
 
-CATEGORIES_WHITELIST = set([
+CATEGORIES_WHITELIST = {
     # Main Categories
     # http://standards.freedesktop.org/menu-spec/1.1/apa.html 20140507
     'AudioVideo', 'Audio', 'Video', 'Development', 'Education', 'Game',
@@ -89,8 +89,9 @@ CATEGORIES_WHITELIST = set([
 
     # Reserved Categories (not whitelisted)
     # http://standards.freedesktop.org/menu-spec/1.1/apas03.html
-#   'Screensaver', 'TrayIcon', 'Applet', 'Shell',
-])
+    # 'Screensaver', 'TrayIcon', 'Applet', 'Shell',
+}
+
 
 def sanitise_categories(untrusted_value):
     untrusted_categories = (c.strip() for c in untrusted_value.split(';') if c)
@@ -137,7 +138,6 @@ def get_appmenus(vm):
         if appmenus_line_count == 0:
             raise QubesException("Line count limit exceeded")
 
-    row_no = 0
     appmenus = {}
     line_rx = re.compile(
         r"([a-zA-Z0-9.()_-]+.desktop):([a-zA-Z0-9-]+(?:\[[a-zA-Z@_]+\])?)=(.*)")
@@ -162,7 +162,7 @@ def get_appmenus(vm):
             # TODO add key-dependent asserts
 
             # Look only at predefined keys
-            if fields_regexp.has_key(untrusted_key):
+            if untrusted_key in fields_regexp:
                 if fields_regexp[untrusted_key].match(untrusted_value):
                     # now values are sanitized
                     key = untrusted_key
@@ -171,7 +171,7 @@ def get_appmenus(vm):
                     else:
                         value = untrusted_value
 
-                    if not appmenus.has_key(filename):
+                    if filename not in appmenus:
                         appmenus[filename] = {}
 
                     appmenus[filename][key] = value
@@ -187,7 +187,7 @@ def get_appmenus(vm):
 def create_template(path, values):
     # check if all required fields are present
     for key in required_fields:
-        if not values.has_key(key):
+        if key not in values:
             print >> sys.stderr, "Warning: not creating/updating '%s' " \
                                  "because of missing '%s' key" % (
                                      path, key)
@@ -208,11 +208,11 @@ def create_template(path, values):
         desktop_entry += "Icon=%XDGICON%\n"
 
     for key in ["Name", "GenericName"]:
-        if values.has_key(key):
+        if key in values:
             desktop_entry += "{0}=%VMNAME%: {1}\n".format(key, values[key])
 
     for key in ["Comment", "Categories"]:
-        if values.has_key(key):
+        if key in values:
             desktop_entry += "{0}={1}\n".format(key, values[key])
 
     desktop_entry += "Exec=qvm-run -q --tray -a %VMNAME% -- {0}\n".format(
@@ -280,7 +280,6 @@ def main():
                              "running VM - start it first"
         exit(1)
 
-    new_appmenus = {}
     if env_vmname is None or options.force_rpc:
         new_appmenus = get_appmenus(vm)
     else:
@@ -311,8 +310,6 @@ def main():
 
         if 'Icon' in new_appmenus[appmenu_file]:
             # the following line is used for time comparison
-#           del new_appmenus[appmenu_file]['Icon']
-
             icondest = os.path.join(vm.appmenus_template_icons_dir,
                                     os.path.splitext(appmenu_file)[0] + '.png')
 
@@ -348,7 +345,7 @@ def main():
         if not appmenu_file.endswith('.desktop'):
             continue
 
-        if not new_appmenus.has_key(appmenu_file):
+        if appmenu_file not in new_appmenus:
             if options.verbose:
                 print >> sys.stderr, "---> Removing {0}".format(appmenu_file)
             os.unlink(os.path.join(vm.appmenus_templates_dir, appmenu_file))

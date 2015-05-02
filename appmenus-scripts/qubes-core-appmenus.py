@@ -73,7 +73,6 @@ def QubesVm_appmenus_create(self, verbose=False, source_template=None):
     if self.internal:
         return
 
-    vmtype = None
     if self.is_netvm():
         vmtype = 'servicevms'
     elif self.is_template():
@@ -105,7 +104,6 @@ def QubesVm_appmenus_create(self, verbose=False, source_template=None):
 
 
 def QubesVm_appmenus_remove(self):
-    vmtype = None
     if self.is_netvm():
         vmtype = 'servicevms'
     elif self.is_template():
