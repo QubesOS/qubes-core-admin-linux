@@ -49,20 +49,35 @@ system_path['appmenu_remove_cmd'] = \
 
 
 def QubesVm_get_attrs_config(self, attrs):
-    attrs["appmenus_templates_dir"] = { "eval": \
-        'os.path.join(self.dir_path, vm_files["appmenus_templates_subdir"]) if self.updateable else ' + \
-            'self.template.appmenus_templates_dir if self.template is not None else None' }
-    attrs["appmenus_template_icons_dir"] = { "eval": \
-        'os.path.join(self.dir_path, vm_files["appmenus_template_icons_subdir"]) if self.updateable else ' + \
-            'self.template.appmenus_template_icons_dir if self.template is not None else None' }
-    attrs["appmenus_icons_dir"] = { "eval": \
-        'os.path.join(self.dir_path, vm_files["appmenus_icons_subdir"])' }
+    attrs["appmenus_templates_dir"] = {
+        "func": lambda x:
+            os.path.join(self.dir_path, vm_files["appmenus_templates_subdir"])
+            if self.updateable else
+            (self.template.appmenus_templates_dir if self.template is not None
+             else None)
+    }
+    attrs["appmenus_template_icons_dir"] = {
+        "func": lambda x:
+            os.path.join(self.dir_path,
+                         vm_files["appmenus_template_icons_subdir"])
+            if self.updateable else
+            (self.template.appmenus_template_icons_dir
+             if self.template is not None else None)
+    }
+    attrs["appmenus_icons_dir"] = {
+        "func": lambda x:
+            os.path.join(self.dir_path, vm_files["appmenus_icons_subdir"])}
     return attrs
 
 
 def QubesTemplateVm_get_attrs_config(self, attrs):
-    attrs['appmenus_templates_dir'] = { 'eval': 'os.path.join(self.dir_path, vm_files["appmenus_templates_subdir"])' }
-    attrs['appmenus_template_icons_dir'] = { 'eval': 'os.path.join(self.dir_path, vm_files["appmenus_template_icons_subdir"])' }
+    attrs['appmenus_templates_dir'] = {
+        'func': lambda x:
+            os.path.join(self.dir_path, vm_files["appmenus_templates_subdir"])}
+    attrs['appmenus_template_icons_dir'] = {
+        'func': lambda x:
+            os.path.join(self.dir_path,
+                         vm_files["appmenus_template_icons_subdir"])}
     return attrs
 
 
