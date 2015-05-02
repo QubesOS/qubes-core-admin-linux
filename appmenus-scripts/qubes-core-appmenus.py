@@ -168,6 +168,18 @@ def QubesVm_appicons_remove(self):
         os.unlink(os.path.join(self.appmenus_icons_dir, icon))
 
 
+def QubesVm_appicons_cleanup(self):
+    srcdir = self.appmenus_template_icons_dir
+    if srcdir is None:
+        return
+    if not os.path.exists(srcdir):
+        return
+
+    for icon in os.listdir(self.appmenus_icons_dir):
+        if not os.path.exists(os.path.join(srcdir, icon)):
+            os.unlink(os.path.join(self.appmenus_icons_dir, icon))
+
+
 def QubesVm_pre_rename(self, new_name):
     self.appmenus_remove()
 
@@ -326,6 +338,7 @@ QubesVm.appmenus_remove = QubesVm_appmenus_remove
 QubesVm.appmenus_recreate = QubesVm_appmenus_recreate
 QubesVm.appmenus_update = QubesVm_appmenus_update
 QubesVm.appicons_create = QubesVm_appicons_create
+QubesVm.appicons_cleanup = QubesVm_appicons_cleanup
 QubesVm.appicons_remove = QubesVm_appicons_remove
 
 # hooks for existing methods
