@@ -357,7 +357,7 @@ def main():
             shutil.copy(system_path['appmenu_start_hvm_template'],
                         vm.appmenus_templates_dir)
 
-    vm.appmenus_recreate()
+    vm.appmenus_update()
     if hasattr(vm, 'appvms'):
         os.putenv('SKIP_CACHE_REBUILD', '1')
         for child_vm in vm.appvms.values():
