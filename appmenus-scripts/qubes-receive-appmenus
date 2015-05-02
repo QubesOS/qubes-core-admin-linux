@@ -29,15 +29,15 @@ import shutil
 import pipes
 
 from optparse import OptionParser
-from qubes.qubes import QubesVmCollection,QubesException,system_path
+from qubes.qubes import QubesVmCollection, QubesException, system_path
 from qubes.qubes import QubesHVm
 from qubes.qubes import vm_files
 import qubes.imgconverter
 
 # fields required to be present (and verified) in retrieved desktop file
-required_fields = [ "Name", "Exec" ]
+required_fields = ["Name", "Exec"]
 
-#limits
+# limits
 appmenus_line_size = 1024
 appmenus_line_count = 100000
 
@@ -98,11 +98,13 @@ def sanitise_categories(untrusted_value):
 
     return ';'.join(categories) + ';'
 
+
 def fallback_hvm_appmenulist():
-    p = subprocess.Popen(["grep",  "-rH", "=", "/usr/share/qubes-appmenus/hvm"],
-            stdout=subprocess.PIPE)
+    p = subprocess.Popen(["grep", "-rH", "=", "/usr/share/qubes-appmenus/hvm"],
+                         stdout=subprocess.PIPE)
     (stdout, stderr) = p.communicate()
     return stdout.splitlines()
+
 
 def get_appmenus(vm):
     global appmenus_line_count
@@ -137,12 +139,13 @@ def get_appmenus(vm):
 
     row_no = 0
     appmenus = {}
-    line_rx = re.compile(r"([a-zA-Z0-9.()_-]+.desktop):([a-zA-Z0-9-]+(?:\[[a-zA-Z@_]+\])?)=(.*)")
+    line_rx = re.compile(
+        r"([a-zA-Z0-9.()_-]+.desktop):([a-zA-Z0-9-]+(?:\[[a-zA-Z@_]+\])?)=(.*)")
     ignore_rx = re.compile(r".*([a-zA-Z0-9._-]+.desktop):(#.*|\s+)$")
     for untrusted_line in untrusted_appmenulist:
         # Ignore blank lines and comments
         if len(untrusted_line) == 0 or ignore_rx.match(untrusted_line):
-            continue 
+            continue
         # use search instead of match to skip file path
         untrusted_m = line_rx.search(untrusted_line)
         if untrusted_m:
@@ -171,9 +174,11 @@ def get_appmenus(vm):
                     if not appmenus.has_key(filename):
                         appmenus[filename] = {}
 
-                    appmenus[filename][key]=value
+                    appmenus[filename][key] = value
                 else:
-                    print >>sys.stderr, "Warning: ignoring key %r of %s" % (untrusted_key, filename)
+                    print >> sys.stderr, \
+                        "Warning: ignoring key %r of %s" % \
+                        (untrusted_key, filename)
             # else: ignore this key
 
     return appmenus
@@ -183,7 +188,9 @@ def create_template(path, values):
     # check if all required fields are present
     for key in required_fields:
         if not values.has_key(key):
-            print >>sys.stderr, "Warning: not creating/updating '%s' because of missing '%s' key" % (path, key)
+            print >> sys.stderr, "Warning: not creating/updating '%s' " \
+                                 "because of missing '%s' key" % (
+                                     path, key)
             return
 
     desktop_entry = ""
@@ -200,11 +207,11 @@ def create_template(path, values):
     else:
         desktop_entry += "Icon=%XDGICON%\n"
 
-    for key in ["Name", "GenericName" ]:
+    for key in ["Name", "GenericName"]:
         if values.has_key(key):
             desktop_entry += "{0}=%VMNAME%: {1}\n".format(key, values[key])
-    
-    for key in [ "Comment", "Categories" ]:
+
+    for key in ["Comment", "Categories"]:
         if values.has_key(key):
             desktop_entry += "{0}={1}\n".format(key, values[key])
 
@@ -215,30 +222,37 @@ def create_template(path, values):
         desktop_file.write(desktop_entry)
         desktop_file.close()
 
+
 def main():
     env_vmname = os.environ.get("QREXEC_REMOTE_DOMAIN")
-    usage = "usage: %prog [options] <vm-name>\n"\
-            "Updates desktop file templates for given StandaloneVM or TemplateVM"
+    usage = "usage: %prog [options] <vm-name>\n" \
+            "Update desktop file templates for given StandaloneVM or TemplateVM"
 
-    parser = OptionParser (usage)
-    parser.add_option ("-v", "--verbose", action="store_true", dest="verbose", default=False)
-    parser.add_option ("--force-root", action="store_true", dest="force_root", default=False,
-                       help="Force to run, even with root privileges")
-    parser.add_option ("--force-rpc", action="store_true", dest="force_rpc", default=False,
-                       help="Force to start a new RPC call, even if called from existing one")
+    parser = OptionParser(usage)
+    parser.add_option("-v", "--verbose", action="store_true", dest="verbose",
+                      default=False)
+    parser.add_option("--force-root", action="store_true", dest="force_root",
+                      default=False,
+                      help="Force to run, even with root privileges")
+    parser.add_option("--force-rpc", action="store_true", dest="force_rpc",
+                      default=False,
+                      help="Force to start a new RPC call, "
+                           "even if called from existing one")
 
-    (options, args) = parser.parse_args ()
-    if (len (args) != 1) and env_vmname is None:
-        parser.error ("You must specify at least the VM name!")
+    (options, args) = parser.parse_args()
+    if (len(args) != 1) and env_vmname is None:
+        parser.error("You must specify at least the VM name!")
 
     if env_vmname:
-        vmname=env_vmname
+        vmname = env_vmname
     else:
-        vmname=args[0]
+        vmname = args[0]
 
     if os.geteuid() == 0:
         if not options.force_root:
-            print >> sys.stderr, "*** Running this tool as root is strongly discouraged, this will lead you in permissions problems."
+            print >> sys.stderr, "*** Running this tool as root is strongly " \
+                                 "discouraged, this will lead you into " \
+                                 "permissions problems."
             print >> sys.stderr, "Retry as unprivileged user."
             print >> sys.stderr, "... or use --force-root to continue anyway."
             exit(1)
@@ -251,15 +265,19 @@ def main():
     vm = qvm_collection.get_vm_by_name(vmname)
 
     if vm is None:
-        print >>sys.stderr, "ERROR: A VM with the name '{0}' does not exist in the system.".format(vmname)
+        print >> sys.stderr, "ERROR: A VM with the name '{0}' " \
+                             "does not exist in the system.".format(
+                                 vmname)
         exit(1)
 
     if vm.template is not None:
-        print >>sys.stderr, "ERROR: To sync appmenus for template based VM, do it on template instead"
+        print >> sys.stderr, "ERROR: To sync appmenus for template based VM, " \
+                             "do it on template instead"
         exit(1)
 
     if not vm.is_running():
-        print >>sys.stderr, "ERROR: Appmenus can be retrieved only from running VM - start it first"
+        print >> sys.stderr, "ERROR: Appmenus can be retrieved only from " \
+                             "running VM - start it first"
         exit(1)
 
     new_appmenus = {}
@@ -270,7 +288,7 @@ def main():
         new_appmenus = get_appmenus(None)
 
     if len(new_appmenus) == 0:
-        print >>sys.stderr, "ERROR: No appmenus received, terminating"
+        print >> sys.stderr, "ERROR: No appmenus received, terminating"
         exit(1)
 
     if not os.path.exists(vm.appmenus_templates_dir):
@@ -281,10 +299,12 @@ def main():
 
     # Create new/update existing templates
     if options.verbose:
-        print >> sys.stderr, "--> Got {0} appmenus, storing to disk".format(str(len(new_appmenus)))
+        print >> sys.stderr, "--> Got {0} appmenus, storing to disk".format(
+            str(len(new_appmenus)))
     for appmenu_file in new_appmenus.keys():
         if options.verbose:
-            if os.path.exists(os.path.join(vm.appmenus_templates_dir, appmenu_file)):
+            if os.path.exists(
+                    os.path.join(vm.appmenus_templates_dir, appmenu_file)):
                 print >> sys.stderr, "---> Updating {0}".format(appmenu_file)
             else:
                 print >> sys.stderr, "---> Creating {0}".format(appmenu_file)
@@ -294,11 +314,14 @@ def main():
 #           del new_appmenus[appmenu_file]['Icon']
 
             icondest = os.path.join(vm.appmenus_template_icons_dir,
-                os.path.splitext(appmenu_file)[0] + '.png')
+                                    os.path.splitext(appmenu_file)[0] + '.png')
 
             try:
-                icon = qubes.imgconverter.Image.get_xdg_icon_from_vm(vm,
-                    new_appmenus[appmenu_file]['Icon'])
+                icon = qubes.imgconverter.Image. \
+                    get_xdg_icon_from_vm(vm,
+                                         new_appmenus[
+                                             appmenu_file][
+                                             'Icon'])
                 if os.path.exists(icondest):
                     old_icon = qubes.imgconverter.Image.load_from_file(icondest)
                 else:
@@ -306,15 +329,17 @@ def main():
                 if old_icon is None or icon != old_icon:
                     icon.save(icondest)
             except Exception, e:
-                print >> sys.stderr, '----> Failed to get icon for {0}: {1!s}'.format(appmenu_file, e)
+                print >> sys.stderr, '----> Failed to get icon for {0}: {1!s}'.\
+                    format(appmenu_file, e)
 
                 if os.path.exists(icondest):
-                    print >> sys.stderr, '-----> Found old icon, using it instead'
+                    print >> sys.stderr, '-----> Found old icon, ' \
+                                         'using it instead'
                 else:
                     del new_appmenus[appmenu_file]['Icon']
 
         create_template(os.path.join(vm.appmenus_templates_dir, appmenu_file),
-            new_appmenus[appmenu_file])
+                        new_appmenus[appmenu_file])
 
     # Delete appmenus of removed applications
     if options.verbose:
@@ -330,8 +355,10 @@ def main():
 
     if isinstance(vm, QubesHVm):
         if not os.path.exists(os.path.join(vm.appmenus_templates_dir,
-                    os.path.basename(system_path['appmenu_start_hvm_template']))):
-            shutil.copy(system_path['appmenu_start_hvm_template'], vm.appmenus_templates_dir)
+                                           os.path.basename(system_path[
+                                               'appmenu_start_hvm_template']))):
+            shutil.copy(system_path['appmenu_start_hvm_template'],
+                        vm.appmenus_templates_dir)
 
     vm.appmenus_recreate()
     if hasattr(vm, 'appvms'):
@@ -340,10 +367,11 @@ def main():
             try:
                 child_vm.appmenus_update()
             except Exception, e:
-                print >> sys.stderr, "---> Failed to recreate appmenus for "  \
+                print >> sys.stderr, "---> Failed to recreate appmenus for " \
                                      "'{0}': {1}".format(child_vm.name, str(e))
         if 'KDE_SESSION_UID' in os.environ:
             subprocess.call(['kbuildsycoca4'])
         os.unsetenv('SKIP_CACHE_REBUILD')
+
 
 main()
