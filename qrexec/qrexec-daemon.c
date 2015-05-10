@@ -397,6 +397,7 @@ static int handle_cmdline_body_from_client(int fd, struct msg_header *hdr)
     int len = hdr->len-sizeof(params);
     char buf[len];
     int use_default_user = 0;
+    int i;
 
     if (!read_all(fd, &params, sizeof(params))) {
         terminate_client(fd);
@@ -405,6 +406,22 @@ static int handle_cmdline_body_from_client(int fd, struct msg_header *hdr)
     if (!read_all(fd, buf, len)) {
         terminate_client(fd);
         return 0;
+    }
+
+    if (hdr->type == MSG_SERVICE_CONNECT) {
+        /* if the service was accepted, do not send spurious
+         * MSG_SERVICE_REFUSED when service process itself exit with non-zero
+         * code */
+        for (i = 0; i <= policy_pending_max; i++) {
+            if (policy_pending[i].pid &&
+                    strncmp(policy_pending[i].params.ident, buf, len) == 0) {
+                policy_pending[i].pid = 0;
+                while (policy_pending_max > 0 &&
+                        policy_pending[policy_pending_max].pid > 0)
+                    policy_pending_max--;
+                break;
+            }
+        }
     }
 
     if (!params.connect_port) {
