@@ -112,6 +112,7 @@ fi
 if [ -n "$CLEAN" ]; then
     rm -f /var/lib/qubes/updates/rpm/*
 fi
+rm -f /var/lib/qubes/updates/errors
 
 # We should ensure the clocks in Dom0 and UpdateVM are in sync
 # becuase otherwise yum might complain about future timestamps
