@@ -40,7 +40,13 @@ if os.path.exists('/usr/share/qubes/Qubes-comps.xml'):
     comps_file = '/usr/share/qubes/Qubes-comps.xml'
 
 package_regex = re.compile(r"^[A-Za-z0-9._+-]{1,128}.rpm$")
-gpg_ok_regex = re.compile(r"pgp md5 OK$")
+# example valid outputs:
+#  .....rpm: rsa sha1 (md5) pgp md5 OK
+#  .....rpm: (sha1) dsa sha1 md5 gpg OK
+# example INVALID outputs:
+#  .....rpm: sha1 md5 OK
+#  .....rpm: RSA sha1 ((MD5) PGP) md5 NOT OK (MISSING KEYS: (MD5) PGP#246110c1)
+gpg_ok_regex = re.compile(r": [a-z0-9() ]* (pgp|gpg) [a-z0-9 ]*OK$")
 
 def dom0updates_fatal(pkg, msg):
     global updates_error_file_handle
