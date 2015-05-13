@@ -21,11 +21,13 @@ if [ "$1" = "--help" ]; then
     exit
 fi
 
+# Prevent template upgrade - this would override user changes
+TEMPLATE_EXCLUDE_OPTS="--exclude=`rpm -qa --qf '%{NAME},' qubes-template-\*`"
 PKGS=
-YUM_OPTS=
+YUM_OPTS="$TEMPLATE_EXCLUDE_OPTS"
 GUI=
 CHECK_ONLY=
-ALL_OPTS=$*
+ALL_OPTS="$TEMPLATE_EXCLUDE_OPTS $*"
 QVMRUN_OPTS=
 CLEAN=
 # Filter out some yum options and collect packages list
