@@ -42,13 +42,13 @@ appmenus_line_size = 1024
 appmenus_line_count = 100000
 
 # regexps for sanitization of retrieved values
-std_re = re.compile(r"^[/a-zA-Z0-9.,&() -]*$")
+std_re = re.compile(r"^[/a-zA-Z0-9.,&()_ -]*$")
 fields_regexp = {
     "Name": std_re,
     "GenericName": std_re,
     "Comment": std_re,
     "Categories": re.compile(r"^[a-zA-Z0-9/.;:'() -]*$"),
-    "Exec": re.compile(r"^[a-zA-Z0-9()%&>/{}\"'\\:.= -]*$"),
+    "Exec": re.compile(r"^[a-zA-Z0-9()_%&>/{}\"'\\:.= -]*$"),
     "Icon": re.compile(r"^[a-zA-Z0-9/_.-]*$"),
 }
 
