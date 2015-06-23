@@ -431,7 +431,7 @@ static void select_loop(libvchan_t *vchan)
             if (local_stdout_fd > max_fd)
                 max_fd = local_stdout_fd;
         }
-        if (child_exited)
+        if (child_exited && local_stdout_fd == -1)
             check_child_status(vchan);
         if (libvchan_data_ready(vchan) > 0) {
             /* check for other FDs, but exit immediately */
