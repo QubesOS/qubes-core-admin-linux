@@ -143,6 +143,7 @@ install -D system-config/qubes-sync-clock.cron $RPM_BUILD_ROOT/etc/cron.d/qubes-
 install -d $RPM_BUILD_ROOT/etc/udev/rules.d
 install -m 644 system-config/00-qubes-ignore-devices.rules $RPM_BUILD_ROOT/etc/udev/rules.d/
 install -m 644 system-config/60-persistent-storage.rules $RPM_BUILD_ROOT/etc/udev/rules.d/
+install -m 644 -D system-config/disable-lesspipe $RPM_BUILD_ROOT/etc/profile.d/zz-disable-lesspipe
 
 ### Icons
 mkdir -p $RPM_BUILD_ROOT/usr/share/qubes/icons
@@ -262,6 +263,7 @@ chmod -x /etc/grub.d/10_linux
 %config /etc/udev/rules.d/00-qubes-ignore-devices.rules
 %config(noreplace) /etc/udev/rules.d/60-persistent-storage.rules
 %attr(0644,root,root) /etc/cron.d/qubes-sync-clock.cron
+%config(noreplace) /etc/profile.d/zz-disable-lesspipe
 # Man
 %{_mandir}/man1/qvm-*.1*
 %{_mandir}/man1/qubes-*.1*
