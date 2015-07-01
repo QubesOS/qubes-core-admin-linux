@@ -20,6 +20,6 @@ for dev in $HIDE_PCI; do
     if [ -e /sys/bus/pci/devices/$BDF/driver ]; then
         echo -n $BDF > /sys/bus/pci/devices/$BDF/driver/unbind
     fi
-    echo -n $BDF > /sys/bus/pci/drivers/pciback/new_id
+    echo -n $BDF > /sys/bus/pci/drivers/pciback/new_slot
     echo -n $BDF > /sys/bus/pci/drivers/pciback/bind
 done
