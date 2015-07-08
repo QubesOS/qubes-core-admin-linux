@@ -56,8 +56,9 @@ if [ "$SRCDIR" != "none" ]; then
 fi
 
 echo "--> Adding Apps to the Menu..."
-LC_COLLATE=C xdg-desktop-menu install $APPSDIR/*.directory $APPSDIR/*.desktop
+LC_COLLATE=C xdg-desktop-menu install --noupdate $APPSDIR/*.directory $APPSDIR/*.desktop
 
 if [ -n "$KDE_SESSION_UID" -a -z "$SKIP_CACHE_REBUILD" ]; then
+    xdg-desktop-menu forceupdate
     kbuildsycoca4
 fi

@@ -366,6 +366,7 @@ def main():
             except Exception, e:
                 print >> sys.stderr, "---> Failed to recreate appmenus for " \
                                      "'{0}': {1}".format(child_vm.name, str(e))
+        subprocess.call(['xdg-desktop-menu', 'forceupdate'])
         if 'KDE_SESSION_UID' in os.environ:
             subprocess.call(['kbuildsycoca4'])
         os.unsetenv('SKIP_CACHE_REBUILD')
