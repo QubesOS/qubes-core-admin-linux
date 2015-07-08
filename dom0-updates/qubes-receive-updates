@@ -72,6 +72,7 @@ def handle_dom0updates(updatevm):
         os.remove(updates_error_file)
     os.environ['LC_ALL'] = 'C'
     qubes_gid = grp.getgrnam('qubes').gr_gid
+    old_umask = os.umask(002)
     os.mkdir(updates_rpm_dir)
     os.chown(updates_rpm_dir, -1, qubes_gid)
     os.chmod(updates_rpm_dir, 0775)
@@ -103,7 +104,6 @@ def handle_dom0updates(updatevm):
     if comps_file:
         createrepo_cmd += ["-g", comps_file]
     createrepo_cmd += ["-q", updates_dir]
-    old_umask = os.umask(002)
     subprocess.check_call(createrepo_cmd)
     os.chown(updates_repodata_dir, -1, qubes_gid)
     os.chmod(updates_repodata_dir, 0775)
