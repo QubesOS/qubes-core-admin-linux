@@ -1,5 +1,4 @@
-This package contains Linux dom0 files, which aren't exactly part of "Qubes
-core" i.e. aren't required for normal Qubes usage.
+This package contains Linux dom0 files.
 
 Mostly there are config files for different system services, but also some
 "addons" to Qubes core:
