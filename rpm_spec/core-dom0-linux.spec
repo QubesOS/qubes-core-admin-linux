@@ -144,6 +144,7 @@ install -d $RPM_BUILD_ROOT/etc/udev/rules.d
 install -m 644 system-config/00-qubes-ignore-devices.rules $RPM_BUILD_ROOT/etc/udev/rules.d/
 install -m 644 system-config/60-persistent-storage.rules $RPM_BUILD_ROOT/etc/udev/rules.d/
 install -m 644 -D system-config/disable-lesspipe $RPM_BUILD_ROOT/etc/profile.d/zz-disable-lesspipe
+install -m 755 -D system-config/kernel-grub2.install $RPM_BUILD_ROOT/usr/lib/kernel/install.d/90-grub2.install
 
 ### Icons
 mkdir -p $RPM_BUILD_ROOT/usr/share/qubes/icons
@@ -255,6 +256,7 @@ chmod -x /etc/grub.d/10_linux
 # Others
 /etc/sysconfig/iptables
 /etc/sysconfig/ip6tables
+/usr/lib/kernel/install.d/90-grub2.install
 /etc/sysconfig/modules/qubes-dom0.modules
 /etc/sysconfig/modules/cpufreq-xen.modules
 /etc/sudoers.d/qubes
