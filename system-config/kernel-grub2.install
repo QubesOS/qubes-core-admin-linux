@@ -1,3 +1,14 @@
 #!/bin/sh
 
+COMMAND="$1"
+KVER="$2"
+
+case "$COMMAND" in
+    add)
+        dracut -f "/boot/initramfs-${KVER}.img" "$KVER"
+        ;;
+    remove)
+        rm -f "/boot/initramfs-${KVER}.img"
+        ;;
+esac
 grub2-mkconfig -o /boot/grub2/grub.cfg
