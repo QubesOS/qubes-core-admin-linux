@@ -47,7 +47,7 @@ BuildRequires:  qubes-utils-devel >= 2.0.5
 BuildRequires:  qubes-libvchan-devel
 Requires:	qubes-core-dom0
 Requires:	qubes-utils >= 2.0.6
-Provides:	%{name}-kernel-install
+Requires:	%{name}-kernel-install
 
 %define _builddir %(pwd)
 
@@ -55,6 +55,12 @@ Provides:	%{name}-kernel-install
 Linux customizations required to use system as Qubes dom0.
 Additionally some graphical elements for every Linux desktop envirnment (icons,
 appmenus etc).
+
+%package kernel-install
+Summary:	Kernel install hook for Xen-based system
+
+%description kernel-install
+Kernel install hook for Xen-based system.
 
 %prep
 # we operate on the current directory, so no need to unpack anything
@@ -249,7 +255,6 @@ chmod -x /etc/grub.d/10_linux
 /usr/lib64/pm-utils/sleep.d/52qubes-pause-vms
 /usr/lib/systemd/system/qubes-suspend.service
 # Others
-/usr/lib/kernel/install.d/90-grub2.install
 /etc/sysconfig/modules/qubes-dom0.modules
 /etc/sysconfig/modules/cpufreq-xen.modules
 /etc/sudoers.d/qubes
@@ -263,5 +268,7 @@ chmod -x /etc/grub.d/10_linux
 %{_mandir}/man1/qvm-*.1*
 %{_mandir}/man1/qubes-*.1*
 
+%files kernel-install
+/usr/lib/kernel/install.d/90-grub2.install
 
 %changelog
