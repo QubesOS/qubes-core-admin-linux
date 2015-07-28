@@ -12,10 +12,11 @@ if [ "$1" = "--help" ]; then
     echo "This tool is used to download packages for dom0. Without package list"
     echo "it checks for updates for installed packages"
     echo ""
-    echo "Usage: $0 [--clean] [--check-only] [--gui] [<pkg list>]"
+    echo "Usage: $0 [--clean] [--check-only] [--gui] [--shutdownvm] [<pkg list>]"
     echo "    --clean      clean yum cache before doing anything"
     echo "    --check-only only check for updates (no install)"
     echo "    --gui        use gpk-update-viewer for update selection"
+    echo "    --shutdownvm shut down the UpdateVM after updating"
     echo "    --action=... use specific yum action, instead of automatic install/update"
     echo "    <pkg list>   download (and install if run by root) new packages"
     echo "                 in dom0 instead of updating"
@@ -27,8 +28,8 @@ TEMPLATE_EXCLUDE_OPTS="--exclude=`rpm -qa --qf '%{NAME},' qubes-template-\*`"
 PKGS=
 YUM_OPTS="$TEMPLATE_EXCLUDE_OPTS"
 GUI=
+SHUTDOWNVM=
 CHECK_ONLY=
-ALL_OPTS="$TEMPLATE_EXCLUDE_OPTS $*"
 YUM_ACTION=
 QVMRUN_OPTS=
 CLEAN=
@@ -43,6 +44,9 @@ while [ $# -gt 0 ]; do
             ;;
         --gui)
             GUI=1
+            ;;
+        --shutdownvm)
+            SHUTDOWNVM=1
             ;;
         --check-only)
             CHECK_ONLY=1
@@ -61,6 +65,12 @@ while [ $# -gt 0 ]; do
             ;;
     esac
     shift
+done
+ALL_OPTS="$TEMPLATE_EXCLUDE_OPTS $*"
+for i in "${ALL_OPTS[@]}"; do
+  if [ $i = "--shutdownvm" ]; then
+    unset "ALL_OPTS[${#ALL_OPTS[@]}-1]"
+  fi
 done
 
 ID=$(id -ur)
@@ -169,4 +179,9 @@ elif [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
     yum -q check-update && rm -f $UPDATES_STAT_FILE
 else
     echo "No updates avaliable" >&2
+fi
+
+# Shut down the UpdateVM if we were asked to
+if [ "$SHUTDOWNVM" == "1" ]; then
+  qvm-shutdown $UPDATEVM
 fi
