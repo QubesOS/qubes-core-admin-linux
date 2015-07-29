@@ -48,11 +48,6 @@ Requires:	qubes-core-dom0
 Requires:	qubes-utils >= 2.0.6
 Requires:	%{name}-kernel-install
 
-# get rid of os-prober, it tries to mount and parse all the block devices in
-# the system, including loop*
-Provides: os-prober
-Obsoletes: os-prober
-
 %define _builddir %(pwd)
 
 %description
@@ -62,6 +57,11 @@ appmenus etc).
 
 %package kernel-install
 Summary:	Kernel install hook for Xen-based system
+
+# get rid of os-prober, it tries to mount and parse all the block devices in
+# the system, including loop*
+Provides: os-prober
+Obsoletes: os-prober
 
 %description kernel-install
 Kernel install hook for Xen-based system.
