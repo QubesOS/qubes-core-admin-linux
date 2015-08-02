@@ -20,6 +20,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #
 #
+import optparse
 
 import subprocess
 import re
@@ -35,6 +36,8 @@ from qubes.qubes import vm_files
 import qubes.imgconverter
 
 # fields required to be present (and verified) in retrieved desktop file
+from qubes import vmm
+
 required_fields = ["Name", "Exec"]
 
 # limits
@@ -238,6 +241,11 @@ def main():
                       default=False,
                       help="Force to start a new RPC call, "
                            "even if called from existing one")
+    # Do not use any RPC call, expects data on stdin (in qubes.GetAppmenus
+    # format)
+    parser.add_option("--offline-mode", dest="offline_mode",
+                      action="store_true", default=False,
+                      help=optparse.SUPPRESS_HELP)
 
     (options, args) = parser.parse_args()
     if (len(args) != 1) and env_vmname is None:
@@ -257,6 +265,8 @@ def main():
             print >> sys.stderr, "... or use --force-root to continue anyway."
             exit(1)
 
+    if options.offline_mode:
+        vmm.offline_mode = True
     qvm_collection = QubesVmCollection()
     qvm_collection.lock_db_for_reading()
     qvm_collection.load()
@@ -275,12 +285,12 @@ def main():
                              "do it on template instead"
         exit(1)
 
-    if not vm.is_running():
+    if not options.offline_mode and not vm.is_running():
         print >> sys.stderr, "ERROR: Appmenus can be retrieved only from " \
                              "running VM - start it first"
         exit(1)
 
-    if env_vmname is None or options.force_rpc:
+    if not options.offline_mode and env_vmname is None or options.force_rpc:
         new_appmenus = get_appmenus(vm)
     else:
         options.verbose = False
@@ -308,6 +318,9 @@ def main():
             else:
                 print >> sys.stderr, "---> Creating {0}".format(appmenu_file)
 
+        # TODO: icons support in offline mode
+        if options.offline_mode:
+            new_appmenus[appmenu_file].pop('Icon', None)
         if 'Icon' in new_appmenus[appmenu_file]:
             # the following line is used for time comparison
             icondest = os.path.join(vm.appmenus_template_icons_dir,
