@@ -1,0 +1,15 @@
+#!/bin/sh
+
+# The Boot Loader Specification is not useful for Qubes OS, because it handles
+# only direct Linux boot, not Xen or any other multiboot application (like
+# tboot).
+# Because of that Qubes OS still uses generated grub2 configuration.
+# Unfortunately the sole existence of /boot/${MACHINE_ID} changes behaviour of
+# some tools - for example default output file in dracut. So forcibly remove
+# the directory (which was just created...).
+
+[[ -f /etc/machine-id ]] && read MACHINE_ID < /etc/machine-id
+
+if [[ $MACHINE_ID ]] && ( [[ -d /boot/${MACHINE_ID} ]] || [[ -L /boot/${MACHINE_ID} ]] ); then
+    rm -rf /boot/${MACHINE_ID}
+fi
