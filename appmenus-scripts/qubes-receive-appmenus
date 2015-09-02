@@ -299,6 +299,8 @@ def main():
         print >> sys.stderr, "ERROR: No appmenus received, terminating"
         exit(1)
 
+    os.umask(002)
+
     if not os.path.exists(vm.appmenus_templates_dir):
         os.mkdir(vm.appmenus_templates_dir)
 

@@ -87,6 +87,8 @@ def QubesVm_appmenus_create(self, verbose=False, source_template=None):
 
     if self.internal:
         return
+    if self.is_disposablevm():
+        return
 
     if self.is_netvm():
         vmtype = 'servicevms'
@@ -137,6 +139,11 @@ def QubesVm_appicons_create(self, srcdir=None):
     if not os.path.exists(srcdir):
         return
 
+    if self.internal:
+        return
+    if self.is_disposablevm():
+        return
+
     whitelist = os.path.join(self.dir_path, vm_files['appmenus_whitelist'])
     if os.path.exists(whitelist):
         whitelist = [line.strip() for line in open(whitelist)]
@@ -173,6 +180,8 @@ def QubesVm_appicons_cleanup(self):
     if srcdir is None:
         return
     if not os.path.exists(srcdir):
+        return
+    if not os.path.exists(self.appmenus_icons_dir):
         return
 
     for icon in os.listdir(self.appmenus_icons_dir):
