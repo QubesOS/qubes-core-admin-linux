@@ -10,10 +10,12 @@ qubes-dom0-update - update software in dom0
 
 SYNOPSIS
 ========
-| qubes-dom0-update [--clean] [--check-only] [--gui] [<yum opts>] [<pkg list>]
+| qubes-dom0-update [--action] [--clean] [--check-only] [--gui] [<yum opts>] [<pkg list>]
 
 OPTIONS
 =======
+--action
+    Allows to pass a yum command
 --clean
     Clean yum cache before doing anything
 --check-only
