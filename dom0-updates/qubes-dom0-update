@@ -131,7 +131,8 @@ echo "Using $UPDATEVM as UpdateVM to download updates for Dom0; this may take so
 # Start VM if not running already
 qvm-run $QVMRUN_OPTS -a $UPDATEVM true || exit 1
 
-tar c /var/lib/rpm /etc/yum.repos.d /etc/yum.conf 2>/dev/null | qvm-run -p "$UPDATEVM" 'tar x -C /var/lib/qubes/dom0-updates'
+tar c /var/lib/rpm /etc/yum.repos.d /etc/yum.conf 2>/dev/null | \
+   qvm-run -p "$UPDATEVM" 'LC_MESSAGES=C tar x -C /var/lib/qubes/dom0-updates 2>&1 | grep -v -E "s in the future"'
 
 qvm-run $QVMRUN_OPTS --pass-io $UPDATEVM "/usr/lib/qubes/qubes-download-dom0-updates.sh --doit --nogui $ALL_OPTS"
 RETCODE=$?
