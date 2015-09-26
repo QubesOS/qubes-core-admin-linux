@@ -11,4 +11,6 @@ case "$COMMAND" in
         rm -f "/boot/initramfs-${KVER}.img"
         ;;
 esac
-grub2-mkconfig -o /boot/grub2/grub.cfg
+if [ -x /usr/sbin/grub2-mkconfig ]; then
+    grub2-mkconfig -o /boot/grub2/grub.cfg
+fi
