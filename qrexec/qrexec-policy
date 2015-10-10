@@ -4,7 +4,9 @@ import os
 import os.path
 import subprocess
 from qubes.qubes import vmm
+from qubes.qubes import QubesVmCollection
 import qubes.guihelpers
+import libvirt
 from optparse import OptionParser
 import fcntl
 
@@ -82,45 +84,36 @@ def find_policy(policy, domain, target):
         return iter
     return get_default_policy()
 
-def is_domain_running(target):
-    if target == "dom0":
-        return True
-    libvirt_dom = vmm.libvirt_conn.lookupByName(target)
-    if libvirt_dom:
-        return libvirt_dom.isActive()
-    else:
-        return False
-
 def validate_target(target):
     # special targets
-    if target in ['$dispvm', 'dom0']:
+    if target in ['$dispvm']:
         return True
-
-    from qubes.qubes import QubesVmCollection
 
     qc = QubesVmCollection()
     qc.lock_db_for_reading()
     qc.load()
     qc.unlock_db()
 
-    return qc.get_vm_by_name(target) is not None
+    return qc.get_vm_by_name(target)
 
-def spawn_target_if_necessary(target):
-    if is_domain_running(target):
+def spawn_target_if_necessary(vm):
+    if vm.is_running():
         return
-    null=open("/dev/null", "r+")
-    subprocess.call(["qvm-run", "-a", "-q", target, "true"], stdin=null, stdout=null)
+    # use qvm-run instead of vm.start() to make sure that nothing is written
+    # to stdout and nothing is read from stdin
+    null = open("/dev/null", "r+")
+    subprocess.call(["qvm-run", "-a", "-q", vm.name, "true"],
+                    stdin=null, stdout=null)
     null.close()
 
-def do_execute(domain, target, user, service_name, process_ident):
+def do_execute(domain, target, user, service_name, process_ident, vm=None):
     if target == "$dispvm":
         cmd = "/usr/lib/qubes/qfile-daemon-dvm " + service_name + " " + domain + " " +user
         os.execl(QREXEC_CLIENT, "qrexec-client",
                 "-d", "dom0", "-c", process_ident, cmd)
     else:
-        # see the previous commit why "qvm-run -a" is broken and dangerous
-        # also, dangling "xl" would keep stderr open and may prevent closing connection
-        spawn_target_if_necessary(target)
+        if isinstance(vm, qubes.qubes.QubesVm):
+            spawn_target_if_necessary(vm)
         if target == "dom0":
             cmd = QUBES_RPC_MULTIPLEXER_PATH + " " + service_name + " " + domain
         else:
@@ -175,7 +168,8 @@ def main():
     # connection
     process_ident+=","+domain+","+domain_id
 
-    if not validate_target(target):
+    vm = validate_target(target)
+    if vm is None:
         print >> sys.stderr, "Rpc failed (unknown domain):", domain, target, service_name
         text = "Domain '%s' doesn't exist (service %s called by domain %s)." % (
                 target, service_name, domain)
@@ -218,7 +212,7 @@ def main():
         else:
             user="DEFAULT"
         print >> sys.stderr, "Rpc allowed:", domain, target, service_name
-        do_execute(domain, target, user, service_name, process_ident)
+        do_execute(domain, target, user, service_name, process_ident, vm=vm)
 
     print >> sys.stderr, "Rpc denied:", domain, target, service_name
     exit(1)
