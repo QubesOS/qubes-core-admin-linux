@@ -144,10 +144,25 @@ def add_always_allow(domain, target, service_name, options):
     f.write("".join(lines))
     f.close()
 
+def info_dialog(msg_type, text):
+    if msg_type not in ['info', 'warning', 'error']:
+        raise ValueError("Invalid msg_type value")
+    try:
+        subprocess.call(["/usr/bin/zenity", "--{}".format(msg_type), "--text",
+                         text])
+    except OSError:
+        kdialog_msg_type = {
+            'info': 'msgbox',
+            'warning': 'sorry',
+            'error': 'error'
+        }[msg_type]
+        subprocess.call(["/usr/bin/kdialog", "--{}".format(kdialog_msg_type),
+                         text])
+
 def policy_editor(domain, target, service_name):
     text = "No policy definition found for " + service_name + " action. "
     text+= "Please create a policy file in Dom0 in " + POLICY_FILE_DIR + "/" + service_name
-    subprocess.call(["/usr/bin/zenity", "--info", "--text", text])
+    info_dialog("warning", text)
 
 def main():
     usage = "usage: %prog [options] <src-domain-id> <src-domain> <target-domain> <service> <process-ident>"
@@ -173,7 +188,7 @@ def main():
         print >> sys.stderr, "Rpc failed (unknown domain):", domain, target, service_name
         text = "Domain '%s' doesn't exist (service %s called by domain %s)." % (
                 target, service_name, domain)
-        subprocess.call(["/usr/bin/zenity", "--error", "--text", text])
+        info_dialog("error", text)
         exit(1)
 
     policy_list=read_policy_file(service_name)
