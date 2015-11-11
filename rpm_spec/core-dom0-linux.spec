@@ -79,6 +79,7 @@ python -m compileall appmenus-scripts
 python -O -m compileall appmenus-scripts
 (cd dom0-updates; make)
 (cd qrexec; make)
+(cd file-copy-vm; make)
 (cd doc; make manpages)
 
 %install
@@ -153,6 +154,11 @@ install -m 644 -D system-config/disable-lesspipe $RPM_BUILD_ROOT/etc/profile.d/z
 install -m 755 -D system-config/kernel-grub2.install $RPM_BUILD_ROOT/usr/lib/kernel/install.d/90-grub2.install
 install -m 755 -D system-config/kernel-xen-efi.install $RPM_BUILD_ROOT/usr/lib/kernel/install.d/90-xen-efi.install
 install -m 755 -D system-config/kernel-remove-bls.install $RPM_BUILD_ROOT/usr/lib/kernel/install.d/99-remove-bls.install
+
+# file copy to VM
+install -m 755 file-copy-vm/qfile-dom0-agent $RPM_BUILD_ROOT/usr/lib/qubes/
+install -m 755 file-copy-vm/qvm-copy-to-vm $RPM_BUILD_ROOT/usr/bin/
+install -m 755 file-copy-vm/qvm-move-to-vm $RPM_BUILD_ROOT/usr/bin/
 
 ### Icons
 mkdir -p $RPM_BUILD_ROOT/usr/share/qubes/icons
@@ -256,6 +262,10 @@ chmod -x /etc/grub.d/10_linux
 /usr/lib/qubes/qrexec_client
 /usr/lib/qubes/qubes-rpc-multiplexer
 /usr/lib/qubes/qrexec-policy
+# file copy
+/usr/bin/qvm-copy-to-vm
+/usr/bin/qvm-move-to-vm
+/usr/lib/qubes/qfile-dom0-agent
 # pm-utils
 /usr/lib64/pm-utils/sleep.d/01qubes-sync-vms-clock
 /usr/lib64/pm-utils/sleep.d/51qubes-suspend-netvm
