@@ -43,10 +43,10 @@ URL:		http://www.qubes-os.org
 
 BuildRequires:  ImageMagick
 BuildRequires:  pandoc
-BuildRequires:  qubes-utils-devel >= 3.1.2
+BuildRequires:  qubes-utils-devel >= 3.1.3
 BuildRequires:  qubes-libvchan-devel
 Requires:	qubes-core-dom0
-Requires:	qubes-utils >= 3.1.2
+Requires:	qubes-utils >= 3.1.3
 Requires:	%{name}-kernel-install
 
 %define _builddir %(pwd)
