@@ -36,6 +36,7 @@ import qubes.imgconverter
 
 vm_files['appmenus_templates_subdir'] = 'apps.templates'
 vm_files['appmenus_template_icons_subdir'] = 'apps.tempicons'
+vm_files['appmenus_subdir'] = 'apps'
 vm_files['appmenus_icons_subdir'] = 'apps.icons'
 vm_files['appmenus_template_templates_subdir'] = 'apps-template.templates'
 vm_files['appmenus_whitelist'] = 'whitelisted-appmenus.list'
@@ -63,6 +64,9 @@ def QubesVm_get_attrs_config(self, attrs):
             (self.template.appmenus_template_icons_dir
              if self.template is not None else None)
     }
+    attrs["appmenus_dir"] = {
+        "func": lambda x:
+            self.absolute_path(vm_files["appmenus_subdir"], None)}
     attrs["appmenus_icons_dir"] = {
         "func": lambda x:
             self.absolute_path(vm_files["appmenus_icons_subdir"], None)}
@@ -129,6 +133,18 @@ def QubesVm_appmenus_remove(self):
     subprocess.check_call([system_path["appmenu_remove_cmd"], self.name,
                            vmtype], stderr=open(os.devnull, 'w'))
 
+def QubesVm_appmenus_cleanup(self):
+    srcdir = self.appmenus_templates_dir
+    if srcdir is None:
+        return
+    if not os.path.exists(srcdir):
+        return
+    if not os.path.exists(self.appmenus_dir):
+        return
+
+    for appmenu in os.listdir(self.appmenus_dir):
+        if not os.path.exists(os.path.join(srcdir, appmenu)):
+            os.unlink(os.path.join(self.appmenus_dir, appmenu))
 
 def QubesVm_appicons_create(self, srcdir=None):
     if srcdir is None:
@@ -318,6 +334,7 @@ def QubesVm_appmenus_recreate(self):
     color was changed
     """
     self.appmenus_remove()
+    self.appmenus_cleanup()
     self.appicons_remove()
     self.appicons_create()
     self.appmenus_create()
@@ -328,6 +345,7 @@ def QubesVm_appmenus_update(self):
     Similar to appmenus_recreate, but do not touch unchanged files
     """
     self.appmenus_remove()
+    self.appmenus_cleanup()
     self.appicons_create()
     self.appicons_cleanup()
     self.appmenus_create()
@@ -343,6 +361,7 @@ def QubesVm_set_attr(self, name, newvalue, oldvalue):
 # new methods
 QubesVm.appmenus_create = QubesVm_appmenus_create
 QubesVm.appmenus_remove = QubesVm_appmenus_remove
+QubesVm.appmenus_cleanup = QubesVm_appmenus_cleanup
 QubesVm.appmenus_recreate = QubesVm_appmenus_recreate
 QubesVm.appmenus_update = QubesVm_appmenus_update
 QubesVm.appicons_create = QubesVm_appicons_create
