@@ -29,8 +29,7 @@ import shutil
 import dbus
 
 from qubes.qubes import QubesVm, QubesHVm
-from qubes.qubes import QubesException, QubesHost, QubesVmLabels
-from qubes.qubes import vm_files, system_path, dry_run
+from qubes.qubes import vm_files, system_path
 
 import qubes.imgconverter
 
