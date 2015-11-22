@@ -211,11 +211,6 @@ def QubesVm_pre_rename(self, new_name):
 
 
 def QubesVm_post_rename(self, old_name):
-    old_dirpath = os.path.join(os.path.dirname(self.dir_path), old_name)
-    if self.appmenus_templates_dir is not None:
-        self.appmenus_templates_dir = self.appmenus_templates_dir.replace(
-            old_dirpath, self.dir_path)
-
     self.appmenus_create()
 
 
