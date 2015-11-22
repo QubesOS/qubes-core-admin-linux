@@ -17,9 +17,8 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-#
-#
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
+# USA.
 
 import subprocess
 import sys
@@ -48,39 +47,41 @@ system_path['appmenu_remove_cmd'] = \
     '/usr/libexec/qubes-appmenus/remove-appvm-appmenus.sh'
 
 
-def QubesVm_get_attrs_config(self, attrs):
-    attrs["appmenus_templates_dir"] = {
-        "func": lambda x:
-            self.absolute_path(vm_files["appmenus_templates_subdir"], None)
-            if self.updateable else
-            (self.template.appmenus_templates_dir if self.template is not None
-             else None)
-    }
-    attrs["appmenus_template_icons_dir"] = {
-        "func": lambda x:
-            self.absolute_path(vm_files["appmenus_template_icons_subdir"], None)
-            if self.updateable else
-            (self.template.appmenus_template_icons_dir
-             if self.template is not None else None)
-    }
-    attrs["appmenus_dir"] = {
-        "func": lambda x:
-            self.absolute_path(vm_files["appmenus_subdir"], None)}
-    attrs["appmenus_icons_dir"] = {
-        "func": lambda x:
-            self.absolute_path(vm_files["appmenus_icons_subdir"], None)}
-    return attrs
+def QubesVm_get_appmenus_templates_dir(self):
+    if self.updateable:
+        return self.absolute_path(vm_files["appmenus_templates_subdir"], None)
+    elif self.template is not None:
+        return self.template.appmenus_templates_dir
+    else:
+        return None
+
+QubesVm.appmenus_templates_dir = property(QubesVm_get_appmenus_templates_dir)
 
 
-def QubesTemplateVm_get_attrs_config(self, attrs):
-    attrs['appmenus_templates_dir'] = {
-        'func': lambda x:
-            os.path.join(self.dir_path, vm_files["appmenus_templates_subdir"])}
-    attrs['appmenus_template_icons_dir'] = {
-        'func': lambda x:
-            os.path.join(self.dir_path,
-                         vm_files["appmenus_template_icons_subdir"])}
-    return attrs
+def QubesVm_get_appmenus_template_icons_dir(self):
+    if self.updateable:
+        return self.absolute_path(vm_files["appmenus_template_icons_subdir"],
+                                  None)
+    elif self.template:
+        return self.template.appmenus_template_icons_dir
+    else:
+        return None
+
+QubesVm.appmenus_template_icons_dir = \
+    property(QubesVm_get_appmenus_template_icons_dir)
+
+
+def QubesVm_get_appmenus_dir(self):
+    return self.absolute_path(vm_files["appmenus_subdir"], None)
+
+QubesVm.appmenus_dir = property(QubesVm_get_appmenus_dir)
+
+
+def QubesVm_get_appmenus_icons_dir(self):
+    return self.absolute_path(vm_files["appmenus_icons_subdir"], None)
+
+
+QubesVm.appmenus_icons_dir = property(QubesVm_get_appmenus_icons_dir)
 
 
 def QubesVm_appmenus_create(self, verbose=False, source_template=None):
@@ -132,6 +133,7 @@ def QubesVm_appmenus_remove(self):
     subprocess.check_call([system_path["appmenu_remove_cmd"], self.name,
                            vmtype], stderr=open(os.devnull, 'w'))
 
+
 def QubesVm_appmenus_cleanup(self):
     srcdir = self.appmenus_templates_dir
     if srcdir is None:
@@ -144,6 +146,7 @@ def QubesVm_appmenus_cleanup(self):
     for appmenu in os.listdir(self.appmenus_dir):
         if not os.path.exists(os.path.join(srcdir, appmenu)):
             os.unlink(os.path.join(self.appmenus_dir, appmenu))
+
 
 def QubesVm_appicons_create(self, srcdir=None):
     if srcdir is None:
@@ -357,6 +360,7 @@ def QubesVm_set_attr(self, name, newvalue, oldvalue):
         elif not newvalue and oldvalue:
             self.appmenus_create()
 
+
 # new methods
 QubesVm.appmenus_create = QubesVm_appmenus_create
 QubesVm.appmenus_remove = QubesVm_appmenus_remove
@@ -368,7 +372,6 @@ QubesVm.appicons_cleanup = QubesVm_appicons_cleanup
 QubesVm.appicons_remove = QubesVm_appicons_remove
 
 # hooks for existing methods
-QubesVm.hooks_get_attrs_config.append(QubesVm_get_attrs_config)
 QubesVm.hooks_pre_rename.append(QubesVm_pre_rename)
 QubesVm.hooks_post_rename.append(QubesVm_post_rename)
 QubesVm.hooks_create_on_disk.append(QubesVm_create_on_disk)
