@@ -58,6 +58,7 @@ case "$COMMAND" in
         # then change the default
         sed -e "s/default=.*/default=$KVER/" -i $EFI_DIR/xen.cfg
 
+        cp "/boot/vmlinuz-$KVER" "$EFI_DIR/"
         dracut -f "$EFI_DIR/initramfs-${KVER}.img" "$KVER"
         ;;
     remove)
