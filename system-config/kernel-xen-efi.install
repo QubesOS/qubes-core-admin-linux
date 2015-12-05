@@ -6,7 +6,7 @@ COMMAND="$1"
 KVER="$2"
 
 ESP_MOUNTPOINT=/boot/efi
-EFI_DIR="$ESP_MOUNTPOINT/qubes"
+EFI_DIR="$ESP_MOUNTPOINT/EFI/qubes"
 
 if [ ! -d "$EFI_DIR" ]; then
     # non-EFI system
