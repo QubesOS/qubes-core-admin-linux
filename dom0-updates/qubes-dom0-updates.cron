@@ -18,4 +18,6 @@ if [ "$RETCODE" -ne 100 ]; then
 fi
 
 # Touch stat file for qubes-manager
-touch $UPDATES_STAT_FILE
+touch "$UPDATES_STAT_FILE"
+chgrp qubes "$UPDATES_STAT_FILE"
+chmod g+w "$UPDATES_STAT_FILE"
