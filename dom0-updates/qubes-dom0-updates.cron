@@ -1,7 +1,5 @@
 #!/bin/bash
 
-# Get normal user name 
-LOCAL_USER=`users | sed -e 's/root *//' | cut -d' ' -f 1`
 NOTIFY_ICON=/usr/share/qubes/icons/dom0-update-avail.svg
 UPDATES_STAT_FILE=/var/lib/qubes/updates/dom0-updates-available
 UPDATES_DISABLE_FLAG=/var/lib/qubes/updates/disable-updates
@@ -17,11 +15,6 @@ RETCODE=$?
 if [ "$RETCODE" -ne 100 ]; then
     echo "ERROR: Error checking for updates" >&2
     exit $RETCODE
-fi
-
-if [ -z "$LOCAL_USER" ]; then
-    echo "ERROR: no user logged in, cannot nofity about updates" >&2
-    exit 1
 fi
 
 # Touch stat file for qubes-manager
