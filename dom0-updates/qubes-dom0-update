@@ -86,7 +86,7 @@ if [ "$GUI" == "1" ]; then
         if type $app &>/dev/null; then
             guiapp=$app
             case $guiapp in
-                apper) guiapp="apper --updates" ;;
+                apper) guiapp="apper --updates --nofork" ;;
                 *) guiapp=$app ;;
             esac
             break;
