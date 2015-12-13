@@ -169,5 +169,6 @@ elif [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
     fi
     yum -q check-update && rm -f $UPDATES_STAT_FILE
 else
+    yum -q check-update && rm -f $UPDATES_STAT_FILE
     echo "No updates avaliable" >&2
 fi
