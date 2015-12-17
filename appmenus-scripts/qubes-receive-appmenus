@@ -33,8 +33,9 @@ from optparse import OptionParser
 from qubes.qubes import QubesVmCollection, QubesException, system_path
 from qubes.qubes import QubesHVm
 from qubes.qubes import vm_files
-import qubes.imgconverter
 from qubes.qubes import vmm
+
+import qubesimgconverter
 
 # fields required to be present (and verified) in retrieved desktop file
 required_fields = ["Name", "Exec"]
@@ -331,13 +332,13 @@ def main():
                                     os.path.splitext(appmenu_file)[0] + '.png')
 
             try:
-                icon = qubes.imgconverter.Image. \
+                icon = qubesimgconverter.Image. \
                     get_xdg_icon_from_vm(vm,
                                          new_appmenus[
                                              appmenu_file][
                                              'Icon'])
                 if os.path.exists(icondest):
-                    old_icon = qubes.imgconverter.Image.load_from_file(icondest)
+                    old_icon = qubesimgconverter.Image.load_from_file(icondest)
                 else:
                     old_icon = None
                 if old_icon is None or icon != old_icon:

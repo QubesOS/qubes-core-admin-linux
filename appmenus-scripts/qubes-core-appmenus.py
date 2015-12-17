@@ -30,7 +30,7 @@ import dbus
 from qubes.qubes import QubesVm, QubesHVm
 from qubes.qubes import vm_files, system_path
 
-import qubes.imgconverter
+import qubesimgconverter
 
 vm_files['appmenus_templates_subdir'] = 'apps.templates'
 vm_files['appmenus_template_icons_subdir'] = 'apps.tempicons'
@@ -203,7 +203,7 @@ def QubesVm_appicons_create(self, srcdir=None, force=False):
         dst_icon = os.path.join(self.appmenus_icons_dir, icon)
         if not os.path.exists(dst_icon) or force or \
                 os.path.getmtime(src_icon) > os.path.getmtime(dst_icon):
-            qubes.imgconverter.tint(src_icon, dst_icon, self.label.color)
+            qubesimgconverter.tint(src_icon, dst_icon, self.label.color)
 
 
 def QubesVm_appicons_remove(self):
