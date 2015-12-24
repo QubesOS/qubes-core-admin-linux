@@ -3,5 +3,9 @@
 
 installkernel() {
     # ehci-hcd split off
-    instmods ehci-pci ehci-platform || :
+    hostonly='' instmods ehci-pci ehci-platform || :
+    # xhci-hcd split off
+    hostonly='' instmods xhci-pci xhci-plat-hcd || :
+    # ohci-hcd split off
+    hostonly='' instmods ohci-pci || :
 }
