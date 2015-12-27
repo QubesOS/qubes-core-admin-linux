@@ -102,7 +102,7 @@ def spawn_target_if_necessary(vm):
     # use qvm-run instead of vm.start() to make sure that nothing is written
     # to stdout and nothing is read from stdin
     null = open("/dev/null", "r+")
-    subprocess.call(["qvm-run", "-a", "-tray", "-q", vm.name, "true"],
+    subprocess.call(["qvm-run", "-a", "--tray", "-q", vm.name, "true"],
                     stdin=null, stdout=null)
     null.close()
 
