@@ -84,6 +84,14 @@ def QubesVm_get_appmenus_icons_dir(self):
 QubesVm.appmenus_icons_dir = property(QubesVm_get_appmenus_icons_dir)
 
 
+def get_whitelist_names(vm):
+    return (whitelist for whitelist in (
+            vm_files["appmenus_whitelist"],
+            'vm-' + vm_files["appmenus_whitelist"],
+            'netvm-' + vm_files["appmenus_whitelist"])
+        if os.path.exists(os.path.join(vm.dir_path, whitelist)))
+
+
 def QubesVm_appmenus_create(self, verbose=False, source_template=None):
     if source_template is None:
         source_template = self.template
@@ -146,6 +154,19 @@ def QubesVm_appmenus_cleanup(self):
     for appmenu in os.listdir(self.appmenus_dir):
         if not os.path.exists(os.path.join(srcdir, appmenu)):
             os.unlink(os.path.join(self.appmenus_dir, appmenu))
+
+
+def QubesVm_appmenus_replace_entry(self, old_name, new_name):
+    for whitelist in get_whitelist_names(self):
+        whitelist_path = os.path.join(self.dir_path, whitelist)
+        with open(whitelist_path) as f:
+            old_lines = f.readlines()
+        new_lines = [
+            (new_name + '\n' if l == old_name + '\n' else l)
+            for l in old_lines]
+        if new_lines != old_lines:
+            with open(whitelist_path, 'w') as f:
+                f.write(''.join(new_lines))
 
 
 def QubesVm_appicons_create(self, srcdir=None):
@@ -277,16 +298,12 @@ def QubesVm_clone_disk_files(self, src_vm, verbose):
         shutil.copytree(src_vm.appmenus_template_icons_dir,
                         self.appmenus_template_icons_dir)
 
-    for whitelist in (
-            vm_files["appmenus_whitelist"],
-            'vm-' + vm_files["appmenus_whitelist"],
-            'netvm-' + vm_files["appmenus_whitelist"]):
-        if os.path.exists(os.path.join(src_vm.dir_path, whitelist)):
-            if verbose:
-                print >> sys.stderr, "--> Copying whitelisted apps list: {0}". \
-                    format(whitelist)
-            shutil.copy(os.path.join(src_vm.dir_path, whitelist),
-                        os.path.join(self.dir_path, whitelist))
+    for whitelist in get_whitelist_names(src_vm):
+        if verbose:
+            print >> sys.stderr, "--> Copying whitelisted apps list: {0}". \
+                format(whitelist)
+        shutil.copy(os.path.join(src_vm.dir_path, whitelist),
+                    os.path.join(self.dir_path, whitelist))
 
     # Create appmenus
     self.appicons_create()
@@ -362,6 +379,7 @@ QubesVm.appmenus_remove = QubesVm_appmenus_remove
 QubesVm.appmenus_cleanup = QubesVm_appmenus_cleanup
 QubesVm.appmenus_recreate = QubesVm_appmenus_recreate
 QubesVm.appmenus_update = QubesVm_appmenus_update
+QubesVm.appmenus_replace_entry = QubesVm_appmenus_replace_entry
 QubesVm.appicons_create = QubesVm_appicons_create
 QubesVm.appicons_cleanup = QubesVm_appicons_cleanup
 QubesVm.appicons_remove = QubesVm_appicons_remove
