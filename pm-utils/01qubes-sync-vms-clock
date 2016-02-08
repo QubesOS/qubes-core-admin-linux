@@ -6,7 +6,7 @@ sync_qubes_vms_wallclock()
     DATE=$(date)
     echo
     echo "Syncing VMs clock to: $DATE"
-    qvm-run --all -u root "date -s \"$DATE\""
+    qvm-run --all -u root --localcmd="date -u -Iseconds" "qubes.SetDateTime dom0"
     # Then try to sync from the network
     /usr/bin/qvm-sync-clock &
 }
