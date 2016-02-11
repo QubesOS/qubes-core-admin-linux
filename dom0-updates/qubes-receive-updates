@@ -27,7 +27,7 @@ import subprocess
 import shutil
 import glob
 import grp
-from qubes.qubes import QubesVmCollection
+import qubes
 
 updates_dir = "/var/lib/qubes/updates"
 updates_rpm_dir = updates_dir + "/rpm"
@@ -121,12 +121,11 @@ def handle_dom0updates(updatevm):
 
 def main():
 
-    qvm_collection = QubesVmCollection()
-    qvm_collection.lock_db_for_reading()
-    qvm_collection.load()
-    qvm_collection.unlock_db()
+    app = qubes.Qubes()
     
-    updatevm = qvm_collection.get_updatevm_vm()
+    updatevm = app.updatevm
+    if updatevm is None:
+        exit(1)
     handle_dom0updates(updatevm)
 
 main()
