@@ -3,12 +3,12 @@ import sys
 import os
 import os.path
 import subprocess
-from qubes.qubes import vmm
-from qubes.qubes import QubesVmCollection
-import qubes.guihelpers
+import qubes
 import libvirt
 from optparse import OptionParser
 import fcntl
+from PyQt4.QtGui import QApplication,QMessageBox
+
 
 POLICY_FILE_DIR="/etc/qubes-rpc/policy"
 # XXX: Backward compatibility, to be removed soon
@@ -20,6 +20,31 @@ class UserChoice:
     ALLOW=0
     DENY=1
     ALWAYS_ALLOW=2
+
+def prepare_app():
+    app = QApplication(sys.argv)
+    app.setOrganizationName("The Qubes Project")
+    app.setOrganizationDomain("http://qubes-os.org")
+    app.setApplicationName("Qubes")
+    return app
+
+def ask(text, title="Question", yestoall=False):
+    prepare_app()
+
+    buttons = QMessageBox.Yes | QMessageBox.No
+    if yestoall:
+        buttons |= QMessageBox.YesToAll
+
+    reply = QMessageBox.question(None, title, text, buttons, defaultButton=QMessageBox.Yes)
+    if reply == QMessageBox.Yes:
+        return 0
+    elif reply == QMessageBox.No:
+        return 1
+    elif reply == QMessageBox.YesToAll:
+        return 2
+    else:
+        #?!
+        return 127
 
 def line_to_dict(line):
     tokens=line.split()
@@ -92,12 +117,9 @@ def validate_target(target):
     if target in ['$dispvm']:
         return True
 
-    qc = QubesVmCollection()
-    qc.lock_db_for_reading()
-    qc.load()
-    qc.unlock_db()
+    app = qubes.Qubes()
 
-    return qc.get_vm_by_name(target)
+    return app.domains[target]
 
 def spawn_target_if_necessary(vm):
     if vm.is_running():
@@ -115,7 +137,7 @@ def do_execute(domain, target, user, service_name, process_ident, vm=None):
         os.execl(QREXEC_CLIENT, "qrexec-client",
                 "-d", "dom0", "-c", process_ident, cmd)
     else:
-        if isinstance(vm, qubes.qubes.QubesVm):
+        if isinstance(vm, qubes.vm.qubesvm.QubesVM):
             spawn_target_if_necessary(vm)
         if target == "dom0":
             cmd = QUBES_RPC_MULTIPLEXER_PATH + " " + service_name + " " + domain
@@ -186,8 +208,9 @@ def main():
     # connection
     process_ident+=","+domain+","+domain_id
 
-    vm = validate_target(target)
-    if vm is None:
+    try:
+        vm = validate_target(target)
+    except KeyError:
         print >> sys.stderr, "Rpc failed (unknown domain):", domain, target, service_name
         text = "Domain '%s' doesn't exist (service %s called by domain %s)." % (
                 target, service_name, domain)
