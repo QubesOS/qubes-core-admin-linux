@@ -20,14 +20,6 @@
 #
 #
 
-if [ $# -lt 2 ] ; then
-    echo usage: $0 'dest_vmname file [file]+'
-    exit 1
-fi
-
-VM="$1"
-shift
-
 set -e
-/usr/bin/qvm-run --pass-io --localcmd "/usr/lib/qubes/qfile-dom0-agent $@" "$VM" "QUBESRPC qubes.Filecopy dom0"
+. qvm-copy-to-vm "$@"
 rm -rf -- "$@"
