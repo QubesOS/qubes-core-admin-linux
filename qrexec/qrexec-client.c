@@ -27,6 +27,8 @@
 #include <signal.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <sys/time.h>
+#include <sys/select.h>
 #include <errno.h>
 #include <assert.h>
 #include "qrexec.h"
@@ -535,13 +537,14 @@ static void select_loop(libvchan_t *vchan)
 static void usage(char *name)
 {
     fprintf(stderr,
-            "usage: %s [-t] [-T] -d domain_name ["
+            "usage: %s [-w timeout] [-t] [-T] -d domain_name ["
             "-l local_prog|"
             "-c request_id,src_domain_name,src_domain_id|"
             "-e] remote_cmdline\n"
             "-e means exit after sending cmd,\n"
             "-t enables replacing ESC character with '_' in command output, -T is the same for stderr\n"
-            "-c: connect to existing process (response to trigger service call)\n",
+            "-c: connect to existing process (response to trigger service call)\n"
+            "-w timeout: override default connection timeout of 5s (set 0 for no timeout)\n",
             name);
     exit(1);
 }
@@ -581,6 +584,53 @@ static void parse_connect(char *str, char **request_id,
     }
 }
 
+static void sigalrm_handler(int x __attribute__((__unused__)))
+{
+    fprintf(stderr, "vchan connection timeout\n");
+    do_exit(1);
+}
+
+static void wait_for_vchan_client_with_timeout(libvchan_t *conn, int timeout) {
+    struct timeval start_tv, now_tv, timeout_tv;
+
+    if (timeout && gettimeofday(&start_tv, NULL) == -1) {
+        perror("gettimeofday");
+        do_exit(1);
+    }
+    while (conn && libvchan_is_open(conn) == VCHAN_WAITING) {
+        if (timeout) {
+            fd_set rdset;
+            int fd = libvchan_fd_for_select(conn);
+
+            /* calculate how much time left until connection timeout expire */
+            if (gettimeofday(&now_tv, NULL) == -1) {
+                perror("gettimeofday");
+                do_exit(1);
+            }
+            timersub(&start_tv, &now_tv, &timeout_tv);
+            timeout_tv.tv_sec += timeout;
+            if (timeout_tv.tv_sec < 0) {
+                fprintf(stderr, "vchan connection timeout\n");
+                libvchan_close(conn);
+                do_exit(1);
+            }
+            FD_ZERO(&rdset);
+            FD_SET(fd, &rdset);
+            switch (select(fd+1, &rdset, NULL, NULL, &timeout_tv)) {
+                case -1:
+                    if (errno == EINTR)
+                        break;
+                    /* fallthough */
+                case 0:
+                    fprintf(stderr, "vchan connection timeout (or error)\n");
+                    libvchan_close(conn);
+                    do_exit(1);
+            }
+        }
+        libvchan_wait(conn);
+    }
+}
+
 int main(int argc, char **argv)
 {
     int opt;
@@ -597,8 +647,9 @@ int main(int argc, char **argv)
     char *request_id;
     char *src_domain_name = NULL;
     int src_domain_id = 0; /* if not -c given, the process is run in dom0 */
+    int connection_timeout = 5;
     struct service_params svc_params;
-    while ((opt = getopt(argc, argv, "d:l:ec:tT")) != -1) {
+    while ((opt = getopt(argc, argv, "d:l:ec:tTw:")) != -1) {
         switch (opt) {
             case 'd':
                 domname = strdup(optarg);
@@ -619,6 +670,9 @@ int main(int argc, char **argv)
                 break;
             case 'T':
                 replace_esc_stderr = 1;
+                break;
+            case 'w':
+                connection_timeout = atoi(optarg);
                 break;
             default:
                 usage(argv[0]);
@@ -660,13 +714,20 @@ int main(int argc, char **argv)
                 &data_port);
 
         prepare_local_fds(remote_cmdline);
-        if (connect_existing)
+        if (connect_existing) {
+            void (*old_handler)(int);
+
+            /* libvchan_client_init is blocking and does not support connection
+             * timeout, so use alarm(2) for that... */
+            old_handler = signal(SIGALRM, sigalrm_handler);
+            alarm(connection_timeout);
             data_vchan = libvchan_client_init(data_domain, data_port);
-        else {
+            alarm(0);
+            signal(SIGALRM, old_handler);
+        } else {
             data_vchan = libvchan_server_init(data_domain, data_port,
                     VCHAN_BUFFER_SIZE, VCHAN_BUFFER_SIZE);
-            while (data_vchan && libvchan_is_open(data_vchan) == VCHAN_WAITING)
-                libvchan_wait(data_vchan);
+            wait_for_vchan_client_with_timeout(data_vchan, connection_timeout);
         }
         if (!data_vchan || !libvchan_is_open(data_vchan)) {
             fprintf(stderr, "Failed to open data vchan connection\n");
@@ -702,8 +763,7 @@ int main(int argc, char **argv)
                 fprintf(stderr, "Failed to start data vchan server\n");
                 do_exit(1);
             }
-            while (libvchan_is_open(data_vchan) == VCHAN_WAITING)
-                libvchan_wait(data_vchan);
+            wait_for_vchan_client_with_timeout(data_vchan, connection_timeout);
             if (!libvchan_is_open(data_vchan)) {
                 fprintf(stderr, "Failed to open data vchan connection\n");
                 do_exit(1);
