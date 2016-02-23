@@ -1,4 +1,5 @@
-#!/bin/sh
+#!/bin/bash
+set -e -o pipefail
 #
 # The Qubes OS Project, http://www.qubes-os.org
 #
@@ -28,4 +29,11 @@ fi
 VM="$1"
 shift
 
-exec /usr/bin/qvm-run --pass-io --localcmd "/usr/lib/qubes/qfile-dom0-agent $@" "$VM" "QUBESRPC qubes.Filecopy dom0"
+TMPDIR=`mktemp -d`
+trap 'rm -rf -- "$TMPDIR"' EXIT
+RESPONSE=$TMPDIR/response
+mkfifo -- "$RESPONSE"
+
+# can't use $@ with --localcmd, and $* would fail on whitespace
+/usr/lib/qubes/qfile-dom0-agent "$@" <"$RESPONSE" |
+qvm-run --pass-io "$VM" "QUBESRPC qubes.Filecopy dom0" >"$RESPONSE"
