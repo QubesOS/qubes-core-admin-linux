@@ -119,6 +119,7 @@ fi
 
 if [ -n "$CLEAN" ]; then
     rm -f /var/lib/qubes/updates/rpm/*
+    rm -f /var/lib/qubes/updates/repodata/*
 fi
 rm -f /var/lib/qubes/updates/errors
 
