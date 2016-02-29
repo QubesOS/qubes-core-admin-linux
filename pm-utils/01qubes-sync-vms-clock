@@ -3,7 +3,7 @@
 sync_qubes_vms_wallclock()
 {
     # Sync all VMs (based on dom0 clock if network time sync fails)
-    /usr/bin/qvm-sync-clock --force &
+    /usr/bin/qvm-sync-clock --force --verbose
 }
 
 case "$1" in
