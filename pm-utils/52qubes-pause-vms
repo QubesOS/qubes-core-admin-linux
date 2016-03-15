@@ -12,6 +12,7 @@ if sys.argv[1] in ["suspend", "hibernate"]:
     for vm in qc.values():
         if vm.is_running():
             try:
+                vm.run_service("qubes.SuspendPreAll", user="root")
                 vm.suspend()
             except Exception as e:
                 print >>sys.stderr, "Failed to suspend VM %s: %s" % (vm.name, e.message)
@@ -21,5 +22,6 @@ elif sys.argv[1] in ["resume", "thaw"]:
         if vm.get_power_state() in ["Paused", "Suspended"]:
             try:
                 vm.resume()
+                vm.run_service("qubes.SuspendPostAll", user="root")
             except Exception as e:
                 print >>sys.stderr, "Failed to resume VM %s: %s" % (vm.name, e.message)
