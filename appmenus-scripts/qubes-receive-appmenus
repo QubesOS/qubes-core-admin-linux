@@ -44,7 +44,7 @@ appmenus_line_size = 1024
 appmenus_line_count = 100000
 
 # regexps for sanitization of retrieved values
-std_re = re.compile(r"^[/a-zA-Z0-9.,&()_ -]*$")
+std_re = re.compile(r"^[/a-zA-Z0-9.,:&()_ -]*$")
 fields_regexp = {
     "Name": std_re,
     "GenericName": std_re,
