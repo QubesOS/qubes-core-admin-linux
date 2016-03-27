@@ -50,9 +50,12 @@ def line_to_dict(line):
 
 
 def read_policy_file(service_name):
-    policy_file=POLICY_FILE_DIR+"/"+service_name
+    policy_file = os.path.join(POLICY_FILE_DIR, service_name)
     if not os.path.isfile(policy_file):
-        policy_file=DEPRECATED_POLICY_FILE_DIR+"/"+service_name
+        # fallback to policy without specific argument set (if any)
+        policy_file = os.path.join(POLICY_FILE_DIR, service_name.split("+")[0])
+    if not os.path.isfile(policy_file):
+        policy_file = os.path.join(DEPRECATED_POLICY_FILE_DIR, service_name)
         if not os.path.isfile(policy_file):
             return None
         print >>sys.stderr, "RPC service '%s' uses deprecated policy location, please move to %s" % (service_name, POLICY_FILE_DIR)
