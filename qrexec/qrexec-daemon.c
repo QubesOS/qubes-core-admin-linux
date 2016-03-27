@@ -624,7 +624,7 @@ static int find_policy_pending_slot() {
     return -1;
 }
 
-static void sanitize_name(char * untrusted_s_signed)
+static void sanitize_name(char * untrusted_s_signed, char *extra_allowed_chars)
 {
     unsigned char * untrusted_s;
     for (untrusted_s=(unsigned char*)untrusted_s_signed; *untrusted_s; untrusted_s++) {
@@ -634,7 +634,12 @@ static void sanitize_name(char * untrusted_s_signed)
             continue;
         if (*untrusted_s >= '0' && *untrusted_s <= '9')
             continue;
-        if (*untrusted_s == '$' || *untrusted_s == '_' || *untrusted_s == '-' || *untrusted_s == '.' || *untrusted_s == ' ')
+        if (*untrusted_s == '$' ||
+               *untrusted_s == '_' ||
+               *untrusted_s == '-' ||
+               *untrusted_s == '.')
+            continue;
+        if (extra_allowed_chars && strchr(extra_allowed_chars, *untrusted_s))
             continue;
         *untrusted_s = '_';
     }
@@ -661,9 +666,9 @@ static void handle_execute_service(void)
     ENSURE_NULL_TERMINATED(untrusted_params.service_name);
     ENSURE_NULL_TERMINATED(untrusted_params.target_domain);
     ENSURE_NULL_TERMINATED(untrusted_params.request_id.ident);
-    sanitize_name(untrusted_params.service_name);
-    sanitize_name(untrusted_params.target_domain);
-    sanitize_name(untrusted_params.request_id.ident);
+    sanitize_name(untrusted_params.service_name, "");
+    sanitize_name(untrusted_params.target_domain, "");
+    sanitize_name(untrusted_params.request_id.ident, " ");
     params = untrusted_params;
     /* sanitize end */
 
