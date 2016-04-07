@@ -75,8 +75,7 @@ ln -sf . %{name}-%{version}
 %setup -T -D
 
 %build
-python -m compileall appmenus-scripts
-python -O -m compileall appmenus-scripts
+python setup.py build
 (cd dom0-updates; make)
 (cd qrexec; make)
 (cd file-copy-vm; make)
@@ -85,21 +84,14 @@ python -O -m compileall appmenus-scripts
 %install
 
 ### Appmenus
-
-mkdir -p $RPM_BUILD_ROOT%{python_sitearch}/qubes/modules
-cp appmenus-scripts/qubes-core-appmenus.py $RPM_BUILD_ROOT%{python_sitearch}/qubes/modules/10appmenus.py
-cp appmenus-scripts/qubes-core-appmenus.pyc $RPM_BUILD_ROOT%{python_sitearch}/qubes/modules/10appmenus.pyc
-cp appmenus-scripts/qubes-core-appmenus.pyo $RPM_BUILD_ROOT%{python_sitearch}/qubes/modules/10appmenus.pyo
+python setup.py install -O1 --skip-build --root $RPM_BUILD_ROOT
 
 mkdir -p $RPM_BUILD_ROOT/usr/libexec/qubes-appmenus
-cp appmenus-scripts/*.sh $RPM_BUILD_ROOT/usr/libexec/qubes-appmenus/
-cp appmenus-scripts/qubes-receive-appmenus $RPM_BUILD_ROOT/usr/libexec/qubes-appmenus/
-
-install -D appmenus-scripts/qvm-sync-appmenus $RPM_BUILD_ROOT/usr/bin/qvm-sync-appmenus
+cp qubesappmenus/*.sh $RPM_BUILD_ROOT/usr/libexec/qubes-appmenus/
 
 mkdir -p $RPM_BUILD_ROOT/etc/qubes-rpc/policy
-cp appmenus-scripts/qubes.SyncAppMenus $RPM_BUILD_ROOT/etc/qubes-rpc/
-cp appmenus-scripts/qubes.SyncAppMenus.policy $RPM_BUILD_ROOT/etc/qubes-rpc/policy/qubes.SyncAppMenus
+cp qubesappmenus/qubes.SyncAppMenus $RPM_BUILD_ROOT/etc/qubes-rpc/
+cp qubesappmenus/qubes.SyncAppMenus.policy $RPM_BUILD_ROOT/etc/qubes-rpc/policy/qubes.SyncAppMenus
 
 mkdir -p $RPM_BUILD_ROOT/usr/share/qubes-appmenus/
 cp -r appmenus-files/* $RPM_BUILD_ROOT/usr/share/qubes-appmenus/
@@ -219,15 +211,15 @@ chmod -x /etc/grub.d/10_linux
 %files
 %attr(2775,root,qubes) %dir /etc/qubes-rpc
 %attr(2775,root,qubes) %dir /etc/qubes-rpc/policy
+%dir %{python_sitelib}/qubeslinux-*.egg-info
+%{python_sitelib}/qubeslinux-*.egg-info/*
+/usr/lib/python2.7/site-packages/qubesappmenus/__init__.py*
+/usr/lib/python2.7/site-packages/qubesappmenus/receive.py*
 /etc/qubes-rpc/policy/qubes.SyncAppMenus
 /etc/qubes-rpc/qubes.SyncAppMenus
-%{python_sitearch}/qubes/modules/10appmenus.py
-%{python_sitearch}/qubes/modules/10appmenus.pyc
-%{python_sitearch}/qubes/modules/10appmenus.pyo
 /usr/libexec/qubes-appmenus/convert-apptemplate2vm.sh
 /usr/libexec/qubes-appmenus/convert-dirtemplate2vm.sh
 /usr/libexec/qubes-appmenus/create-apps-for-appvm.sh
-/usr/libexec/qubes-appmenus/qubes-receive-appmenus
 /usr/libexec/qubes-appmenus/remove-appvm-appmenus.sh
 /usr/share/qubes-appmenus/qubes-appmenu-select.desktop
 /usr/share/qubes-appmenus/qubes-dispvm-firefox.desktop
