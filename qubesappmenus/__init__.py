@@ -60,7 +60,6 @@ class AppmenusExtension(qubes.ext.Extension):
 
         :type vm: qubes.vm.qubesvm.QubesVM
         """
-        assert isinstance(vm, qubes.vm.qubesvm.QubesVM)
         if vm.updateable:
             return os.path.join(vm.dir_path,
                 AppmenusSubdirs.templates_subdir)

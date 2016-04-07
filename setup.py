@@ -21,5 +21,8 @@ if __name__ == '__main__':
             'qubes.ext': [
                 'qubesappmenus = qubesappmenus:AppmenusExtension'
             ],
+            'qubes.tests.extra': [
+                'qubesappmenus = qubesappmenus.tests:list_tests',
+            ],
         }
     )
