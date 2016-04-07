@@ -115,7 +115,7 @@ class AppmenusExtension(qubes.ext.Extension):
                                       stdout=msgoutput, stderr=msgoutput)
         except subprocess.CalledProcessError:
             vm.log.warning("Ooops, there was a problem creating appmenus "
-                                 "for {0} VM!")
+                "for {0} VM!")
 
 
     def appmenus_remove(self, vm):
