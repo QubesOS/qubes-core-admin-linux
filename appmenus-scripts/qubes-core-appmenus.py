@@ -27,368 +27,331 @@ import os.path
 import shutil
 import dbus
 
-from qubes.qubes import QubesVm, QubesHVm
-from qubes.qubes import vm_files, system_path
+import qubes.ext
 
 import qubesimgconverter
 
-vm_files['appmenus_templates_subdir'] = 'apps.templates'
-vm_files['appmenus_template_icons_subdir'] = 'apps.tempicons'
-vm_files['appmenus_subdir'] = 'apps'
-vm_files['appmenus_icons_subdir'] = 'apps.icons'
-vm_files['appmenus_template_templates_subdir'] = 'apps-template.templates'
-vm_files['appmenus_whitelist'] = 'whitelisted-appmenus.list'
 
-system_path['appmenu_start_hvm_template'] = \
-    '/usr/share/qubes-appmenus/qubes-start.desktop'
-system_path['appmenu_create_cmd'] = \
-    '/usr/libexec/qubes-appmenus/create-apps-for-appvm.sh'
-system_path['appmenu_remove_cmd'] = \
-    '/usr/libexec/qubes-appmenus/remove-appvm-appmenus.sh'
+class AppmenusSubdirs:
+    templates_subdir = 'apps.templates'
+    template_icons_subdir = 'apps.tempicons'
+    subdir = 'apps'
+    icons_subdir = 'apps.icons'
+    template_templates_subdir = 'apps-template.templates'
+    whitelist = 'whitelisted-appmenus.list'
 
-
-def QubesVm_get_appmenus_templates_dir(self):
-    if self.updateable:
-        return self.absolute_path(vm_files["appmenus_templates_subdir"], None)
-    elif self.template is not None:
-        return self.template.appmenus_templates_dir
-    else:
-        return None
-
-QubesVm.appmenus_templates_dir = property(QubesVm_get_appmenus_templates_dir)
+    
+class AppmenusPaths:
+    appmenu_start_hvm_template = \
+        '/usr/share/qubes-appmenus/qubes-start.desktop'
+    appmenu_create_cmd = \
+        '/usr/libexec/qubes-appmenus/create-apps-for-appvm.sh'
+    appmenu_remove_cmd = \
+        '/usr/libexec/qubes-appmenus/remove-appvm-appmenus.sh'
 
 
-def QubesVm_get_appmenus_template_icons_dir(self):
-    if self.updateable:
-        return self.absolute_path(vm_files["appmenus_template_icons_subdir"],
-                                  None)
-    elif self.template:
-        return self.template.appmenus_template_icons_dir
-    else:
-        return None
+class AppmenusExtension(qubes.ext.Extension):
+    def __init__(self, *args):
+        super(AppmenusExtension, self).__init__(*args)
+        import qubes.vm.qubesvm
 
-QubesVm.appmenus_template_icons_dir = \
-    property(QubesVm_get_appmenus_template_icons_dir)
+    def templates_dir(self, vm):
+        """
 
-
-def QubesVm_get_appmenus_dir(self):
-    return self.absolute_path(vm_files["appmenus_subdir"], None)
-
-QubesVm.appmenus_dir = property(QubesVm_get_appmenus_dir)
-
-
-def QubesVm_get_appmenus_icons_dir(self):
-    return self.absolute_path(vm_files["appmenus_icons_subdir"], None)
-
-
-QubesVm.appmenus_icons_dir = property(QubesVm_get_appmenus_icons_dir)
-
-
-def get_whitelist_names(vm):
-    return (whitelist for whitelist in (
-            vm_files["appmenus_whitelist"],
-            'vm-' + vm_files["appmenus_whitelist"],
-            'netvm-' + vm_files["appmenus_whitelist"])
-        if os.path.exists(os.path.join(vm.dir_path, whitelist)))
-
-
-def QubesVm_appmenus_create(self, verbose=False, source_template=None):
-    if source_template is None:
-        source_template = self.template
-
-    if self.internal:
-        return
-    if self.is_disposablevm():
-        return
-
-    if self.is_netvm():
-        vmtype = 'servicevms'
-    elif self.is_template():
-        vmtype = 'vm-templates'
-    else:
-        vmtype = 'appvms'
-
-    try:
-        msgoutput = None if verbose else open(os.devnull, 'w')
-        if source_template is not None:
-            subprocess.check_call([system_path["appmenu_create_cmd"],
-                                   source_template.appmenus_templates_dir,
-                                   self.name, vmtype, self.label.icon],
-                                  stdout=msgoutput, stderr=msgoutput)
-        elif self.appmenus_templates_dir is not None:
-            subprocess.check_call([system_path["appmenu_create_cmd"],
-                                   self.appmenus_templates_dir, self.name,
-                                   vmtype, self.label.icon],
-                                  stdout=msgoutput, stderr=msgoutput)
+        :type vm: qubes.vm.qubesvm.QubesVM
+        """
+        assert isinstance(vm, qubes.vm.qubesvm.QubesVM)
+        if vm.updateable:
+            return os.path.join(vm.dir_path,
+                AppmenusSubdirs.templates_subdir)
+        elif hasattr(vm, 'template'):
+            return self.templates_dir(vm.template)
         else:
-            # Only add apps to menu
-            subprocess.check_call([system_path["appmenu_create_cmd"],
-                                   "none", self.name, vmtype,
-                                   self.label.icon],
-                                  stdout=msgoutput, stderr=msgoutput)
-    except subprocess.CalledProcessError:
-        print >> sys.stderr, "Ooops, there was a problem creating appmenus " \
-                             "for {0} VM!".format(self.name)
+            return None
 
-
-def QubesVm_appmenus_remove(self):
-    if self.is_netvm():
-        vmtype = 'servicevms'
-    elif self.is_template():
-        vmtype = 'vm-templates'
-    else:
-        vmtype = 'appvms'
-    subprocess.check_call([system_path["appmenu_remove_cmd"], self.name,
-                           vmtype], stderr=open(os.devnull, 'w'))
-
-
-def QubesVm_appmenus_cleanup(self):
-    srcdir = self.appmenus_templates_dir
-    if srcdir is None:
-        return
-    if not os.path.exists(srcdir):
-        return
-    if not os.path.exists(self.appmenus_dir):
-        return
-
-    for appmenu in os.listdir(self.appmenus_dir):
-        if not os.path.exists(os.path.join(srcdir, appmenu)):
-            os.unlink(os.path.join(self.appmenus_dir, appmenu))
-
-
-def QubesVm_appmenus_replace_entry(self, old_name, new_name):
-    for whitelist in get_whitelist_names(self):
-        whitelist_path = os.path.join(self.dir_path, whitelist)
-        with open(whitelist_path) as f:
-            old_lines = f.readlines()
-        new_lines = [
-            (new_name + '\n' if l == old_name + '\n' else l)
-            for l in old_lines]
-        if new_lines != old_lines:
-            with open(whitelist_path, 'w') as f:
-                f.write(''.join(new_lines))
-
-
-def QubesVm_appicons_create(self, srcdir=None, force=False):
-    if srcdir is None:
-        srcdir = self.appmenus_template_icons_dir
-    if srcdir is None:
-        return
-    if not os.path.exists(srcdir):
-        return
-
-    if self.internal:
-        return
-    if self.is_disposablevm():
-        return
-
-    whitelist = os.path.join(self.dir_path, vm_files['appmenus_whitelist'])
-    if os.path.exists(whitelist):
-        whitelist = [line.strip() for line in open(whitelist)]
-    else:
-        whitelist = None
-
-    if not os.path.exists(self.appmenus_icons_dir):
-        os.mkdir(self.appmenus_icons_dir)
-    elif not os.path.isdir(self.appmenus_icons_dir):
-        os.unlink(self.appmenus_icons_dir)
-        os.mkdir(self.appmenus_icons_dir)
-
-    for icon in os.listdir(srcdir):
-        desktop = os.path.splitext(icon)[0] + '.desktop'
-        if whitelist and desktop not in whitelist:
-            continue
-
-        src_icon = os.path.join(srcdir, icon)
-        dst_icon = os.path.join(self.appmenus_icons_dir, icon)
-        if not os.path.exists(dst_icon) or force or \
-                os.path.getmtime(src_icon) > os.path.getmtime(dst_icon):
-            qubesimgconverter.tint(src_icon, dst_icon, self.label.color)
-
-
-def QubesVm_appicons_remove(self):
-    if not os.path.exists(self.appmenus_icons_dir):
-        return
-    for icon in os.listdir(self.appmenus_icons_dir):
-        os.unlink(os.path.join(self.appmenus_icons_dir, icon))
-
-
-def QubesVm_appicons_cleanup(self):
-    srcdir = self.appmenus_template_icons_dir
-    if srcdir is None:
-        return
-    if not os.path.exists(srcdir):
-        return
-    if not os.path.exists(self.appmenus_icons_dir):
-        return
-
-    for icon in os.listdir(self.appmenus_icons_dir):
-        if not os.path.exists(os.path.join(srcdir, icon)):
-            os.unlink(os.path.join(self.appmenus_icons_dir, icon))
-
-
-def QubesVm_pre_rename(self, new_name):
-    self.appmenus_remove()
-
-
-def QubesVm_post_rename(self, old_name):
-    self.appmenus_create()
-
-
-def QubesVm_create_on_disk(self, verbose, source_template):
-    if isinstance(self, QubesHVm) and source_template is None:
-        if verbose:
-            print >> sys.stderr, "--> Creating appmenus directory: {0}".format(
-                self.appmenus_templates_dir)
-        os.mkdir(self.appmenus_templates_dir)
-        shutil.copy(system_path["appmenu_start_hvm_template"],
-                    self.appmenus_templates_dir)
-
-    source_whitelist_filename = 'vm-' + vm_files["appmenus_whitelist"]
-    if self.is_netvm():
-        source_whitelist_filename = 'netvm-' + vm_files["appmenus_whitelist"]
-    if source_template and os.path.exists(
-            os.path.join(source_template.dir_path, source_whitelist_filename)):
-        if verbose:
-            print >> sys.stderr, "--> Creating default whitelisted apps list: {0}". \
-                format(self.dir_path + '/' + vm_files["whitelisted_appmenus"])
-        shutil.copy(
-            os.path.join(source_template.dir_path, source_whitelist_filename),
-            os.path.join(self.dir_path, vm_files["whitelisted_appmenus"]))
-
-    if source_template and self.updateable:
-        if verbose:
-            print >> sys.stderr, "--> Copying the template's appmenus templates dir:\n{0} ==>\n{1}". \
-                format(source_template.appmenus_templates_dir,
-                       self.appmenus_templates_dir)
-        if os.path.isdir(source_template.appmenus_templates_dir):
-            shutil.copytree(source_template.appmenus_templates_dir,
-                            self.appmenus_templates_dir)
+    def template_icons_dir(self, vm):
+        if vm.updateable:
+            return os.path.join(vm.dir_path,
+                AppmenusSubdirs.template_icons_subdir)
+        elif hasattr(vm, 'template'):
+            return self.template_icons_dir(vm.template)
         else:
-            os.mkdir(self.appmenus_templates_dir)
-        if os.path.isdir(source_template.appmenus_template_icons_dir):
-            shutil.copytree(source_template.appmenus_template_icons_dir,
-                            self.appmenus_template_icons_dir)
-        else:
-            os.mkdir(self.appmenus_template_icons_dir)
+            return None
 
-    # Create appmenus
-    self.appicons_create()
-    self.appmenus_create(verbose=verbose)
+    def appmenus_dir(self, vm):
+        return os.path.join(vm.dir_path, AppmenusSubdirs.subdir)
 
+    def icons_dir(self, vm):
+        return os.path.join(vm.dir_path, AppmenusSubdirs.icons_subdir)
 
-def QubesVm_clone_disk_files(self, src_vm, verbose):
-    if src_vm.updateable and src_vm.appmenus_templates_dir is not None and \
-            self.appmenus_templates_dir is not None:
-        if verbose:
-            print >> sys.stderr, "--> Copying the template's appmenus templates dir:\n{0} ==>\n{1}". \
-                format(src_vm.appmenus_templates_dir,
-                       self.appmenus_templates_dir)
-        shutil.copytree(src_vm.appmenus_templates_dir,
-                        self.appmenus_templates_dir)
+    def appmenus_create(self, vm, source_template=None):
+        if source_template is None and hasattr(vm, 'template'):
+            source_template = vm.template
 
-    if src_vm.updateable and src_vm.appmenus_template_icons_dir is not None \
-            and self.appmenus_template_icons_dir is not None and \
-            os.path.isdir(src_vm.appmenus_template_icons_dir):
-        if verbose:
-            print >> sys.stderr, "--> Copying the template's appmenus " \
-                                 "template icons dir:\n{0} ==>\n{1}". \
-                format(src_vm.appmenus_template_icons_dir,
-                       self.appmenus_template_icons_dir)
-        shutil.copytree(src_vm.appmenus_template_icons_dir,
-                        self.appmenus_template_icons_dir)
+        if vm.internal:
+            return
+        if vm.is_disposablevm():
+            return
 
-    for whitelist in get_whitelist_names(src_vm):
-        if verbose:
-            print >> sys.stderr, "--> Copying whitelisted apps list: {0}". \
-                format(whitelist)
-        shutil.copy(os.path.join(src_vm.dir_path, whitelist),
-                    os.path.join(self.dir_path, whitelist))
+        vmsubdir = vm.dir_path.split(os.path.sep)[-2]
 
-    # Create appmenus
-    self.appicons_create()
-    self.appmenus_create(verbose=verbose)
-
-
-def QubesVm_remove_from_disk(self):
-    self.appmenus_remove()
-
-
-def QubesVm_label_setter(self, _):
-    self.appicons_create(force=True)
-
-    # Apparently desktop environments heavily caches the icons,
-    # see #751 for details
-    if "plasma" in os.environ.get("DESKTOP_SESSION", ""):
         try:
-            os.unlink(os.path.expandvars(
-                "$HOME/.kde/cache-$HOSTNAME/icon-cache.kcache"))
-        except:
-            pass
-        try:
-            notify_object = dbus.SessionBus().get_object(
-                "org.freedesktop.Notifications",
-                "/org/freedesktop/Notifications")
-            notify_object.Notify(
-                "Qubes", 0, self.label.icon, "Qubes",
-                "You will need to log off and log in again for the VM icons "
-                "to update in the KDE launcher menu",
-                [], [], 10000,
-                dbus_interface="org.freedesktop.Notifications")
-        except:
-            pass
-    elif "xfce" in os.environ.get("DESKTOP_SESSION", ""):
-        self.appmenus_remove()
-        self.appmenus_create()
+            #TODO msgoutput = None if verbose else open(os.devnull, 'w')
+            msgoutput = None
+            if source_template is not None:
+                subprocess.check_call([AppmenusPaths.appmenu_create_cmd,
+                                       self.templates_dir(source_template),
+                                       vm.name, vmsubdir, vm.label.icon],
+                                      stdout=msgoutput, stderr=msgoutput)
+            elif self.templates_dir(vm) is not None:
+                subprocess.check_call([AppmenusPaths.appmenu_create_cmd,
+                                       self.templates_dir(vm), vm.name,
+                                       vmsubdir, vm.label.icon],
+                                      stdout=msgoutput, stderr=msgoutput)
+            else:
+                # Only add apps to menu
+                subprocess.check_call([AppmenusPaths.appmenu_create_cmd,
+                                       "none", vm.name, vmsubdir,
+                                       vm.label.icon],
+                                      stdout=msgoutput, stderr=msgoutput)
+        except subprocess.CalledProcessError:
+            vm.log.warning("Ooops, there was a problem creating appmenus "
+                                 "for {0} VM!")
 
 
-def QubesVm_appmenus_recreate(self):
-    """
-    Force recreation of all appmenus and icons. For example when VM label
-    color was changed
-    """
-    self.appmenus_remove()
-    self.appmenus_cleanup()
-    self.appicons_remove()
-    self.appicons_create()
-    self.appmenus_create()
+    def appmenus_remove(self, vm):
+        vmsubdir = vm.dir_path.split(os.path.sep)[-2]
+        subprocess.check_call([AppmenusPaths.appmenu_remove_cmd, vm.name,
+                               vmsubdir], stderr=open(os.devnull, 'w'))
+
+    def appmenus_cleanup(self, vm):
+        srcdir = self.templates_dir(vm)
+        if srcdir is None:
+            return
+        if not os.path.exists(srcdir):
+            return
+        if not os.path.exists(self.appmenus_dir(vm)):
+            return
+
+        for appmenu in os.listdir(self.appmenus_dir(vm)):
+            if not os.path.exists(os.path.join(srcdir, appmenu)):
+                os.unlink(os.path.join(self.appmenus_dir(vm), appmenu))
+
+    def appicons_create(self, vm, srcdir=None, force=False):
+        if srcdir is None:
+            srcdir = self.template_icons_dir(vm)
+        if srcdir is None:
+            return
+        if not os.path.exists(srcdir):
+            return
+
+        if vm.internal:
+            return
+        if vm.is_disposablevm():
+            return
+
+        whitelist = os.path.join(vm.dir_path, AppmenusSubdirs.whitelist)
+        if os.path.exists(whitelist):
+            whitelist = [line.strip() for line in open(whitelist)]
+        else:
+            whitelist = None
+
+        if not os.path.exists(self.icons_dir(vm)):
+            os.mkdir(self.icons_dir(vm))
+        elif not os.path.isdir(self.icons_dir(vm)):
+            os.unlink(self.icons_dir(vm))
+            os.mkdir(self.icons_dir(vm))
+
+        for icon in os.listdir(srcdir):
+            desktop = os.path.splitext(icon)[0] + '.desktop'
+            if whitelist and desktop not in whitelist:
+                continue
+
+            src_icon = os.path.join(srcdir, icon)
+            dst_icon = os.path.join(self.icons_dir(vm), icon)
+            if not os.path.exists(dst_icon) or force or \
+                    os.path.getmtime(src_icon) > os.path.getmtime(dst_icon):
+                qubesimgconverter.tint(src_icon, dst_icon, vm.label.color)
+
+    def appicons_remove(self, vm):
+        if not os.path.exists(self.icons_dir(vm)):
+            return
+        for icon in os.listdir(self.icons_dir(vm)):
+            os.unlink(os.path.join(self.icons_dir(vm), icon))
 
 
-def QubesVm_appmenus_update(self):
-    """
-    Similar to appmenus_recreate, but do not touch unchanged files
-    """
-    self.appmenus_remove()
-    self.appmenus_cleanup()
-    self.appicons_create()
-    self.appicons_cleanup()
-    self.appmenus_create()
+    def appicons_cleanup(self, vm):
+        srcdir = self.template_icons_dir(vm)
+        if srcdir is None:
+            return
+        if not os.path.exists(srcdir):
+            return
+        if not os.path.exists(self.icons_dir(vm)):
+            return
+
+        for icon in os.listdir(self.icons_dir(vm)):
+            if not os.path.exists(os.path.join(srcdir, icon)):
+                os.unlink(os.path.join(self.icons_dir(vm), icon))
+
+    @qubes.ext.handler('property-pre-set:name')
+    def pre_rename(self, vm, event, prop, *args):
+        self.appmenus_remove(vm)
+
+    @qubes.ext.handler('property-set:name')
+    def post_rename(self, vm, event, prop, *args):
+        self.appmenus_create(vm)
+
+    @qubes.ext.handler('domain-create-on-disk')
+    def create_on_disk(self, vm, event, source_template=None):
+        if vm.hvm and source_template is None:
+            vm.log.info("Creating appmenus directory: {0}".format(
+                self.templates_dir(vm)))
+            os.mkdir(self.templates_dir(vm))
+            shutil.copy(AppmenusPaths.appmenu_start_hvm_template,
+                        self.templates_dir(vm))
+
+        source_whitelist_filename = 'vm-' + AppmenusSubdirs.whitelist
+        if vm.is_netvm():
+            source_whitelist_filename = 'netvm-' + AppmenusSubdirs.whitelist
+        if source_template and os.path.exists(
+                os.path.join(source_template.dir_path, source_whitelist_filename)):
+            vm.log.info("Creating default whitelisted apps list: {0}".
+                    format(vm.dir_path + '/' + AppmenusSubdirs.whitelist))
+            shutil.copy(
+                os.path.join(source_template.dir_path, source_whitelist_filename),
+                os.path.join(vm.dir_path, AppmenusSubdirs.whitelist))
+
+        if source_template and vm.updateable:
+            vm.log.info("--> Copying the template's appmenus templates "
+                        "dir:\n{0} ==>\n{1}".
+                    format(self.templates_dir(source_template),
+                           self.templates_dir(vm)))
+            if os.path.isdir(self.templates_dir(source_template)):
+                shutil.copytree(self.templates_dir(source_template),
+                                self.templates_dir(vm))
+            else:
+                os.mkdir(self.templates_dir(vm))
+            if os.path.isdir(self.template_icons_dir(source_template)):
+                shutil.copytree(self.template_icons_dir(source_template),
+                                self.template_icons_dir(vm))
+            else:
+                os.mkdir(self.template_icons_dir(vm))
+
+        # Create appmenus
+        self.appicons_create(vm)
+        self.appmenus_create(vm)
+
+    @qubes.ext.handler('domain-clone-files')
+    def clone_disk_files(self, vm, event, src_vm):
+        if src_vm.updateable and src_vm.templates_dir(vm) is not None and \
+                self.templates_dir(vm) is not None:
+            vm.log.info("Copying the template's appmenus templates "
+                        "dir:\n{0} ==>\n{1}".
+                    format(self.templates_dir(src_vm),
+                           self.templates_dir(vm)))
+            shutil.copytree(self.templates_dir(src_vm),
+                            self.templates_dir(vm))
+
+        if src_vm.updateable and src_vm.template_icons_dir(vm) is not None \
+                and self.template_icons_dir(vm) is not None and \
+                os.path.isdir(self.template_icons_dir(src_vm)):
+            vm.log.info("Copying the template's appmenus "
+                        "template icons dir:\n{0} ==>\n{1}".
+                    format(self.template_icons_dir(src_vm),
+                           self.template_icons_dir(vm)))
+            shutil.copytree(self.template_icons_dir(src_vm),
+                            self.template_icons_dir(vm))
+
+        for whitelist in (
+                AppmenusSubdirs.whitelist,
+                'vm-' + AppmenusSubdirs.whitelist,
+                'netvm-' + AppmenusSubdirs.whitelist):
+            if os.path.exists(os.path.join(src_vm.dir_path, whitelist)):
+                vm.log.info("Copying whitelisted apps list: {0}".
+                    format(whitelist))
+                shutil.copy(os.path.join(src_vm.dir_path, whitelist),
+                            os.path.join(vm.dir_path, whitelist))
+
+        # Create appmenus
+        self.appicons_create(vm)
+        self.appmenus_create(vm)
 
 
-def QubesVm_set_attr(self, name, newvalue, oldvalue):
-    if name == 'internal':
+    @qubes.ext.handler('domain-remove-from-disk')
+    def remove_from_disk(self, vm, event):
+        self.appmenus_remove(vm)
+
+
+    @qubes.ext.handler('property-set:label')
+    def label_setter(self, vm, event, *args):
+        self.appicons_create(vm, force=True)
+
+        # Apparently desktop environments heavily caches the icons,
+        # see #751 for details
+        if "plasma" in os.environ.get("DESKTOP_SESSION", ""):
+            try:
+                os.unlink(os.path.expandvars(
+                    "$HOME/.kde/cache-$HOSTNAME/icon-cache.kcache"))
+            except:
+                pass
+            try:
+                notify_object = dbus.SessionBus().get_object(
+                    "org.freedesktop.Notifications",
+                    "/org/freedesktop/Notifications")
+                notify_object.Notify(
+                    "Qubes", 0, vm.label.icon, "Qubes",
+                    "You will need to log off and log in again for the VM icons "
+                    "to update in the KDE launcher menu",
+                    [], [], 10000,
+                    dbus_interface="org.freedesktop.Notifications")
+            except:
+                pass
+        elif "xfce" in os.environ.get("DESKTOP_SESSION", ""):
+            self.appmenus_remove(vm)
+            self.appmenus_create(vm)
+
+    def appmenus_recreate(self, vm):
+        """
+        Force recreation of all appmenus and icons. For example when VM label
+        color was changed
+        """
+        self.appmenus_remove(vm)
+        self.appmenus_cleanup(vm)
+        self.appicons_remove(vm)
+        self.appicons_create(vm)
+        self.appmenus_create(vm)
+
+    def appmenus_update(self, vm):
+        """
+        Similar to appmenus_recreate, but do not touch unchanged files
+        """
+        self.appmenus_remove(vm)
+        self.appmenus_cleanup(vm)
+        self.appicons_create(vm)
+        self.appicons_cleanup(vm)
+        self.appmenus_create(vm)
+
+    @qubes.ext.handler('property-set:internal')
+    def set_attr(self, vm, event, prop, newvalue, *args):
+        if len(args):
+            oldvalue = args[0]
+        else:
+            oldvalue = vm.__class__.internal._default
         if newvalue and not oldvalue:
-            self.appmenus_remove()
+            self.appmenus_remove(vm)
         elif not newvalue and oldvalue:
-            self.appmenus_create()
+            self.appmenus_create(vm)
 
-
-# new methods
-QubesVm.appmenus_create = QubesVm_appmenus_create
-QubesVm.appmenus_remove = QubesVm_appmenus_remove
-QubesVm.appmenus_cleanup = QubesVm_appmenus_cleanup
-QubesVm.appmenus_recreate = QubesVm_appmenus_recreate
-QubesVm.appmenus_update = QubesVm_appmenus_update
-QubesVm.appmenus_replace_entry = QubesVm_appmenus_replace_entry
-QubesVm.appicons_create = QubesVm_appicons_create
-QubesVm.appicons_cleanup = QubesVm_appicons_cleanup
-QubesVm.appicons_remove = QubesVm_appicons_remove
-
-# hooks for existing methods
-QubesVm.hooks_pre_rename.append(QubesVm_pre_rename)
-QubesVm.hooks_post_rename.append(QubesVm_post_rename)
-QubesVm.hooks_create_on_disk.append(QubesVm_create_on_disk)
-QubesVm.hooks_clone_disk_files.append(QubesVm_clone_disk_files)
-QubesVm.hooks_remove_from_disk.append(QubesVm_remove_from_disk)
-QubesVm.hooks_label_setter.append(QubesVm_label_setter)
-QubesVm.hooks_set_attr.append(QubesVm_set_attr)
+    @qubes.ext.handler('backup-get-files')
+    def files_for_backup(self, vm, event):
+        if vm.internal:
+            return
+        if vm.updateable:
+            yield self.templates_dir(vm)
+            yield self.template_icons_dir(vm)
+        yield os.path.join(vm.dir_path, AppmenusSubdirs.whitelist)
+        if vm.is_template():
+            for whitelist in (
+                    'vm-' + AppmenusSubdirs.whitelist,
+                    'netvm-' + AppmenusSubdirs.whitelist):
+                yield os.path.join(vm.dir_path, whitelist)
