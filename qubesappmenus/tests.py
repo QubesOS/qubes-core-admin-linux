@@ -315,7 +315,7 @@ class TC_10_AppmenusIntegration(qubes.tests.extra.ExtraTestCase):
     def assertIconColor(self, path, expected_color):
         image_color_float = self.get_image_color(path, expected_color)
         expected_color_float = qubesimgconverter.hex_to_float(expected_color)
-        if not all(map(lambda a, b: abs(a - b) <= 0.0625,
+        if not all(map(lambda a, b: abs(a - b) <= 0.15,
                 image_color_float, expected_color_float)):
             self.fail(
                 "Icon {} is not colored as {}".format(path, expected_color))
@@ -329,7 +329,7 @@ class TC_10_AppmenusIntegration(qubes.tests.extra.ExtraTestCase):
 
     def test_011_icon_color_label_change(self):
         """Regression test for #1606"""
-        self.vm.label = 'blue'
+        self.vm.label = 'green'
         self.test_010_icon_color()
 
 
