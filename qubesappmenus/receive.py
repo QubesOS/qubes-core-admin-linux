@@ -30,12 +30,23 @@ import shutil
 import pipes
 
 from optparse import OptionParser
-from qubes.qubes import QubesVmCollection, QubesException, system_path
-from qubes.qubes import QubesHVm
-from qubes.qubes import vm_files
-from qubes.qubes import vmm
+import qubes.exc
+import qubes.tools
+import qubesappmenus
 
 import qubesimgconverter
+
+parser = qubes.tools.QubesArgumentParser(
+    want_vm=True,
+    want_vm_optional=True,
+    want_force_root=True,
+    description='retrieve appmenus')
+
+parser.add_argument('--force-rpc',
+    action='store_true', default=False,
+    help="Force to start a new RPC call, even if called from existing one")
+
+# TODO offline mode
 
 # fields required to be present (and verified) in retrieved desktop file
 required_fields = ["Name", "Exec"]
@@ -111,35 +122,34 @@ def fallback_hvm_appmenulist():
 
 
 def get_appmenus(vm):
-    global appmenus_line_count
-    global appmenus_line_size
+    appmenus_line_limit_left = appmenus_line_count
     untrusted_appmenulist = []
     if vm is None:
-        while appmenus_line_count > 0:
+        while appmenus_line_limit_left > 0:
             untrusted_line = sys.stdin.readline(appmenus_line_size)
             if untrusted_line == "":
                 break
             untrusted_appmenulist.append(untrusted_line.strip())
-            appmenus_line_count -= 1
-        if appmenus_line_count == 0:
-            raise QubesException("Line count limit exceeded")
+            appmenus_line_limit_left -= 1
+        if appmenus_line_limit_left == 0:
+            raise qubes.exc.QubesException("Line count limit exceeded")
     else:
         p = vm.run('QUBESRPC qubes.GetAppmenus dom0', passio_popen=True,
                    gui=False)
-        while appmenus_line_count > 0:
+        while appmenus_line_limit_left > 0:
             untrusted_line = p.stdout.readline(appmenus_line_size)
             if untrusted_line == "":
                 break
             untrusted_appmenulist.append(untrusted_line.strip())
-            appmenus_line_count -= 1
+            appmenus_line_limit_left -= 1
         p.wait()
         if p.returncode != 0:
-            if isinstance(vm, QubesHVm):
+            if vm.hvm:
                 untrusted_appmenulist = fallback_hvm_appmenulist()
             else:
-                raise QubesException("Error getting application list")
-        if appmenus_line_count == 0:
-            raise QubesException("Line count limit exceeded")
+                raise qubes.exc.QubesException("Error getting application list")
+        if appmenus_line_limit_left == 0:
+            raise qubes.exc.QubesException("Line count limit exceeded")
 
     appmenus = {}
     line_rx = re.compile(
@@ -206,7 +216,7 @@ def create_template(path, values):
     if 'Icon' in values:
         icon_file = os.path.splitext(os.path.split(path)[1])[0] + '.png'
         desktop_entry += "Icon={0}\n".format(os.path.join(
-            '%VMDIR%', vm_files['appmenus_icons_subdir'], icon_file))
+            '%VMDIR%', qubesappmenus.AppmenusSubdirs.icons_subdir, icon_file))
     else:
         desktop_entry += "Icon=%XDGICON%\n"
 
@@ -228,115 +238,43 @@ def create_template(path, values):
         desktop_file.write(desktop_entry)
         desktop_file.close()
 
+def process_appmenus_templates(appmenusext, vm, appmenus):
+    old_umask = os.umask(002)
 
-def main():
-    env_vmname = os.environ.get("QREXEC_REMOTE_DOMAIN")
-    usage = "usage: %prog [options] <vm-name>\n" \
-            "Update desktop file templates for given StandaloneVM or TemplateVM"
+    if not os.path.exists(appmenusext.templates_dir(vm)):
+        os.mkdir(appmenusext.templates_dir(vm))
 
-    parser = OptionParser(usage)
-    parser.add_option("-v", "--verbose", action="store_true", dest="verbose",
-                      default=False)
-    parser.add_option("--force-root", action="store_true", dest="force_root",
-                      default=False,
-                      help="Force to run, even with root privileges")
-    parser.add_option("--force-rpc", action="store_true", dest="force_rpc",
-                      default=False,
-                      help="Force to start a new RPC call, "
-                           "even if called from existing one")
-    # Do not use any RPC call, expects data on stdin (in qubes.GetAppmenus
-    # format)
-    parser.add_option("--offline-mode", dest="offline_mode",
-                      action="store_true", default=False,
-                      help=optparse.SUPPRESS_HELP)
+    if not os.path.exists(appmenusext.template_icons_dir(vm)):
+        os.mkdir(appmenusext.template_icons_dir(vm))
 
-    (options, args) = parser.parse_args()
-    if (len(args) != 1) and env_vmname is None:
-        parser.error("You must specify at least the VM name!")
+    if vm.hvm:
+        if not os.path.exists(os.path.join(
+                appmenusext.templates_dir(vm),
+                os.path.basename(
+                    qubesappmenus.AppmenusPaths.appmenu_start_hvm_template))):
+            shutil.copy(qubesappmenus.AppmenusPaths.appmenu_start_hvm_template,
+                appmenusext.templates_dir(vm))
 
-    if env_vmname:
-        vmname = env_vmname
-    else:
-        vmname = args[0]
 
-    if os.geteuid() == 0:
-        if not options.force_root:
-            print >> sys.stderr, "*** Running this tool as root is strongly " \
-                                 "discouraged, this will lead you into " \
-                                 "permissions problems."
-            print >> sys.stderr, "Retry as unprivileged user."
-            print >> sys.stderr, "... or use --force-root to continue anyway."
-            exit(1)
-
-    if options.offline_mode:
-        vmm.offline_mode = True
-    qvm_collection = QubesVmCollection()
-    qvm_collection.lock_db_for_reading()
-    qvm_collection.load()
-    qvm_collection.unlock_db()
-
-    vm = qvm_collection.get_vm_by_name(vmname)
-
-    if vm is None:
-        print >> sys.stderr, "ERROR: A VM with the name '{0}' " \
-                             "does not exist in the system.".format(
-                                 vmname)
-        exit(1)
-
-    if vm.template is not None:
-        print >> sys.stderr, "ERROR: To sync appmenus for template based VM, " \
-                             "do it on template instead"
-        exit(1)
-
-    if not options.offline_mode and not vm.is_running():
-        print >> sys.stderr, "ERROR: Appmenus can be retrieved only from " \
-                             "running VM - start it first"
-        exit(1)
-
-    if not options.offline_mode and env_vmname is None or options.force_rpc:
-        new_appmenus = get_appmenus(vm)
-    else:
-        options.verbose = False
-        new_appmenus = get_appmenus(None)
-
-    if len(new_appmenus) == 0:
-        print >> sys.stderr, "ERROR: No appmenus received, terminating"
-        exit(1)
-
-    os.umask(002)
-
-    if not os.path.exists(vm.appmenus_templates_dir):
-        os.mkdir(vm.appmenus_templates_dir)
-
-    if not os.path.exists(vm.appmenus_template_icons_dir):
-        os.mkdir(vm.appmenus_template_icons_dir)
-
-    # Create new/update existing templates
-    if options.verbose:
-        print >> sys.stderr, "--> Got {0} appmenus, storing to disk".format(
-            str(len(new_appmenus)))
-    for appmenu_file in new_appmenus.keys():
-        if options.verbose:
-            if os.path.exists(
-                    os.path.join(vm.appmenus_templates_dir, appmenu_file)):
-                print >> sys.stderr, "---> Updating {0}".format(appmenu_file)
-            else:
-                print >> sys.stderr, "---> Creating {0}".format(appmenu_file)
+    for appmenu_file in appmenus.keys():
+        if os.path.exists(
+                os.path.join(appmenusext.templates_dir(vm),
+                    appmenu_file)):
+            vm.log.info("Updating {0}".format(appmenu_file))
+        else:
+            vm.log.info("Creating {0}".format(appmenu_file))
 
         # TODO: icons support in offline mode
-        if options.offline_mode:
-            new_appmenus[appmenu_file].pop('Icon', None)
-        if 'Icon' in new_appmenus[appmenu_file]:
+        # TODO if options.offline_mode:
+        # TODO     new_appmenus[appmenu_file].pop('Icon', None)
+        if 'Icon' in appmenus[appmenu_file]:
             # the following line is used for time comparison
-            icondest = os.path.join(vm.appmenus_template_icons_dir,
+            icondest = os.path.join(appmenusext.template_icons_dir(vm),
                                     os.path.splitext(appmenu_file)[0] + '.png')
 
             try:
                 icon = qubesimgconverter.Image. \
-                    get_xdg_icon_from_vm(vm,
-                                         new_appmenus[
-                                             appmenu_file][
-                                             'Icon'])
+                    get_xdg_icon_from_vm(vm, appmenus[appmenu_file]['Icon'])
                 if os.path.exists(icondest):
                     old_icon = qubesimgconverter.Image.load_from_file(icondest)
                 else:
@@ -344,48 +282,76 @@ def main():
                 if old_icon is None or icon != old_icon:
                     icon.save(icondest)
             except Exception, e:
-                print >> sys.stderr, '----> Failed to get icon for {0}: {1!s}'.\
-                    format(appmenu_file, e)
+                vm.log.warning('Failed to get icon for {0}: {1!s}'.\
+                    format(appmenu_file, e))
 
                 if os.path.exists(icondest):
-                    print >> sys.stderr, '-----> Found old icon, ' \
-                                         'using it instead'
+                    vm.log.warning('Found old icon, using it instead')
                 else:
-                    del new_appmenus[appmenu_file]['Icon']
+                    del appmenus[appmenu_file]['Icon']
 
-        create_template(os.path.join(vm.appmenus_templates_dir, appmenu_file),
-                        new_appmenus[appmenu_file])
+        create_template(os.path.join(appmenusext.templates_dir(vm),
+            appmenu_file), appmenus[appmenu_file])
 
     # Delete appmenus of removed applications
-    if options.verbose:
-        print >> sys.stderr, "--> Cleaning old files"
-    for appmenu_file in os.listdir(vm.appmenus_templates_dir):
+    for appmenu_file in os.listdir(appmenusext.templates_dir(vm)):
         if not appmenu_file.endswith('.desktop'):
             continue
 
-        if appmenu_file not in new_appmenus:
-            if options.verbose:
-                print >> sys.stderr, "---> Removing {0}".format(appmenu_file)
-            os.unlink(os.path.join(vm.appmenus_templates_dir, appmenu_file))
+        if appmenu_file not in appmenus:
+            vm.log.info("Removing {0}".format(appmenu_file))
+            os.unlink(os.path.join(appmenusext.templates_dir(vm),
+                appmenu_file))
 
-    if isinstance(vm, QubesHVm):
-        if not os.path.exists(os.path.join(vm.appmenus_templates_dir,
-                                           os.path.basename(system_path[
-                                               'appmenu_start_hvm_template']))):
-            shutil.copy(system_path['appmenu_start_hvm_template'],
-                        vm.appmenus_templates_dir)
+    os.umask(old_umask)
 
-    vm.appmenus_update()
+
+def main(args=None):
+    env_vmname = os.environ.get("QREXEC_REMOTE_DOMAIN")
+
+    args = parser.parse_args(args)
+
+    if env_vmname:
+        vm = args.app.domains[env_vmname]
+    else:
+        vm = args.vm
+
+    if args.vm is None:
+        parser.error("You must specify at least the VM name!")
+
+    if hasattr(vm, 'template'):
+        raise qubes.exc.QubesException(
+            "To sync appmenus for template based VM, do it on template instead")
+
+    #TODO if not options.offline_mode and not vm.is_running():
+    if not vm.is_running():
+        raise qubes.exc.QubesVMNotRunningError(vm,
+            "Appmenus can be retrieved only from running VM")
+
+    # TODO if not options.offline_mode and env_vmname is None or
+    # options.force_rpc:
+    if env_vmname is None or args.force_rpc:
+        new_appmenus = get_appmenus(vm)
+    else:
+        new_appmenus = get_appmenus(None)
+
+    if len(new_appmenus) == 0:
+        raise qubes.exc.QubesException("No appmenus received, terminating")
+
+    appmenusext = qubesappmenus.AppmenusExtension()
+
+    process_appmenus_templates(appmenusext, vm, new_appmenus)
+
+    appmenusext.appmenus_update(vm)
     if hasattr(vm, 'appvms'):
         os.putenv('SKIP_CACHE_REBUILD', '1')
-        for child_vm in vm.appvms.values():
+        for child_vm in vm.appvms:
             try:
-                child_vm.appmenus_update()
+                appmenusext.appmenus_update(child_vm)
             except Exception, e:
-                print >> sys.stderr, "---> Failed to recreate appmenus for " \
-                                     "'{0}': {1}".format(child_vm.name, str(e))
+                child_vm.log.error("Failed to recreate appmenus for "
+                    "'{0}': {1}".format(child_vm.name, str(e)))
+        os.unsetenv('SKIP_CACHE_REBUILD')
         subprocess.call(['xdg-desktop-menu', 'forceupdate'])
         if 'KDE_SESSION_UID' in os.environ:
             subprocess.call(['kbuildsycoca' + os.environ.get('KDE_SESSION_VERSION', '4')])
-        os.unsetenv('SKIP_CACHE_REBUILD')
-
