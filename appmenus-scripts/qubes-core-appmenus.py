@@ -169,7 +169,7 @@ def QubesVm_appmenus_replace_entry(self, old_name, new_name):
                 f.write(''.join(new_lines))
 
 
-def QubesVm_appicons_create(self, srcdir=None):
+def QubesVm_appicons_create(self, srcdir=None, force=False):
     if srcdir is None:
         srcdir = self.appmenus_template_icons_dir
     if srcdir is None:
@@ -201,7 +201,7 @@ def QubesVm_appicons_create(self, srcdir=None):
 
         src_icon = os.path.join(srcdir, icon)
         dst_icon = os.path.join(self.appmenus_icons_dir, icon)
-        if not os.path.exists(dst_icon) or \
+        if not os.path.exists(dst_icon) or force or \
                 os.path.getmtime(src_icon) > os.path.getmtime(dst_icon):
             qubes.imgconverter.tint(src_icon, dst_icon, self.label.color)
 
@@ -315,7 +315,7 @@ def QubesVm_remove_from_disk(self):
 
 
 def QubesVm_label_setter(self, _):
-    self.appicons_create()
+    self.appicons_create(force=True)
 
     # Apparently desktop environments heavily caches the icons,
     # see #751 for details
