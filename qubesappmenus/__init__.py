@@ -26,6 +26,7 @@ import os
 import os.path
 import shutil
 import dbus
+import pkg_resources
 
 import qubes.ext
 
@@ -44,16 +45,13 @@ class AppmenusSubdirs:
 class AppmenusPaths:
     appmenu_start_hvm_template = \
         '/usr/share/qubes-appmenus/qubes-start.desktop'
-    appmenu_create_cmd = \
-        '/usr/libexec/qubes-appmenus/create-apps-for-appvm.sh'
-    appmenu_remove_cmd = \
-        '/usr/libexec/qubes-appmenus/remove-appvm-appmenus.sh'
 
 
 class AppmenusExtension(qubes.ext.Extension):
     def __init__(self, *args):
         super(AppmenusExtension, self).__init__(*args)
         import qubes.vm.qubesvm
+        import qubes.vm.templatevm
 
     def templates_dir(self, vm):
         """
@@ -83,60 +81,171 @@ class AppmenusExtension(qubes.ext.Extension):
     def icons_dir(self, vm):
         return os.path.join(vm.dir_path, AppmenusSubdirs.icons_subdir)
 
-    def appmenus_create(self, vm, source_template=None):
-        if source_template is None and hasattr(vm, 'template'):
-            source_template = vm.template
+    def whitelist_path(self, vm):
+        return os.path.join(vm.dir_path, AppmenusSubdirs.whitelist)
+
+    def directory_template_name(self, vm):
+        if isinstance(vm, qubes.vm.templatevm.TemplateVM):
+            return 'qubes-templatevm.directory.template'
+        elif vm.provides_network:
+            return 'qubes-servicevm.directory.template'
+        else:
+            return 'qubes-vm.directory.template'
+
+    def write_desktop_file(self, vm, source, destination_path):
+        """Format .desktop/.directory file
+
+        :param vm: QubesVM object for which write desktop file
+        :param source: desktop file template (path or template itself)
+        :param destination_path: where to write the desktop file
+        :return: True if target file was changed, otherwise False
+        """
+        if source.startswith('/'):
+            source = open(source).read()
+        data = source.\
+            replace("%VMNAME%", vm.name).\
+            replace("%VMDIR%", vm.dir_path).\
+            replace("%XDGICON%", vm.label.icon)
+        if os.path.exists(destination_path):
+            current_dest = open(destination_path).read()
+            if current_dest == data:
+                return False
+        with open(destination_path, "w") as f:
+            f.write(data)
+        return True
+
+    def appmenus_create(self, vm, refresh_cache=True):
+        """Create/update .desktop files
+
+        :param vm: QubesVM object for which create entries
+        :param refresh_cache: refresh desktop environment cache; if false,
+        must be refreshed manually later
+        :return: None
+        """
 
         if vm.internal:
             return
         if vm.is_disposablevm():
             return
 
-        vmsubdir = vm.dir_path.split(os.path.sep)[-2]
+        vm.log.info("Creating appmenus")
+        appmenus_dir = self.appmenus_dir(vm)
+        if not os.path.exists(appmenus_dir):
+            os.makedirs(appmenus_dir)
 
-        try:
-            #TODO msgoutput = None if verbose else open(os.devnull, 'w')
-            msgoutput = None
-            if source_template is not None:
-                subprocess.check_call([AppmenusPaths.appmenu_create_cmd,
-                                       self.templates_dir(source_template),
-                                       vm.name, vmsubdir, vm.label.icon],
-                                      stdout=msgoutput, stderr=msgoutput)
-            elif self.templates_dir(vm) is not None:
-                subprocess.check_call([AppmenusPaths.appmenu_create_cmd,
-                                       self.templates_dir(vm), vm.name,
-                                       vmsubdir, vm.label.icon],
-                                      stdout=msgoutput, stderr=msgoutput)
-            else:
-                # Only add apps to menu
-                subprocess.check_call([AppmenusPaths.appmenu_create_cmd,
-                                       "none", vm.name, vmsubdir,
-                                       vm.label.icon],
-                                      stdout=msgoutput, stderr=msgoutput)
-        except subprocess.CalledProcessError:
-            vm.log.warning("Ooops, there was a problem creating appmenus "
-                "for {0} VM!")
+        anything_changed = False
+        directory_file = os.path.join(appmenus_dir, vm.name + '-vm.directory')
+        if self.write_desktop_file(vm,
+                pkg_resources.resource_string(__name__,
+                    self.directory_template_name(vm)), directory_file):
+            anything_changed = True
 
+        templates_dir = self.templates_dir(vm)
+        appmenus = os.listdir(templates_dir)
+        changed_appmenus = []
+        if os.path.exists(self.whitelist_path(vm)):
+            whitelist = [x.rstrip() for x in open(self.whitelist_path(vm))]
+            appmenus = [x for x in appmenus if x in whitelist]
 
-    def appmenus_remove(self, vm):
-        vmsubdir = vm.dir_path.split(os.path.sep)[-2]
-        subprocess.check_call([AppmenusPaths.appmenu_remove_cmd, vm.name,
-                               vmsubdir], stderr=open(os.devnull, 'w'))
+        for appmenu in appmenus:
+            if self.write_desktop_file(vm,
+                    os.path.join(templates_dir, appmenu),
+                    os.path.join(appmenus_dir,
+                        '-'.join((vm.name, appmenu)))):
+                changed_appmenus.append(appmenu)
+        if self.write_desktop_file(vm,
+                pkg_resources.resource_string(
+                    __name__, 'qubes-appmenu-select.desktop.template'
+                ),
+                os.path.join(appmenus_dir,
+                    '-'.join((vm.name, 'qubes-appmenu-select.desktop')))):
+            changed_appmenus.append('qubes-appmenu-select.desktop')
 
-    def appmenus_cleanup(self, vm):
-        srcdir = self.templates_dir(vm)
-        if srcdir is None:
-            return
-        if not os.path.exists(srcdir):
-            return
-        if not os.path.exists(self.appmenus_dir(vm)):
-            return
+        if changed_appmenus:
+            anything_changed = True
 
-        for appmenu in os.listdir(self.appmenus_dir(vm)):
-            if not os.path.exists(os.path.join(srcdir, appmenu)):
-                os.unlink(os.path.join(self.appmenus_dir(vm), appmenu))
+        target_appmenus = map(
+            lambda x: '-'.join((vm.name, x)),
+            appmenus + ['qubes-appmenu-select.desktop']
+        )
+
+        # remove old entries
+        installed_appmenus = os.listdir(appmenus_dir)
+        installed_appmenus.remove(os.path.basename(directory_file))
+        appmenus_to_remove = set(installed_appmenus).difference(set(
+            target_appmenus))
+        if len(appmenus_to_remove):
+            appmenus_to_remove_fnames = map(
+                lambda x: os.path.join(appmenus_dir, x), appmenus_to_remove)
+            try:
+                desktop_menu_cmd = ['xdg-desktop-menu', 'uninstall']
+                if not refresh_cache:
+                    desktop_menu_cmd.append('--noupdate')
+                desktop_menu_cmd.append(directory_file)
+                desktop_menu_cmd.extend(appmenus_to_remove_fnames)
+                desktop_menu_env = os.environ.copy()
+                desktop_menu_env['LC_COLLATE'] = 'C'
+                subprocess.check_call(desktop_menu_cmd, env=desktop_menu_env)
+            except subprocess.CalledProcessError:
+                vm.log.warning("Problem removing old appmenus")
+
+            for appmenu in appmenus_to_remove_fnames:
+                os.unlink(appmenu)
+
+        # add new entries
+        if anything_changed:
+            try:
+                desktop_menu_cmd = ['xdg-desktop-menu', 'install']
+                if not refresh_cache:
+                    desktop_menu_cmd.append('--noupdate')
+                desktop_menu_cmd.append(directory_file)
+                desktop_menu_cmd.extend(map(
+                    lambda x: os.path.join(
+                        appmenus_dir, '-'.join((vm.name, x))),
+                    changed_appmenus))
+                desktop_menu_env = os.environ.copy()
+                desktop_menu_env['LC_COLLATE'] = 'C'
+                subprocess.check_call(desktop_menu_cmd, env=desktop_menu_env)
+            except subprocess.CalledProcessError:
+                vm.log.warning("Problem creating appmenus")
+
+        if refresh_cache:
+            if 'KDE_SESSION_UID' in os.environ:
+                subprocess.call(['kbuildsycoca' +
+                                 os.environ.get('KDE_SESSION_VERSION', '4')])
+
+    def appmenus_remove(self, vm, refresh_cache=True):
+        appmenus_dir = self.appmenus_dir(vm)
+        if os.path.exists(appmenus_dir):
+            vm.log.info("Removing appmenus")
+            installed_appmenus = os.listdir(appmenus_dir)
+            directory_file = os.path.join(self.appmenus_dir(vm),
+                vm.name + '-vm.directory')
+            installed_appmenus.remove(os.path.basename(directory_file))
+            if installed_appmenus:
+                appmenus_to_remove_fnames = map(
+                    lambda x: os.path.join(appmenus_dir, x), installed_appmenus)
+                try:
+                    desktop_menu_cmd = ['xdg-desktop-menu', 'uninstall']
+                    if not refresh_cache:
+                        desktop_menu_cmd.append('--noupdate')
+                    desktop_menu_cmd.append(directory_file)
+                    desktop_menu_cmd.extend(appmenus_to_remove_fnames)
+                    desktop_menu_env = os.environ.copy()
+                    desktop_menu_env['LC_COLLATE'] = 'C'
+                    subprocess.check_call(desktop_menu_cmd,
+                        env=desktop_menu_env)
+                except subprocess.CalledProcessError:
+                    vm.log.warning("Problem removing appmenus")
+            shutil.rmtree(appmenus_dir)
+
+        if refresh_cache:
+            if 'KDE_SESSION_UID' in os.environ:
+                subprocess.call(['kbuildsycoca' +
+                                 os.environ.get('KDE_SESSION_VERSION', '4')])
 
     def appicons_create(self, vm, srcdir=None, force=False):
+        """Create/update applications icons"""
         if srcdir is None:
             srcdir = self.template_icons_dir(vm)
         if srcdir is None:
@@ -149,48 +258,43 @@ class AppmenusExtension(qubes.ext.Extension):
         if vm.is_disposablevm():
             return
 
-        whitelist = os.path.join(vm.dir_path, AppmenusSubdirs.whitelist)
+        whitelist = self.whitelist_path(vm)
         if os.path.exists(whitelist):
             whitelist = [line.strip() for line in open(whitelist)]
         else:
             whitelist = None
 
-        if not os.path.exists(self.icons_dir(vm)):
-            os.mkdir(self.icons_dir(vm))
-        elif not os.path.isdir(self.icons_dir(vm)):
-            os.unlink(self.icons_dir(vm))
-            os.mkdir(self.icons_dir(vm))
+        dstdir = self.icons_dir(vm)
+        if not os.path.exists(dstdir):
+            os.mkdir(dstdir)
+        elif not os.path.isdir(dstdir):
+            os.unlink(dstdir)
+            os.mkdir(dstdir)
+
+        if whitelist:
+            expected_icons = \
+                map(lambda x: os.path.splitext(x)[0] + '.png', whitelist)
+        else:
+            expected_icons = os.listdir(srcdir)
 
         for icon in os.listdir(srcdir):
-            desktop = os.path.splitext(icon)[0] + '.desktop'
-            if whitelist and desktop not in whitelist:
+            if icon not in expected_icons:
                 continue
 
             src_icon = os.path.join(srcdir, icon)
-            dst_icon = os.path.join(self.icons_dir(vm), icon)
+            dst_icon = os.path.join(dstdir, icon)
             if not os.path.exists(dst_icon) or force or \
                     os.path.getmtime(src_icon) > os.path.getmtime(dst_icon):
                 qubesimgconverter.tint(src_icon, dst_icon, vm.label.color)
 
+        for icon in os.listdir(dstdir):
+            if icon not in expected_icons:
+                os.unlink(os.path.join(dstdir, icon))
+
     def appicons_remove(self, vm):
         if not os.path.exists(self.icons_dir(vm)):
             return
-        for icon in os.listdir(self.icons_dir(vm)):
-            os.unlink(os.path.join(self.icons_dir(vm), icon))
-
-
-    def appicons_cleanup(self, vm):
-        srcdir = self.template_icons_dir(vm)
-        if srcdir is None:
-            return
-        if not os.path.exists(srcdir):
-            return
-        if not os.path.exists(self.icons_dir(vm)):
-            return
-
-        for icon in os.listdir(self.icons_dir(vm)):
-            if not os.path.exists(os.path.join(srcdir, icon)):
-                os.unlink(os.path.join(self.icons_dir(vm), icon))
+        shutil.rmtree(self.icons_dir(vm))
 
     @qubes.ext.handler('property-pre-set:name')
     def pre_rename(self, vm, event, prop, *args):
@@ -309,29 +413,8 @@ class AppmenusExtension(qubes.ext.Extension):
             self.appmenus_remove(vm)
             self.appmenus_create(vm)
 
-    def appmenus_recreate(self, vm):
-        """
-        Force recreation of all appmenus and icons. For example when VM label
-        color was changed
-        """
-        self.appmenus_remove(vm)
-        self.appmenus_cleanup(vm)
-        self.appicons_remove(vm)
-        self.appicons_create(vm)
-        self.appmenus_create(vm)
-
-    def appmenus_update(self, vm):
-        """
-        Similar to appmenus_recreate, but do not touch unchanged files
-        """
-        self.appmenus_remove(vm)
-        self.appmenus_cleanup(vm)
-        self.appicons_create(vm)
-        self.appicons_cleanup(vm)
-        self.appmenus_create(vm)
-
     @qubes.ext.handler('property-set:internal')
-    def set_attr(self, vm, event, prop, newvalue, *args):
+    def on_property_set_internal(self, vm, event, prop, newvalue, *args):
         if len(args):
             oldvalue = args[0]
         else:

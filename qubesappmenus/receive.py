@@ -344,14 +344,12 @@ def main(args=None):
 
     appmenusext.appmenus_update(vm)
     if hasattr(vm, 'appvms'):
-        os.putenv('SKIP_CACHE_REBUILD', '1')
         for child_vm in vm.appvms:
             try:
-                appmenusext.appmenus_update(child_vm)
+                appmenusext.appmenus_create(child_vm, refresh_cache=False)
             except Exception, e:
                 child_vm.log.error("Failed to recreate appmenus for "
                     "'{0}': {1}".format(child_vm.name, str(e)))
-        os.unsetenv('SKIP_CACHE_REBUILD')
         subprocess.call(['xdg-desktop-menu', 'forceupdate'])
         if 'KDE_SESSION_UID' in os.environ:
             subprocess.call(['kbuildsycoca' + os.environ.get('KDE_SESSION_VERSION', '4')])

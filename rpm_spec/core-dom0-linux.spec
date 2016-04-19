@@ -86,9 +86,6 @@ python setup.py build
 ### Appmenus
 python setup.py install -O1 --skip-build --root $RPM_BUILD_ROOT
 
-mkdir -p $RPM_BUILD_ROOT/usr/libexec/qubes-appmenus
-cp qubesappmenus/*.sh $RPM_BUILD_ROOT/usr/libexec/qubes-appmenus/
-
 mkdir -p $RPM_BUILD_ROOT/etc/qubes-rpc/policy
 cp qubesappmenus/qubes.SyncAppMenus $RPM_BUILD_ROOT/etc/qubes-rpc/
 cp qubesappmenus/qubes.SyncAppMenus.policy $RPM_BUILD_ROOT/etc/qubes-rpc/policy/qubes.SyncAppMenus
@@ -215,22 +212,18 @@ chmod -x /etc/grub.d/10_linux
 %{python_sitelib}/qubeslinux-*.egg-info/*
 /usr/lib/python2.7/site-packages/qubesappmenus/__init__.py*
 /usr/lib/python2.7/site-packages/qubesappmenus/receive.py*
+/usr/lib/python2.7/site-packages/qubesappmenus/qubes-appmenu-select.desktop.template
+/usr/lib/python2.7/site-packages/qubesappmenus/qubes-servicevm.directory.template
+/usr/lib/python2.7/site-packages/qubesappmenus/qubes-templatevm.directory.template
+/usr/lib/python2.7/site-packages/qubesappmenus/qubes-vm.directory.template
 /usr/lib/python2.7/site-packages/qubesappmenus/tests.py*
 /usr/lib/python2.7/site-packages/qubesappmenus/test-data
 /etc/qubes-rpc/policy/qubes.SyncAppMenus
 /etc/qubes-rpc/qubes.SyncAppMenus
-/usr/libexec/qubes-appmenus/convert-apptemplate2vm.sh
-/usr/libexec/qubes-appmenus/convert-dirtemplate2vm.sh
-/usr/libexec/qubes-appmenus/create-apps-for-appvm.sh
-/usr/libexec/qubes-appmenus/remove-appvm-appmenus.sh
-/usr/share/qubes-appmenus/qubes-appmenu-select.desktop
 /usr/share/qubes-appmenus/qubes-dispvm-firefox.desktop
 /usr/share/qubes-appmenus/qubes-dispvm-xterm.desktop
 /usr/share/qubes-appmenus/qubes-dispvm.directory
-/usr/share/qubes-appmenus/qubes-servicevm.directory.template
 /usr/share/qubes-appmenus/qubes-start.desktop
-/usr/share/qubes-appmenus/qubes-templatevm.directory.template
-/usr/share/qubes-appmenus/qubes-vm.directory.template
 /usr/share/qubes-appmenus/hvm
 /usr/share/qubes/icons/*.png
 /usr/bin/qvm-sync-appmenus

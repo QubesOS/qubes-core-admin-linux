@@ -15,7 +15,7 @@ if __name__ == '__main__':
         packages=('qubesappmenus',),
 
         package_data = {
-            'qubesappmenus': ['test-data/*'],
+            'qubesappmenus': ['test-data/*', '*.template'],
         },
 
         entry_points={
