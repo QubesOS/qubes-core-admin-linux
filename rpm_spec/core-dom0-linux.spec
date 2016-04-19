@@ -216,6 +216,7 @@ chmod -x /etc/grub.d/10_linux
 /usr/lib/python2.7/site-packages/qubesappmenus/__init__.py*
 /usr/lib/python2.7/site-packages/qubesappmenus/receive.py*
 /usr/lib/python2.7/site-packages/qubesappmenus/tests.py*
+/usr/lib/python2.7/site-packages/qubesappmenus/test-data
 /etc/qubes-rpc/policy/qubes.SyncAppMenus
 /etc/qubes-rpc/qubes.SyncAppMenus
 /usr/libexec/qubes-appmenus/convert-apptemplate2vm.sh

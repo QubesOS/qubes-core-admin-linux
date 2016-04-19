@@ -14,6 +14,10 @@ if __name__ == '__main__':
 
         packages=('qubesappmenus',),
 
+        package_data = {
+            'qubesappmenus': ['test-data/*'],
+        },
+
         entry_points={
             'console_scripts': [
                 'qvm-sync-appmenus = qubesappmenus.receive:main'

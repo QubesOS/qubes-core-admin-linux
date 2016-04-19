@@ -20,13 +20,21 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
 # USA.
+
+import colorsys
 import os
 
 import unittest
+import pkg_resources
+import xdg
+import xdg.BaseDirectory
+import xdg.DesktopEntry
 import qubes
 import qubes.tests
+import qubes.tests.extra
 import qubesappmenus
-
+import qubesappmenus.receive
+import qubesimgconverter
 
 class TestApp(object):
     labels = {1: qubes.Label(1, '0xcc0000', 'red')}
@@ -151,7 +159,182 @@ class TC_00_Appmenus(qubes.tests.QubesTestCase):
                 self.appvm.name, 'apps.icons')
         )
 
+    def test_100_get_appmenus(self):
+        def _run(cmd, **kwargs):
+            class PopenMockup(object):
+                pass
+            self.assertEquals(cmd, 'QUBESRPC qubes.GetAppmenus dom0')
+            self.assertEquals(kwargs.get('passio_popen', False), True)
+            self.assertEquals(kwargs.get('gui', True), False)
+            p = PopenMockup()
+            p.stdout = pkg_resources.resource_stream(__name__,
+                'test-data/appmenus.input')
+            p.wait = lambda: None
+            p.returncode = 0
+            return p
+        vm = TestVM('test-vm', run=_run)
+        appmenus = qubesappmenus.receive.get_appmenus(vm)
+        expected_appmenus = {
+            'org.gnome.Nautilus.desktop': {
+                'Name': 'Files',
+                'Comment': 'Access and organize files',
+                'Categories': 'GNOME;GTK;Utility;Core;FileManager;',
+                'Exec': 'qubes-desktop-run '
+                        '/usr/share/applications/org.gnome.Nautilus.desktop',
+                'Icon': 'system-file-manager',
+            },
+            'org.gnome.Weather.Application.desktop': {
+                'Name': 'Weather',
+                'Comment': 'Show weather conditions and forecast',
+                'Categories': 'GNOME;GTK;Utility;Core;',
+                'Exec': 'qubes-desktop-run '
+                        '/usr/share/applications/org.gnome.Weather.Application.desktop',
+                'Icon': 'org.gnome.Weather.Application',
+            },
+            'org.gnome.Cheese.desktop': {
+                'Name': 'Cheese',
+                'GenericName': 'Webcam Booth',
+                'Comment': 'Take photos and videos with your webcam, with fun graphical effects',
+                'Categories': 'GNOME;AudioVideo;Video;Recorder;',
+                'Exec': 'qubes-desktop-run '
+                        '/usr/share/applications/org.gnome.Cheese.desktop',
+                'Icon': 'cheese',
+            },
+            'evince.desktop': {
+                'Name': 'Document Viewer',
+                'Comment': 'View multi-page documents',
+                'Categories': 'GNOME;GTK;Office;Viewer;Graphics;2DGraphics;VectorGraphics;',
+                'Exec': 'qubes-desktop-run '
+                        '/usr/share/applications/evince.desktop',
+                'Icon': 'evince',
+            },
+        }
+        self.assertEquals(expected_appmenus, appmenus)
+
+class TC_10_AppmenusIntegration(qubes.tests.extra.ExtraTestCase):
+    def setUp(self):
+        super(TC_10_AppmenusIntegration, self).setUp()
+        self.vm = self.create_vms(['vm'])[0]
+        self.appmenus = qubesappmenus.AppmenusExtension()
+
+    def assertPathExists(self, path):
+        if not os.path.exists(path):
+            self.fail("Path {} does not exist".format(path))
+
+    def assertPathNotExists(self, path):
+        if os.path.exists(path):
+            self.fail("Path {} exists while it should not".format(path))
+
+    def get_whitelist(self, whitelist_path):
+        self.assertPathExists(whitelist_path)
+        with open(whitelist_path) as f:
+            whitelisted = [x.rstrip() for x in f.readlines()]
+        return whitelisted
+
+    def test_000_created(self):
+        whitelist_path = os.path.join(self.vm.dir_path,
+            qubesappmenus.AppmenusSubdirs.whitelist)
+        whitelisted = self.get_whitelist(whitelist_path)
+        self.assertPathExists(self.appmenus.appmenus_dir(self.vm))
+        appmenus = os.listdir(self.appmenus.appmenus_dir(self.vm))
+        self.assertTrue(all(x.startswith(self.vm.name + '-') for x in appmenus))
+        appmenus = [x[len(self.vm.name) + 1:] for x in appmenus]
+        self.assertIn('vm.directory', appmenus)
+        appmenus.remove('vm.directory')
+        self.assertIn('qubes-appmenu-select.desktop', appmenus)
+        appmenus.remove('qubes-appmenu-select.desktop')
+        self.assertEquals(set(whitelisted), set(appmenus))
+        self.assertPathExists(self.appmenus.icons_dir(self.vm))
+        appicons = os.listdir(self.appmenus.icons_dir(self.vm))
+        whitelisted_icons = set()
+        for appmenu in whitelisted:
+            desktop = xdg.DesktopEntry.DesktopEntry(
+                os.path.join(self.appmenus.appmenus_dir(self.vm),
+                    '-'.join((self.vm.name, appmenu))))
+            if desktop.getIcon():
+                whitelisted_icons.add(os.path.basename(desktop.getIcon()))
+        self.assertEquals(set(whitelisted_icons), set(appicons))
+
+    def test_001_created_registered(self):
+        """Check whether appmenus was registered in desktop environment"""
+        whitelist_path = os.path.join(self.vm.dir_path,
+            qubesappmenus.AppmenusSubdirs.whitelist)
+        if not os.path.exists(whitelist_path):
+            self.skipTest("Appmenus whitelist does not exists")
+        whitelisted = self.get_whitelist(whitelist_path)
+        for appmenu in whitelisted:
+            if appmenu.endswith('.directory'):
+                subdir = 'desktop-directories'
+            else:
+                subdir = 'applications'
+            self.assertPathExists(os.path.join(
+                xdg.BaseDirectory.xdg_data_home, subdir,
+                '-'.join([self.vm.name, appmenu])))
+        # TODO: some KDE specific dir?
+
+    def test_002_unregistered_after_remove(self):
+        """Check whether appmenus was unregistered after VM removal"""
+        whitelist_path = os.path.join(self.vm.dir_path,
+            qubesappmenus.AppmenusSubdirs.whitelist)
+        if not os.path.exists(whitelist_path):
+            self.skipTest("Appmenus whitelist does not exists")
+        whitelisted = self.get_whitelist(whitelist_path)
+        self.vm.remove_from_disk()
+        for appmenu in whitelisted:
+            if appmenu.endswith('.directory'):
+                subdir = 'desktop-directories'
+            else:
+                subdir = 'applications'
+            self.assertPathNotExists(os.path.join(
+                xdg.BaseDirectory.xdg_data_home, subdir,
+                '-'.join([self.vm.name, appmenu])))
+
+    def get_image_color(self, path, expected_color):
+        """Return mean color of the image as (r, g, b) in float"""
+        image = qubesimgconverter.Image.load_from_file(path)
+        _, l, _ = colorsys.rgb_to_hls(
+            *qubesimgconverter.hex_to_float(expected_color))
+
+        def get_hls(pixels, l):
+            for i in xrange(0, len(pixels), 4):
+                r, g, b, a = tuple(ord(c) / 255. for c in pixels[i:i + 4])
+                if a == 0.0:
+                    continue
+                h, _, s = colorsys.rgb_to_hls(r, g, b)
+                yield h, l, s
+
+        mean_hls = reduce(
+            lambda x, y: (x[0] + y[0], x[1] + y[1], x[2] + y[2]),
+            get_hls(image.data, l),
+            (0, 0, 0)
+        )
+        mean_hls = map(lambda x: x / (mean_hls[1] / l), mean_hls)
+        image_color = colorsys.hls_to_rgb(*mean_hls)
+        return image_color
+
+    def assertIconColor(self, path, expected_color):
+        image_color_float = self.get_image_color(path, expected_color)
+        expected_color_float = qubesimgconverter.hex_to_float(expected_color)
+        if not all(map(lambda a, b: abs(a - b) <= 0.0625,
+                image_color_float, expected_color_float)):
+            self.fail(
+                "Icon {} is not colored as {}".format(path, expected_color))
+
+    def test_010_icon_color(self):
+        icons_dir = self.appmenus.icons_dir(self.vm)
+        appicons = os.listdir(icons_dir)
+        for icon in appicons:
+            self.assertIconColor(os.path.join(icons_dir, icon),
+                self.vm.label.color)
+
+    def test_011_icon_color_label_change(self):
+        """Regression test for #1606"""
+        self.vm.label = 'blue'
+        self.test_010_icon_color()
+
+
 def list_tests():
     return (
         TC_00_Appmenus,
+        TC_10_AppmenusIntegration,
     )
