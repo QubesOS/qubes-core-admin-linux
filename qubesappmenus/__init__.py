@@ -306,10 +306,12 @@ class AppmenusExtension(qubes.ext.Extension):
 
     @qubes.ext.handler('domain-create-on-disk')
     def create_on_disk(self, vm, event, source_template=None):
+        if vm.updateable and source_template is None:
+            os.mkdir(self.templates_dir(vm))
+            os.mkdir(self.template_icons_dir(vm))
         if vm.hvm and source_template is None:
             vm.log.info("Creating appmenus directory: {0}".format(
                 self.templates_dir(vm)))
-            os.mkdir(self.templates_dir(vm))
             shutil.copy(AppmenusPaths.appmenu_start_hvm_template,
                         self.templates_dir(vm))
 
@@ -324,21 +326,16 @@ class AppmenusExtension(qubes.ext.Extension):
                 os.path.join(source_template.dir_path, source_whitelist_filename),
                 os.path.join(vm.dir_path, AppmenusSubdirs.whitelist))
 
-        if source_template and vm.updateable:
-            vm.log.info("--> Copying the template's appmenus templates "
-                        "dir:\n{0} ==>\n{1}".
-                    format(self.templates_dir(source_template),
-                           self.templates_dir(vm)))
-            if os.path.isdir(self.templates_dir(source_template)):
+        if vm.updateable:
+            vm.log.info("Creating/copying appmenus templates")
+            if source_template and os.path.isdir(self.templates_dir(
+                    source_template)):
                 shutil.copytree(self.templates_dir(source_template),
                                 self.templates_dir(vm))
-            else:
-                os.mkdir(self.templates_dir(vm))
-            if os.path.isdir(self.template_icons_dir(source_template)):
+            if source_template and os.path.isdir(self.template_icons_dir(
+                    source_template)):
                 shutil.copytree(self.template_icons_dir(source_template),
                                 self.template_icons_dir(vm))
-            else:
-                os.mkdir(self.template_icons_dir(vm))
 
         # Create appmenus
         self.appicons_create(vm)
@@ -346,7 +343,7 @@ class AppmenusExtension(qubes.ext.Extension):
 
     @qubes.ext.handler('domain-clone-files')
     def clone_disk_files(self, vm, event, src_vm):
-        if src_vm.updateable and src_vm.templates_dir(vm) is not None and \
+        if src_vm.updateable and self.templates_dir(vm) is not None and \
                 self.templates_dir(vm) is not None:
             vm.log.info("Copying the template's appmenus templates "
                         "dir:\n{0} ==>\n{1}".
@@ -355,7 +352,7 @@ class AppmenusExtension(qubes.ext.Extension):
             shutil.copytree(self.templates_dir(src_vm),
                             self.templates_dir(vm))
 
-        if src_vm.updateable and src_vm.template_icons_dir(vm) is not None \
+        if src_vm.updateable and self.template_icons_dir(vm) is not None \
                 and self.template_icons_dir(vm) is not None and \
                 os.path.isdir(self.template_icons_dir(src_vm)):
             vm.log.info("Copying the template's appmenus "
@@ -431,9 +428,11 @@ class AppmenusExtension(qubes.ext.Extension):
         if vm.updateable:
             yield self.templates_dir(vm)
             yield self.template_icons_dir(vm)
-        yield os.path.join(vm.dir_path, AppmenusSubdirs.whitelist)
+        if os.path.exists(self.whitelist_path(vm)):
+            yield self.whitelist_path(vm)
         if vm.is_template():
             for whitelist in (
                     'vm-' + AppmenusSubdirs.whitelist,
                     'netvm-' + AppmenusSubdirs.whitelist):
-                yield os.path.join(vm.dir_path, whitelist)
+                if os.path.exists(os.path.join(vm.dir_path, whitelist)):
+                    yield os.path.join(vm.dir_path, whitelist)
