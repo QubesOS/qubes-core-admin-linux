@@ -32,9 +32,12 @@ import xdg.DesktopEntry
 import qubes
 import qubes.tests
 import qubes.tests.extra
+import qubes.vm.appvm
+import qubes.vm.templatevm
 import qubesappmenus
 import qubesappmenus.receive
 import qubesimgconverter
+
 
 class TestApp(object):
     labels = {1: qubes.Label(1, '0xcc0000', 'red')}
@@ -211,6 +214,7 @@ class TC_00_Appmenus(qubes.tests.QubesTestCase):
         }
         self.assertEquals(expected_appmenus, appmenus)
 
+
 class TC_10_AppmenusIntegration(qubes.tests.extra.ExtraTestCase):
     def setUp(self):
         super(TC_10_AppmenusIntegration, self).setUp()
@@ -231,26 +235,28 @@ class TC_10_AppmenusIntegration(qubes.tests.extra.ExtraTestCase):
             whitelisted = [x.rstrip() for x in f.readlines()]
         return whitelisted
 
-    def test_000_created(self):
-        whitelist_path = os.path.join(self.vm.dir_path,
+    def test_000_created(self, vm=None):
+        if vm is None:
+            vm = self.vm
+        whitelist_path = os.path.join(vm.dir_path,
             qubesappmenus.AppmenusSubdirs.whitelist)
         whitelisted = self.get_whitelist(whitelist_path)
-        self.assertPathExists(self.appmenus.appmenus_dir(self.vm))
-        appmenus = os.listdir(self.appmenus.appmenus_dir(self.vm))
-        self.assertTrue(all(x.startswith(self.vm.name + '-') for x in appmenus))
-        appmenus = [x[len(self.vm.name) + 1:] for x in appmenus]
+        self.assertPathExists(self.appmenus.appmenus_dir(vm))
+        appmenus = os.listdir(self.appmenus.appmenus_dir(vm))
+        self.assertTrue(all(x.startswith(vm.name + '-') for x in appmenus))
+        appmenus = [x[len(vm.name) + 1:] for x in appmenus]
         self.assertIn('vm.directory', appmenus)
         appmenus.remove('vm.directory')
         self.assertIn('qubes-appmenu-select.desktop', appmenus)
         appmenus.remove('qubes-appmenu-select.desktop')
         self.assertEquals(set(whitelisted), set(appmenus))
-        self.assertPathExists(self.appmenus.icons_dir(self.vm))
-        appicons = os.listdir(self.appmenus.icons_dir(self.vm))
+        self.assertPathExists(self.appmenus.icons_dir(vm))
+        appicons = os.listdir(self.appmenus.icons_dir(vm))
         whitelisted_icons = set()
         for appmenu in whitelisted:
             desktop = xdg.DesktopEntry.DesktopEntry(
-                os.path.join(self.appmenus.appmenus_dir(self.vm),
-                    '-'.join((self.vm.name, appmenu))))
+                os.path.join(self.appmenus.appmenus_dir(vm),
+                    '-'.join((vm.name, appmenu))))
             if desktop.getIcon():
                 whitelisted_icons.add(os.path.basename(desktop.getIcon()))
         self.assertEquals(set(whitelisted_icons), set(appicons))
@@ -289,6 +295,32 @@ class TC_10_AppmenusIntegration(qubes.tests.extra.ExtraTestCase):
                 xdg.BaseDirectory.xdg_data_home, subdir,
                 '-'.join([self.vm.name, appmenu])))
 
+    def test_003_created_template_empty(self):
+        tpl = self.app.add_new_vm(qubes.vm.templatevm.TemplateVM,
+            name=self.make_vm_name('tpl'), label='red')
+        tpl.create_on_disk()
+        self.assertPathExists(self.appmenus.templates_dir(tpl))
+        self.assertPathExists(self.appmenus.template_icons_dir(tpl))
+
+    def test_004_created_template_from_other(self):
+        tpl = self.app.add_new_vm(qubes.vm.templatevm.TemplateVM,
+            name=self.make_vm_name('tpl'), label='red')
+        tpl.create_on_disk(source_template=self.app.default_template)
+        self.assertPathExists(self.appmenus.templates_dir(tpl))
+        self.assertPathExists(self.appmenus.template_icons_dir(tpl))
+        self.assertPathExists(os.path.join(tpl.dir_path,
+            qubesappmenus.AppmenusSubdirs.whitelist))
+
+        for appmenu in os.listdir(self.appmenus.templates_dir(
+                self.app.default_template)):
+            self.assertPathExists(os.path.join(
+                self.appmenus.templates_dir(tpl), appmenu))
+
+        for appicon in os.listdir(self.appmenus.template_icons_dir(
+                self.app.default_template)):
+            self.assertPathExists(os.path.join(
+                self.appmenus.template_icons_dir(tpl), appicon))
+
     def get_image_color(self, path, expected_color):
         """Return mean color of the image as (r, g, b) in float"""
         image = qubesimgconverter.Image.load_from_file(path)
@@ -320,17 +352,28 @@ class TC_10_AppmenusIntegration(qubes.tests.extra.ExtraTestCase):
             self.fail(
                 "Icon {} is not colored as {}".format(path, expected_color))
 
-    def test_010_icon_color(self):
-        icons_dir = self.appmenus.icons_dir(self.vm)
+    def test_010_icon_color(self, vm=None):
+        if vm is None:
+            vm = self.vm
+        icons_dir = self.appmenus.icons_dir(vm)
         appicons = os.listdir(icons_dir)
         for icon in appicons:
             self.assertIconColor(os.path.join(icons_dir, icon),
-                self.vm.label.color)
+                vm.label.color)
 
     def test_011_icon_color_label_change(self):
         """Regression test for #1606"""
         self.vm.label = 'green'
         self.test_010_icon_color()
+
+    def test_020_clone(self):
+        vm2 = self.app.add_new_vm(qubes.vm.appvm.AppVM,
+            name=self.make_vm_name('vm2'), label='green')
+
+        vm2.clone_properties(self.vm)
+        vm2.clone_disk_files(self.vm)
+        self.test_000_created(vm=vm2)
+        self.test_010_icon_color(vm=vm2)
 
 
 def list_tests():
