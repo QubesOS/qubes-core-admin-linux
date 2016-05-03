@@ -382,7 +382,7 @@ def main():
                                      "'{0}': {1}".format(child_vm.name, str(e))
         subprocess.call(['xdg-desktop-menu', 'forceupdate'])
         if 'KDE_SESSION_UID' in os.environ:
-            subprocess.call(['kbuildsycoca4'])
+            subprocess.call(['kbuildsycoca' + os.environ.get('KDE_SESSION_VERSION', '4')])
         os.unsetenv('SKIP_CACHE_REBUILD')
 
 

@@ -60,5 +60,5 @@ LC_COLLATE=C xdg-desktop-menu install --noupdate $APPSDIR/*.directory $APPSDIR/*
 
 if [ -n "$KDE_SESSION_UID" -a -z "$SKIP_CACHE_REBUILD" ]; then
     xdg-desktop-menu forceupdate
-    kbuildsycoca4
+    kbuildsycoca$KDE_SESSION_VERSION
 fi

@@ -19,5 +19,5 @@ if ls $APPSDIR/*.directory $APPSDIR/*.desktop > /dev/null 2>&1; then
 fi
 
 if [ -n "$KDE_SESSION_UID" -a -z "$SKIP_CACHE_REBUILD" ]; then
-    kbuildsycoca4
+    kbuildsycoca$KDE_SESSION_VERSION
 fi
