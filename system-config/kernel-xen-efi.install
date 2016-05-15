@@ -64,22 +64,24 @@ case "$COMMAND" in
     remove)
         # don't care about changing default= line - yum should prevent removing
         # currently running kernel
-        awk -F = --assign "kver=${KVER}" '
-          /^\[/ {
-              # section header - previous section (if any) ended
+        if [ -r $EFI_DIR/xen.cfg ]; then
+            awk -F = --assign "kver=${KVER}" '
+              /^\[/ {
+                  # section header - previous section (if any) ended
 
-              in_current=0; 
-          } 
-          /^\[/ {
-              if ($0 == "[" kver "]")
-                  in_current=1;
-          }
-          {
-              if (!in_current) {
-                  print;
+                  in_current=0; 
+              } 
+              /^\[/ {
+                  if ($0 == "[" kver "]")
+                      in_current=1;
               }
-          }' $EFI_DIR/xen.cfg > $EFI_DIR/xen.cfg.new
-          mv $EFI_DIR/xen.cfg.new $EFI_DIR/xen.cfg
+              {
+                  if (!in_current) {
+                      print;
+                  }
+              }' $EFI_DIR/xen.cfg > $EFI_DIR/xen.cfg.new
+            mv $EFI_DIR/xen.cfg.new $EFI_DIR/xen.cfg
+        fi
         rm -f "$EFI_DIR/initramfs-${KVER}.img"
         ;;
 esac
