@@ -298,10 +298,14 @@ class AppmenusExtension(qubes.ext.Extension):
 
     @qubes.ext.handler('property-pre-set:name')
     def pre_rename(self, vm, event, prop, *args):
+        if not os.path.exists(vm.dir_path):
+            return
         self.appmenus_remove(vm)
 
     @qubes.ext.handler('property-set:name')
     def post_rename(self, vm, event, prop, *args):
+        if not os.path.exists(vm.dir_path):
+            return
         self.appmenus_create(vm)
 
     @qubes.ext.handler('domain-create-on-disk')
@@ -384,6 +388,8 @@ class AppmenusExtension(qubes.ext.Extension):
 
     @qubes.ext.handler('property-set:label')
     def label_setter(self, vm, event, *args):
+        if not os.path.exists(vm.dir_path):
+            return
         self.appicons_create(vm, force=True)
 
         # Apparently desktop environments heavily caches the icons,
@@ -412,6 +418,8 @@ class AppmenusExtension(qubes.ext.Extension):
 
     @qubes.ext.handler('property-set:internal')
     def on_property_set_internal(self, vm, event, prop, newvalue, *args):
+        if not os.path.exists(vm.dir_path):
+            return
         if len(args):
             oldvalue = args[0]
         else:
@@ -423,6 +431,8 @@ class AppmenusExtension(qubes.ext.Extension):
 
     @qubes.ext.handler('backup-get-files')
     def files_for_backup(self, vm, event):
+        if not os.path.exists(vm.dir_path):
+            return
         if vm.internal:
             return
         if vm.updateable:
