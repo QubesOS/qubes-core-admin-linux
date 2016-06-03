@@ -108,6 +108,7 @@ cp -r appmenus-files/* $RPM_BUILD_ROOT/usr/share/qubes-appmenus/
 install -D dom0-updates/qubes-dom0-updates.cron $RPM_BUILD_ROOT/etc/cron.daily/qubes-dom0-updates.cron
 install -D dom0-updates/qubes-dom0-update $RPM_BUILD_ROOT/usr/bin/qubes-dom0-update
 install -D dom0-updates/qubes-receive-updates $RPM_BUILD_ROOT/usr/libexec/qubes/qubes-receive-updates
+install -D dom0-updates/patch-dnf-yum-config $RPM_BUILD_ROOT/usr/lib/qubes/patch-dnf-yum-config
 install -m 0644 -D dom0-updates/qubes-cached.repo $RPM_BUILD_ROOT/etc/yum.real.repos.d/qubes-cached.repo
 install -D dom0-updates/qfile-dom0-unpacker $RPM_BUILD_ROOT/usr/libexec/qubes/qfile-dom0-unpacker
 install -m 0644 -D dom0-updates/qubes.ReceiveUpdates $RPM_BUILD_ROOT/etc/qubes-rpc/qubes.ReceiveUpdates
@@ -183,14 +184,7 @@ xdg-icon-resource forceupdate
 
 xdg-desktop-menu install /usr/share/qubes-appmenus/qubes-dispvm.directory /usr/share/qubes-appmenus/qubes-dispvm-firefox.desktop
 
-sed '/^reposdir\s*=/d' -i /etc/yum.conf
-echo reposdir=/etc/yum.real.repos.d >> /etc/yum.conf
-
-sed '/^installonlypkgs\s*=/d' -i /etc/yum.conf
-echo 'installonlypkgs = kernel, kernel-qubes-vm' >> /etc/yum.conf
-
-sed '/^distroverpkg\s*=/d' -i /etc/yum.conf
-echo 'distroverpkg = qubes-release' >> /etc/yum.conf
+/usr/lib/qubes/patch-dnf-yum-config
 
 systemctl enable qubes-suspend.service >/dev/null 2>&1
 
@@ -245,6 +239,7 @@ chmod -x /etc/grub.d/10_linux
 /etc/cron.daily/qubes-dom0-updates.cron
 /etc/yum.real.repos.d/qubes-cached.repo
 /usr/bin/qubes-dom0-update
+/usr/lib/qubes/patch-dnf-yum-config
 %attr(4750,root,qubes) /usr/libexec/qubes/qfile-dom0-unpacker
 /usr/libexec/qubes/qubes-receive-updates
 /etc/qubes-rpc/qubes.ReceiveUpdates
