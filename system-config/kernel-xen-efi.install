@@ -15,48 +15,50 @@ fi
 
 case "$COMMAND" in
     add)
-        # take the default section and use it as a template for the new entry
-        awk -F = --assign "kver=${KVER}" '
-          /^\[/ {
-              # section header - previous section (if any) ended
+        if ! fgrep -q "[${KVER}]" $EFI_DIR/xen.cfg; then
+            # take the default section and use it as a template for the new entry
+            awk -F = --assign "kver=${KVER}" '
+              /^\[/ {
+                  # section header - previous section (if any) ended
 
-              # if default section already processed, that is all
-              if (in_default) exit;
-              in_global=0; 
-              in_default=0; 
-          } 
-          /\[global\]/ { 
-              in_global=1; 
-          }
-          /^\[/ {
-              if ("[" default_name "]" == $0) {
-                  in_default=1;
-                  print "[" kver "]";
-                  next;
+                  # if default section already processed, that is all
+                  if (in_default) exit;
+                  in_global=0; 
+                  in_default=0; 
+              } 
+              /\[global\]/ { 
+                  in_global=1; 
               }
-          }
-          /^default=/ {
-              if (in_global)
-                  default_name=$2;
-          }
-          /^kernel=/ {
-              if (in_default) {
-                  sub("=[^ ]*", "=vmlinuz-" kver);
+              /^\[/ {
+                  if ("[" default_name "]" == $0) {
+                      in_default=1;
+                      print "[" kver "]";
+                      next;
+                  }
               }
-          }
-          /^ramdisk=/ {
-              if (in_default) {
-                  sub("=[^ ]*", "=initramfs-" kver ".img");
+              /^default=/ {
+                  if (in_global)
+                      default_name=$2;
               }
-          }
-          {
-              if (in_default) {
-                  print;
+              /^kernel=/ {
+                  if (in_default) {
+                      sub("=[^ ]*", "=vmlinuz-" kver);
+                  }
               }
-          }' $EFI_DIR/xen.cfg >> $EFI_DIR/xen.cfg
-        
-        # then change the default
-        sed -e "s/default=.*/default=$KVER/" -i $EFI_DIR/xen.cfg
+              /^ramdisk=/ {
+                  if (in_default) {
+                      sub("=[^ ]*", "=initramfs-" kver ".img");
+                  }
+              }
+              {
+                  if (in_default) {
+                      print;
+                  }
+              }' $EFI_DIR/xen.cfg >> $EFI_DIR/xen.cfg
+            
+            # then change the default
+            sed -e "s/default=.*/default=$KVER/" -i $EFI_DIR/xen.cfg
+        fi
 
         cp "/boot/vmlinuz-$KVER" "$EFI_DIR/"
         dracut -f "$EFI_DIR/initramfs-${KVER}.img" "$KVER"
