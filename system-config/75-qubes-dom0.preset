@@ -1,0 +1,48 @@
+enable gdm.service
+enable lightdm.service
+enable slim.service
+enable lxdm.service
+enable sddm.service
+enable kdm.service
+enable xdm.service
+
+
+disable systemd-timesyncd.service
+disable systemd-networkd.service
+disable systemd-resolved.service
+
+# Locally-running services
+enable lvm2-monitor.*
+enable lvm2-lvmetad.*
+enable dm-event.*
+enable dmraid-activation.service
+
+
+enable abrtd.service
+enable abrt-ccpp.service
+enable abrt-oops.service
+enable abrt-xorg.service
+enable abrt-vmcore.service
+
+enable xenstored.service
+enable xenstored.socket
+enable xenstored_ro.socket
+enable xenconsoled.service
+enable libvirtd.service
+enable virlockd.socket
+
+
+enable upower.service
+enable crond.service
+
+
+# Qubes services
+enable qubes-core.service
+enable qubes-netvm.service
+enable qubes-meminfo-writer-dom0.service
+enable qubes-db-dom0.service
+enable qubes-qmemman.service
+enable qubes-suspend.service
+enable qubes-setupdvm.service
+enable qubes-block-cleaner.service
+
