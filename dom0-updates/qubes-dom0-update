@@ -22,13 +22,11 @@ if [ "$1" = "--help" ]; then
     exit
 fi
 
-# Prevent template upgrade - this would override user changes
-TEMPLATE_EXCLUDE_OPTS="--exclude=`rpm -qa --qf '%{NAME},' qubes-template-\*`"
 PKGS=
-YUM_OPTS="$TEMPLATE_EXCLUDE_OPTS"
+YUM_OPTS=
 GUI=
 CHECK_ONLY=
-ALL_OPTS="$TEMPLATE_EXCLUDE_OPTS $*"
+ALL_OPTS="$*"
 YUM_ACTION=
 QVMRUN_OPTS=
 CLEAN=
@@ -62,6 +60,15 @@ while [ $# -gt 0 ]; do
     esac
     shift
 done
+
+# Prevent template upgrade - this would override user changes -
+# but do allow explicit template reinstalls
+if [ "$YUM_ACTION" == "reinstall" ] ; then
+    TEMPLATE_EXCLUDE_OPTS=""
+else TEMPLATE_EXCLUDE_OPTS="--exclude=`rpm -qa --qf '%{NAME},' qubes-template-\*`"
+fi
+YUM_OPTS="$TEMPLATE_EXCLUDE_OPTS $YUM_OPTS"
+ALL_OPTS="$TEMPLATE_EXCLUDE_OPTS $ALL_OPTS"
 
 ID=$(id -ur)
 if [ $ID != 0 -a -z "$GUI" -a -z "$CHECK_ONLY" ] ; then
