@@ -63,9 +63,11 @@ done
 
 # Prevent template upgrade - this would override user changes -
 # but do allow explicit template reinstalls
-if [ "$YUM_ACTION" == "reinstall" ] ; then
+if [ "$YUM_ACTION" == "reinstall" ] && [[ "$PKGS" == *"qubes-template-"* ]]; then
     TEMPLATE_EXCLUDE_OPTS=""
-else TEMPLATE_EXCLUDE_OPTS="--exclude=`rpm -qa --qf '%{NAME},' qubes-template-\*`"
+    echo "WARNING: Reinstalling a template will erase files in /home and /rw !"
+else
+    TEMPLATE_EXCLUDE_OPTS="--exclude=`rpm -qa --qf '%{NAME},' qubes-template-\*`"
 fi
 YUM_OPTS="$TEMPLATE_EXCLUDE_OPTS $YUM_OPTS"
 ALL_OPTS="$TEMPLATE_EXCLUDE_OPTS $ALL_OPTS"
