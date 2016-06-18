@@ -65,15 +65,15 @@ done
 # but do allow explicit template reinstalls
 if [ "$YUM_ACTION" == "reinstall" ] && [[ "$PKGS" == *"qubes-template-"* ]]; then
     TEMPLATE_EXCLUDE_OPTS=""
-    echo "WARNING: Reinstalling a template will erase files in /home and /rw !"
+    echo "WARNING: Reinstalling a template will erase all files in template's /home and /rw !"
     
-    $ONEPKG=`cut -f 1 -d ' ' <<<$PKGS`
+    ONEPKG=`cut -f 1 -d ' ' <<<$PKGS`
     if [[ "$ONEPKG" == "qubes-template-"* ]] && [[ "$ONEPKG" == "${PKGS#\ }" ]]; then # test "$PKGS" minus space
     # Prepare to backup template root.img in case reinstall doesn't complete.
         TEMPLATE=${ONEPKG#qubes-template-}
-        TEMPLATE_NETVM=`qvm-prefs $TEMPLATE netvm` || exit 1
-        if [[ "$TEMPLATE_NETVM" == *"(default)" ]] ; then TEMPLATE_NETVM="default"
-        BAK_TEMPLATE_ROOT=`qvm-prefs $TEMPLATE root_img` || exit 1
+        TEMPLATE_NETVM=`qvm-prefs --force-root $TEMPLATE netvm` || exit 1
+        [[ "$TEMPLATE_NETVM" == *"(default)" ]] && TEMPLATE_NETVM="default"
+        BAK_TEMPLATE_ROOT=`qvm-prefs --force-root $TEMPLATE root_img` || exit 1
     else
         echo "ERROR: Specify only one package to reinstall template"
         exit 1
@@ -179,7 +179,27 @@ if [ -z "$YUM_ACTION" ]; then
 fi
 
 if [ "x$PKGS" != "x" ]; then
-    yum $YUM_OPTS $YUM_ACTION $PKGS
+    if [[ -n "$BAK_TEMPLATE_ROOT" ]] ; then
+    # Backup root.img just in case
+        echo -n "Renaming template root.img to root.img-bak..."
+        if mv "$BAK_TEMPLATE_ROOT" "$BAK_TEMPLATE_ROOT-bak" ; then
+            echo "OK"
+        else
+            echo; echo "ERROR: Could not rename root.img"
+            exit 1
+        fi
+    fi
+
+    yum $YUM_OPTS $YUM_ACTION $PKGS ; RETCODE=$?
+
+    if [[ -n "$BAK_TEMPLATE_ROOT" ]] ; then
+        qvm-prefs --force-root -s $TEMPLATE netvm $TEMPLATE_NETVM
+        if [ $RETCODE -eq 0 ] ; then
+        # Reinstall went OK, remove backup file.
+            echo "Removing $BAK_TEMPLATE_ROOT-bak"
+            rm -f "$BAK_TEMPLATE_ROOT-bak"
+        fi
+    fi
 elif [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
     # Above file exists only when at least one package was downloaded
     if [ "$GUI" == "1" ]; then
@@ -187,28 +207,7 @@ elif [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
     else
         yum check-update
         if [ $? -eq 100 ]; then # Run yum with options
-
-            if [[ -n "$BAK_TEMPLATE_ROOT" ]] ; then
-            # Backup root.img just in case
-                echo -n "Renaming template root.img to root.img-bak..."
-                if mv "$BAK_TEMPLATE_ROOT" "$BAK_TEMPLATE_ROOT-bak" ; then
-                    echo "OK"
-                else
-                    echo; echo "ERROR: Could not rename root.img"
-                    exit 1
-                fi
-            fi
-
-            yum $YUM_OPTS $YUM_ACTION ; RETCODE=$?
-            
-            if [[ -n "$BAK_TEMPLATE_ROOT" ]] ; then
-                qvm-prefs -s $TEMPLATE netvm $TEMPLATE_NETVM
-                if [ $RETCODE -eq 0 ] ; then
-                # Reinstall went OK, remove backup file.
-                    echo "Removing $BAK_TEMPLATE_ROOT-bak"
-                    rm -f "$BAK_TEMPLATE_ROOT-bak"
-                fi
-            fi
+            yum $YUM_OPTS $YUM_ACTION
         fi
     fi
     yum -q check-update && rm -f $UPDATES_STAT_FILE
