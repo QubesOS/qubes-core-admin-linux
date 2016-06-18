@@ -71,6 +71,8 @@ if [ "$YUM_ACTION" == "reinstall" ] && [[ "$PKGS" == *"qubes-template-"* ]]; the
     if [[ "$ONEPKG" == "qubes-template-"* ]] && [[ "$ONEPKG" == "${PKGS#\ }" ]]; then # test "$PKGS" minus space
     # Prepare to backup template root.img in case reinstall doesn't complete.
         TEMPLATE=${ONEPKG#qubes-template-}
+        TEMPLATE_NETVM=`qvm-prefs $TEMPLATE netvm` || exit 1
+        if [[ "$TEMPLATE_NETVM" == *"(default)" ]] ; then TEMPLATE_NETVM="default"
         BAK_TEMPLATE_ROOT=`qvm-prefs $TEMPLATE root_img` || exit 1
     else
         echo "ERROR: Specify only one package to reinstall template"
@@ -199,10 +201,13 @@ elif [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
 
             yum $YUM_OPTS $YUM_ACTION ; RETCODE=$?
             
-            if [ $RETCODE -eq 0 ] && [[ -n "$BAK_TEMPLATE_ROOT" ]] ; then
-            # Reinstall went OK, remove backup file.
-                echo "Removing $BAK_TEMPLATE_ROOT-bak"
-                rm -f "$BAK_TEMPLATE_ROOT-bak"
+            if [[ -n "$BAK_TEMPLATE_ROOT" ]] ; then
+                qvm-prefs -s $TEMPLATE netvm $TEMPLATE_NETVM
+                if [ $RETCODE -eq 0 ] ; then
+                # Reinstall went OK, remove backup file.
+                    echo "Removing $BAK_TEMPLATE_ROOT-bak"
+                    rm -f "$BAK_TEMPLATE_ROOT-bak"
+                fi
             fi
         fi
     fi
