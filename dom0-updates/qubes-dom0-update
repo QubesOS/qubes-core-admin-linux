@@ -68,12 +68,12 @@ if [ "$YUM_ACTION" == "reinstall" ] && [[ "$PKGS" == *"qubes-template-"* ]]; the
     echo "WARNING: Reinstalling a template will erase files in /home and /rw !"
     
     $ONEPKG=`cut -f 1 -d ' ' <<<$PKGS`
-    if [[ "$ONEPKG" == "qubes-template-"* ]] ; then
+    if [[ "$ONEPKG" == "qubes-template-"* ]] && [[ "$ONEPKG" == "${PKGS#\ }" ]]; then # test "$PKGS" minus space
     # Prepare to backup template root.img in case reinstall doesn't complete.
         TEMPLATE=${ONEPKG#qubes-template-}
         BAK_TEMPLATE_ROOT=`qvm-prefs $TEMPLATE root_img` || exit 1
     else
-        echo "ERROR: Specify only one template package for reinstall"
+        echo "ERROR: Specify only one package to reinstall template"
         exit 1
     fi
             
@@ -201,6 +201,7 @@ elif [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
             
             if [ $RETCODE -eq 0 ] && [[ -n "$BAK_TEMPLATE_ROOT" ]] ; then
             # Reinstall went OK, remove backup file.
+                echo "Removing $BAK_TEMPLATE_ROOT-bak"
                 rm -f "$BAK_TEMPLATE_ROOT-bak"
             fi
         fi
