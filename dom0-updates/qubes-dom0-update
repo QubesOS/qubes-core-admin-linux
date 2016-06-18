@@ -66,6 +66,17 @@ done
 if [ "$YUM_ACTION" == "reinstall" ] && [[ "$PKGS" == *"qubes-template-"* ]]; then
     TEMPLATE_EXCLUDE_OPTS=""
     echo "WARNING: Reinstalling a template will erase files in /home and /rw !"
+    
+    $ONEPKG=`cut -f 1 -d ' ' <<<$PKGS`
+    if [[ "$ONEPKG" == "qubes-template-"* ]] ; then
+    # Prepare to backup template root.img in case reinstall doesn't complete.
+        TEMPLATE=${ONEPKG#qubes-template-}
+        BAK_TEMPLATE_ROOT=`qvm-prefs $TEMPLATE root_img` || exit 1
+    else
+        echo "ERROR: Specify only one template package for reinstall"
+        exit 1
+    fi
+            
 else
     TEMPLATE_EXCLUDE_OPTS="--exclude=`rpm -qa --qf '%{NAME},' qubes-template-\*`"
 fi
@@ -173,8 +184,25 @@ elif [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
         $guiapp
     else
         yum check-update
-        if [ $? -eq 100 ]; then
-            yum $YUM_OPTS $YUM_ACTION
+        if [ $? -eq 100 ]; then # Run yum with options
+
+            if [[ -n "$BAK_TEMPLATE_ROOT" ]] ; then
+            # Backup root.img just in case
+                echo -n "Renaming template root.img to root.img-bak..."
+                if mv "$BAK_TEMPLATE_ROOT" "$BAK_TEMPLATE_ROOT-bak" ; then
+                    echo "OK"
+                else
+                    echo; echo "ERROR: Could not rename root.img"
+                    exit 1
+                fi
+            fi
+
+            yum $YUM_OPTS $YUM_ACTION ; RETCODE=$?
+            
+            if [ $RETCODE -eq 0 ] && [[ -n "$BAK_TEMPLATE_ROOT" ]] ; then
+            # Reinstall went OK, remove backup file.
+                rm -f "$BAK_TEMPLATE_ROOT-bak"
+            fi
         fi
     fi
     yum -q check-update && rm -f $UPDATES_STAT_FILE
