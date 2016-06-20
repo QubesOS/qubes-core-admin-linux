@@ -72,7 +72,8 @@ if [ "$YUM_ACTION" == "reinstall" ] && [[ "$PKGS" == *"qubes-template-"* ]]; the
     # Prepare to backup template root.img in case reinstall doesn't complete.
         TEMPLATE=${ONEPKG#qubes-template-}
         if ! TEMPLATE_NETVM=`qvm-prefs --force-root $TEMPLATE netvm` \
-        || ! BAK_TEMPLATE_ROOT=`qvm-prefs --force-root $TEMPLATE root_img` ; then
+        || ! BAK_TEMPLATE_ROOT=`qvm-prefs --force-root $TEMPLATE root_img` \
+        || ! BAK_TEMPLATE_PRIVATE=`qvm-prefs --force-root $TEMPLATE private_img` ; then
             exit 1
         fi
         if [[ "$TEMPLATE_NETVM" == *"(default)" ]] ; then
@@ -184,10 +185,16 @@ fi
 
 if [ "x$PKGS" != "x" ]; then
     if [[ -n "$BAK_TEMPLATE_ROOT" ]] ; then
-    # Backup root.img just in case
-        if mv "$BAK_TEMPLATE_ROOT" "$BAK_TEMPLATE_ROOT-bak" ; then
+    # Backup root.img and private.img just in case
+        if mv "$BAK_TEMPLATE_ROOT" "$BAK_TEMPLATE_ROOT-bak" \
+        && mv "$BAK_TEMPLATE_PRIVATE" "$BAK_TEMPLATE_PRIVATE-bak" ; then
             echo "Renamed template root.img to root.img-bak"
+            echo "Renamed template private.img to private.img-bak"
         else
+            if [ -f "$BAK_TEMPLATE_ROOT-bak" ] ;then
+                echo "Aborting reinstall; Restoring root.img"
+                mv "$BAK_TEMPLATE_ROOT-bak" "$BAK_TEMPLATE_ROOT"
+            fi
             exit 1
         fi
     fi
@@ -200,6 +207,8 @@ if [ "x$PKGS" != "x" ]; then
         # Reinstall went OK, remove backup files.
             echo "Removing $BAK_TEMPLATE_ROOT-bak"
             rm -f "$BAK_TEMPLATE_ROOT-bak"
+            echo "Removing $BAK_TEMPLATE_PRIVATE-bak"
+            rm -f "$BAK_TEMPLATE_PRIVATE-bak"
         fi
     fi
 elif [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
