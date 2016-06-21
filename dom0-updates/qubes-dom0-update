@@ -71,6 +71,9 @@ if [ "$YUM_ACTION" == "reinstall" ] && [[ "$PKGS" == *"qubes-template-"* ]]; the
     if [[ "$ONEPKG" == "qubes-template-"* ]] && [[ "$ONEPKG" == "${PKGS#\ }" ]]; then # test "$PKGS" minus space
     # Prepare to backup template root.img in case reinstall doesn't complete.
         TEMPLATE=${ONEPKG#qubes-template-}
+        if qvm-shutdown --wait $TEMPLATE ; then
+            echo "Template VM halted"
+        fi
         if ! TEMPLATE_NETVM=`qvm-prefs --force-root $TEMPLATE netvm` \
         || ! BAK_TEMPLATE_ROOT=`qvm-prefs --force-root $TEMPLATE root_img` \
         || ! BAK_TEMPLATE_PRIVATE=`qvm-prefs --force-root $TEMPLATE private_img` ; then
@@ -189,29 +192,30 @@ if [ "x$PKGS" != "x" ]; then
         echo "Creating img backup files"
         mv "$BAK_TEMPLATE_ROOT" "$BAK_TEMPLATE_ROOT-bak"
         mv "$BAK_TEMPLATE_PRIVATE" "$BAK_TEMPLATE_PRIVATE-bak"
+        TDIR=`qvm-prefs --force-root $TEMPLATE dir`
+        rm -f "$TDIR/volatile.img"
+        echo "--> Creating private.img..."
+        truncate -s 2G $BAK_TEMPLATE_PRIVATE
+        mkfs.ext4 -m 0 -q -F $BAK_TEMPLATE_PRIVATE
+        chown root:qubes $BAK_TEMPLATE_PRIVATE
+        chmod 0660 $BAK_TEMPLATE_PRIVATE
     fi
 
     yum $YUM_OPTS $YUM_ACTION $PKGS ; RETCODE=$?
 
     if [[ -n "$BAK_TEMPLATE_ROOT" ]] ; then # Handle template details
-        if [ ! -f "$BAK_TEMPLATE_PRIVATE" ] ; then # Old template script did not create img
-            echo "--> Creating private.img..."
-            truncate -s 2G $BAK_TEMPLATE_PRIVATE
-            mkfs.ext4 -m 0 -q -F $BAK_TEMPLATE_PRIVATE
-            chown root:qubes $BAK_TEMPLATE_PRIVATE
-            chmod 0660 $BAK_TEMPLATE_PRIVATE
-        fi
         if [ $RETCODE -eq 0 ] ; then
         # Reinstall went OK, remove backup files.
             rm -f "$BAK_TEMPLATE_ROOT-bak"
             rm -f "$BAK_TEMPLATE_PRIVATE-bak"
         else
-            echo "YUM ERROR: Restoring img files"
+            echo "Yum exit: Restoring img files"
             mv "$BAK_TEMPLATE_ROOT-bak" "$BAK_TEMPLATE_ROOT"
             mv "$BAK_TEMPLATE_PRIVATE-bak" "$BAK_TEMPLATE_PRIVATE"
         fi
         if ! qvm-prefs --force-root -s $TEMPLATE netvm $TEMPLATE_NETVM ; then
             echo "ERROR: NetVM setting could not be restored!"
+            exit 1
         fi
     fi
 elif [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
