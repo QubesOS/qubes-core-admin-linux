@@ -184,31 +184,34 @@ if [ -z "$YUM_ACTION" ]; then
 fi
 
 if [ "x$PKGS" != "x" ]; then
-    if [[ -n "$BAK_TEMPLATE_ROOT" ]] ; then
+    if [[ -n "$BAK_TEMPLATE_ROOT" ]] ; then # Handle template details
     # Backup root.img and private.img just in case
-        if mv "$BAK_TEMPLATE_ROOT" "$BAK_TEMPLATE_ROOT-bak" \
-        && mv "$BAK_TEMPLATE_PRIVATE" "$BAK_TEMPLATE_PRIVATE-bak" ; then
-            echo "Renamed template root.img to root.img-bak"
-            echo "Renamed template private.img to private.img-bak"
-        else
-            if [ -f "$BAK_TEMPLATE_ROOT-bak" ] ;then
-                echo "Aborting reinstall; Restoring root.img"
-                mv "$BAK_TEMPLATE_ROOT-bak" "$BAK_TEMPLATE_ROOT"
-            fi
-            exit 1
-        fi
+        echo "Creating img backup files"
+        mv "$BAK_TEMPLATE_ROOT" "$BAK_TEMPLATE_ROOT-bak"
+        mv "$BAK_TEMPLATE_PRIVATE" "$BAK_TEMPLATE_PRIVATE-bak"
     fi
 
     yum $YUM_OPTS $YUM_ACTION $PKGS ; RETCODE=$?
 
-    if [[ -n "$BAK_TEMPLATE_ROOT" ]] ; then
-        qvm-prefs --force-root -s $TEMPLATE netvm $TEMPLATE_NETVM
+    if [[ -n "$BAK_TEMPLATE_ROOT" ]] ; then # Handle template details
+        if [ ! -f "$BAK_TEMPLATE_PRIVATE" ] ; then # Old template script did not create img
+            echo "--> Creating private.img..."
+            truncate -s 2G $BAK_TEMPLATE_PRIVATE
+            mkfs.ext4 -m 0 -q -F $BAK_TEMPLATE_PRIVATE
+            chown root:qubes $BAK_TEMPLATE_PRIVATE
+            chmod 0660 $BAK_TEMPLATE_PRIVATE
+        fi
         if [ $RETCODE -eq 0 ] ; then
         # Reinstall went OK, remove backup files.
-            echo "Removing $BAK_TEMPLATE_ROOT-bak"
             rm -f "$BAK_TEMPLATE_ROOT-bak"
-            echo "Removing $BAK_TEMPLATE_PRIVATE-bak"
             rm -f "$BAK_TEMPLATE_PRIVATE-bak"
+        else
+            echo "YUM ERROR: Restoring img files"
+            mv "$BAK_TEMPLATE_ROOT-bak" "$BAK_TEMPLATE_ROOT"
+            mv "$BAK_TEMPLATE_PRIVATE-bak" "$BAK_TEMPLATE_PRIVATE"
+        fi
+        if ! qvm-prefs --force-root -s $TEMPLATE netvm $TEMPLATE_NETVM ; then
+            echo "ERROR: NetVM setting could not be restored!"
         fi
     fi
 elif [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
