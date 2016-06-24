@@ -22,13 +22,11 @@ if [ "$1" = "--help" ]; then
     exit
 fi
 
-# Prevent template upgrade - this would override user changes
-TEMPLATE_EXCLUDE_OPTS="--exclude=`rpm -qa --qf '%{NAME},' qubes-template-\*`"
 PKGS=
-YUM_OPTS="$TEMPLATE_EXCLUDE_OPTS"
+YUM_OPTS=
 GUI=
 CHECK_ONLY=
-ALL_OPTS="$TEMPLATE_EXCLUDE_OPTS $*"
+ALL_OPTS="$*"
 YUM_ACTION=
 QVMRUN_OPTS=
 CLEAN=
@@ -62,6 +60,38 @@ while [ $# -gt 0 ]; do
     esac
     shift
 done
+
+# Prevent template upgrade - this would override user changes -
+# but do allow explicit template reinstalls
+if [ "$YUM_ACTION" == "reinstall" ] && [[ "$PKGS" == *"qubes-template-"* ]]; then
+    TEMPLATE_EXCLUDE_OPTS=""
+    echo "WARNING: Reinstalling a template will erase all files in template's /home and /rw !"
+    
+    ONEPKG=`cut -f 1 -d ' ' <<<$PKGS`
+    if [[ "$ONEPKG" == "qubes-template-"* ]] && [[ "$ONEPKG" == "${PKGS#\ }" ]]; then # test "$PKGS" minus space
+    # Prepare to backup template root.img in case reinstall doesn't complete.
+        TEMPLATE=${ONEPKG#qubes-template-}
+        if qvm-shutdown --wait $TEMPLATE ; then
+            echo "Template VM halted"
+        fi
+        if ! TEMPLATE_NETVM=`qvm-prefs --force-root $TEMPLATE netvm` \
+        || ! BAK_TEMPLATE_ROOT=`qvm-prefs --force-root $TEMPLATE root_img` \
+        || ! BAK_TEMPLATE_PRIVATE=`qvm-prefs --force-root $TEMPLATE private_img` ; then
+            exit 1
+        fi
+        if [[ "$TEMPLATE_NETVM" == *"(default)" ]] ; then
+            TEMPLATE_NETVM="default"
+        fi
+    else
+        echo "ERROR: Specify only one package to reinstall template"
+        exit 1
+    fi
+            
+else
+    TEMPLATE_EXCLUDE_OPTS="--exclude=`rpm -qa --qf '%{NAME},' qubes-template-\*`"
+fi
+YUM_OPTS="$TEMPLATE_EXCLUDE_OPTS $YUM_OPTS"
+ALL_OPTS="$TEMPLATE_EXCLUDE_OPTS $ALL_OPTS"
 
 ID=$(id -ur)
 if [ $ID != 0 -a -z "$GUI" -a -z "$CHECK_ONLY" ] ; then
@@ -157,14 +187,44 @@ if [ -z "$YUM_ACTION" ]; then
 fi
 
 if [ "x$PKGS" != "x" ]; then
-    yum $YUM_OPTS $YUM_ACTION $PKGS
+    if [[ -n "$BAK_TEMPLATE_ROOT" ]] ; then # Handle template details
+    # Backup root.img and private.img just in case
+        echo "Creating img backup files"
+        mv "$BAK_TEMPLATE_ROOT" "$BAK_TEMPLATE_ROOT-bak"
+        mv "$BAK_TEMPLATE_PRIVATE" "$BAK_TEMPLATE_PRIVATE-bak"
+        TDIR=`qvm-prefs --force-root $TEMPLATE dir`
+        rm -f "$TDIR/volatile.img"
+        echo "--> Creating private.img..."
+        truncate -s 2G $BAK_TEMPLATE_PRIVATE
+        mkfs.ext4 -m 0 -q -F $BAK_TEMPLATE_PRIVATE
+        chown root:qubes $BAK_TEMPLATE_PRIVATE
+        chmod 0660 $BAK_TEMPLATE_PRIVATE
+    fi
+
+    yum $YUM_OPTS $YUM_ACTION $PKGS ; RETCODE=$?
+
+    if [[ -n "$BAK_TEMPLATE_ROOT" ]] ; then # Handle template details
+        if [ $RETCODE -eq 0 ] ; then
+        # Reinstall went OK, remove backup files.
+            rm -f "$BAK_TEMPLATE_ROOT-bak"
+            rm -f "$BAK_TEMPLATE_PRIVATE-bak"
+        else
+            echo "Yum exit: Restoring img files"
+            mv "$BAK_TEMPLATE_ROOT-bak" "$BAK_TEMPLATE_ROOT"
+            mv "$BAK_TEMPLATE_PRIVATE-bak" "$BAK_TEMPLATE_PRIVATE"
+        fi
+        if ! qvm-prefs --force-root -s $TEMPLATE netvm $TEMPLATE_NETVM ; then
+            echo "ERROR: NetVM setting could not be restored!"
+            exit 1
+        fi
+    fi
 elif [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
     # Above file exists only when at least one package was downloaded
     if [ "$GUI" == "1" ]; then
         $guiapp
     else
         yum check-update
-        if [ $? -eq 100 ]; then
+        if [ $? -eq 100 ]; then # Run yum with options
             yum $YUM_OPTS $YUM_ACTION
         fi
     fi
