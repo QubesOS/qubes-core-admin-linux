@@ -66,7 +66,7 @@ done
 if [ "$YUM_ACTION" == "reinstall" ] && [[ "$PKGS" == *"qubes-template-"* ]]; then
     TEMPLATE_EXCLUDE_OPTS=""
     echo "WARNING: Reinstalling a template will erase all files in template's /home and /rw !"
-    
+
     ONEPKG=`cut -f 1 -d ' ' <<<$PKGS`
     if [[ "$ONEPKG" == "qubes-template-"* ]] && [[ "$ONEPKG" == "${PKGS#\ }" ]]; then # test "$PKGS" minus space
     # Prepare to backup template root.img in case reinstall doesn't complete.
@@ -86,7 +86,7 @@ if [ "$YUM_ACTION" == "reinstall" ] && [[ "$PKGS" == *"qubes-template-"* ]]; the
         echo "ERROR: Specify only one package to reinstall template"
         exit 1
     fi
-            
+
 else
     TEMPLATE_EXCLUDE_OPTS="--exclude=`rpm -qa --qf '%{NAME},' qubes-template-\*`"
 fi
