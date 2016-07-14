@@ -319,7 +319,7 @@ def QubesVm_label_setter(self, _):
 
     # Apparently desktop environments heavily caches the icons,
     # see #751 for details
-    if os.environ.get("DESKTOP_SESSION", "") == "kde-plasma":
+    if "plasma" in os.environ.get("DESKTOP_SESSION", ""):
         try:
             os.unlink(os.path.expandvars(
                 "$HOME/.kde/cache-$HOSTNAME/icon-cache.kcache"))
@@ -337,7 +337,7 @@ def QubesVm_label_setter(self, _):
                 dbus_interface="org.freedesktop.Notifications")
         except:
             pass
-    elif os.environ.get("DESKTOP_SESSION", "") == "xfce":
+    elif "xfce" in os.environ.get("DESKTOP_SESSION", ""):
         self.appmenus_remove()
         self.appmenus_create()
 
