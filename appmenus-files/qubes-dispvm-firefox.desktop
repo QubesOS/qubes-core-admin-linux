@@ -7,4 +7,4 @@ Terminal=false
 Name=DispVM: Firefox web browser
 GenericName=DispVM: Web browser
 StartupNotify=false
-Categories=Network;
+Categories=Network;X-Qubes-VM;
