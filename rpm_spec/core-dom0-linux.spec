@@ -186,7 +186,7 @@ for i in /usr/share/qubes/icons/*.png ; do
 done
 xdg-icon-resource forceupdate
 
-xdg-desktop-menu install /usr/share/qubes-appmenus/qubes-dispvm.directory /usr/share/qubes-appmenus/qubes-dispvm-firefox.desktop
+xdg-desktop-menu install /usr/share/qubes-appmenus/qubes-dispvm.directory /usr/share/qubes-appmenus/qubes-dispvm-*.desktop
 
 /usr/lib/qubes/patch-dnf-yum-config
 
@@ -200,7 +200,7 @@ if [ "$1" = 0 ] ; then
 		xdg-icon-resource uninstall --novendor --size 48 $i
 	done
 
-    xdg-desktop-menu uninstall /usr/share/qubes-appmenus/qubes-dispvm.directory /usr/share/qubes-appmenus/qubes-dispvm-firefox.desktop
+    xdg-desktop-menu uninstall /usr/share/qubes-appmenus/qubes-dispvm.directory /usr/share/qubes-appmenus/qubes-dispvm-*.desktop
 
     systemctl disable qubes-suspend.service > /dev/null 2>&1
 fi
@@ -231,6 +231,7 @@ chmod -x /etc/grub.d/10_linux
 /usr/libexec/qubes-appmenus/remove-appvm-appmenus.sh
 /usr/share/qubes-appmenus/qubes-appmenu-select.desktop
 /usr/share/qubes-appmenus/qubes-dispvm-firefox.desktop
+/usr/share/qubes-appmenus/qubes-dispvm-xterm.desktop
 /usr/share/qubes-appmenus/qubes-dispvm.directory
 /usr/share/qubes-appmenus/qubes-servicevm.directory.template
 /usr/share/qubes-appmenus/qubes-start.desktop
