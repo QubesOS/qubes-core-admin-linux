@@ -29,6 +29,7 @@ import dbus
 import pkg_resources
 
 import qubes.ext
+import qubes.vm.dispvm
 
 import qubesimgconverter
 
@@ -125,7 +126,7 @@ class AppmenusExtension(qubes.ext.Extension):
 
         if vm.internal:
             return
-        if vm.is_disposablevm():
+        if isinstance(vm, qubes.vm.dispvm.DispVM):
             return
 
         vm.log.info("Creating appmenus")
@@ -255,7 +256,7 @@ class AppmenusExtension(qubes.ext.Extension):
 
         if vm.internal:
             return
-        if vm.is_disposablevm():
+        if isinstance(vm, qubes.vm.dispvm.DispVM):
             return
 
         whitelist = self.whitelist_path(vm)
@@ -309,7 +310,11 @@ class AppmenusExtension(qubes.ext.Extension):
         self.appmenus_create(vm)
 
     @qubes.ext.handler('domain-create-on-disk')
-    def create_on_disk(self, vm, event, source_template=None):
+    def create_on_disk(self, vm, event):
+        try:
+            source_template = vm.template
+        except AttributeError:
+            source_template = None
         if vm.updateable and source_template is None:
             os.mkdir(self.templates_dir(vm))
             os.mkdir(self.template_icons_dir(vm))
@@ -320,8 +325,6 @@ class AppmenusExtension(qubes.ext.Extension):
                         self.templates_dir(vm))
 
         source_whitelist_filename = 'vm-' + AppmenusSubdirs.whitelist
-        if vm.is_netvm():
-            source_whitelist_filename = 'netvm-' + AppmenusSubdirs.whitelist
         if source_template and os.path.exists(
                 os.path.join(source_template.dir_path, source_whitelist_filename)):
             vm.log.info("Creating default whitelisted apps list: {0}".
