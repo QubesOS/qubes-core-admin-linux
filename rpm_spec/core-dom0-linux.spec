@@ -84,7 +84,8 @@ python setup.py build
 %install
 
 ### Appmenus
-python setup.py install -O1 --skip-build --root $RPM_BUILD_ROOT
+# force /usr/bin before /bin to have /usr/bin/python instead of /bin/python
+PATH="/usr/bin:$PATH" python setup.py install -O1 --skip-build --root $RPM_BUILD_ROOT
 
 mkdir -p $RPM_BUILD_ROOT/etc/qubes-rpc/policy
 cp qubesappmenus/qubes.SyncAppMenus $RPM_BUILD_ROOT/etc/qubes-rpc/
