@@ -443,9 +443,8 @@ class AppmenusExtension(qubes.ext.Extension):
             yield self.template_icons_dir(vm)
         if os.path.exists(self.whitelist_path(vm)):
             yield self.whitelist_path(vm)
-        if vm.is_template():
-            for whitelist in (
-                    'vm-' + AppmenusSubdirs.whitelist,
-                    'netvm-' + AppmenusSubdirs.whitelist):
-                if os.path.exists(os.path.join(vm.dir_path, whitelist)):
-                    yield os.path.join(vm.dir_path, whitelist)
+        for whitelist in (
+                'vm-' + AppmenusSubdirs.whitelist,
+                'netvm-' + AppmenusSubdirs.whitelist):
+            if os.path.exists(os.path.join(vm.dir_path, whitelist)):
+                yield os.path.join(vm.dir_path, whitelist)
