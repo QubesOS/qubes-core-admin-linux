@@ -300,13 +300,13 @@ class AppmenusExtension(qubes.ext.Extension):
             return
         shutil.rmtree(self.icons_dir(vm))
 
-    @qubes.ext.handler('property-pre-set:name')
+    @qubes.ext.handler('property-pre-set:name', vm=qubes.vm.qubesvm.QubesVM)
     def pre_rename(self, vm, event, prop, *args):
         if not os.path.exists(vm.dir_path):
             return
         self.appmenus_remove(vm)
 
-    @qubes.ext.handler('property-set:name')
+    @qubes.ext.handler('property-set:name', vm=qubes.vm.qubesvm.QubesVM)
     def post_rename(self, vm, event, prop, *args):
         if not os.path.exists(vm.dir_path):
             return
