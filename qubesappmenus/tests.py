@@ -305,7 +305,7 @@ class TC_10_AppmenusIntegration(qubes.tests.extra.ExtraTestCase):
     def test_004_created_template_from_other(self):
         tpl = self.app.add_new_vm(qubes.vm.templatevm.TemplateVM,
             name=self.make_vm_name('tpl'), label='red')
-        tpl.create_on_disk(source_template=self.app.default_template)
+        tpl.clone_disk_files(self.app.default_template)
         self.assertPathExists(self.appmenus.templates_dir(tpl))
         self.assertPathExists(self.appmenus.template_icons_dir(tpl))
         self.assertPathExists(os.path.join(tpl.dir_path,
