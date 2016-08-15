@@ -142,7 +142,10 @@ class AppmenusExtension(qubes.ext.Extension):
             anything_changed = True
 
         templates_dir = self.templates_dir(vm)
-        appmenus = os.listdir(templates_dir)
+        if os.path.exists(templates_dir):
+            appmenus = os.listdir(templates_dir)
+        else:
+            appmenus = []
         changed_appmenus = []
         if os.path.exists(self.whitelist_path(vm)):
             whitelist = [x.rstrip() for x in open(self.whitelist_path(vm))]
