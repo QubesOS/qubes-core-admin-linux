@@ -34,9 +34,9 @@
 #include "qrexec.h"
 #include "libqrexec-utils.h"
 
-// whether qrexec-client should replace ESC with _ before printing the output
-int replace_esc_stdout = 0;
-int replace_esc_stderr = 0;
+// whether qrexec-client should replace problematic bytes with _ before printing the output
+int replace_chars_stdout = 0;
+int replace_chars_stderr = 0;
 
 #define VCHAN_BUFFER_SIZE 65536
 
@@ -332,12 +332,19 @@ static void handle_input(libvchan_t *vchan)
     }
 }
 
-void do_replace_esc(char *buf, int len) {
+void do_replace_chars(char *buf, int len) {
 	int i;
+	unsigned char c;
 
-	for (i = 0; i < len; i++)
-		if (buf[i] == '\033')
+	for (i = 0; i < len; i++) {
+		c = buf[i];
+		if ((c < '\040' || c > '\176') &&  /* not printable ASCII */
+		    (c != '\t') &&                 /* not tab */
+		    (c != '\n') &&                 /* not newline */
+		    (c != '\r') &&                 /* not return */
+		    (c != '\b'))                   /* not backspace */
 			buf[i] = '_';
+	}
 }
 
 static int handle_vchan_data(libvchan_t *vchan, struct buffer *stdin_buf)
@@ -378,8 +385,8 @@ static int handle_vchan_data(libvchan_t *vchan, struct buffer *stdin_buf)
         case MSG_DATA_STDOUT:
             if (local_stdin_fd == -1)
                 break;
-            if (replace_esc_stdout)
-                do_replace_esc(buf, hdr.len);
+            if (replace_chars_stdout)
+                do_replace_chars(buf, hdr.len);
             if (hdr.len == 0) {
                 /* restore flags, as we may have not the only copy of this file descriptor
                 */
@@ -408,8 +415,8 @@ static int handle_vchan_data(libvchan_t *vchan, struct buffer *stdin_buf)
             }
             break;
         case MSG_DATA_STDERR:
-            if (replace_esc_stderr)
-                do_replace_esc(buf, hdr.len);
+            if (replace_chars_stderr)
+                do_replace_chars(buf, hdr.len);
             write_all(2, buf, hdr.len);
             break;
         case MSG_DATA_EXIT_CODE:
@@ -542,7 +549,7 @@ static void usage(char *name)
             "-c request_id,src_domain_name,src_domain_id|"
             "-e] remote_cmdline\n"
             "-e means exit after sending cmd,\n"
-            "-t enables replacing ESC character with '_' in command output, -T is the same for stderr\n"
+            "-t enables replacing problematic bytes with '_' in command output, -T is the same for stderr\n"
             "-c: connect to existing process (response to trigger service call)\n"
             "-w timeout: override default connection timeout of 5s (set 0 for no timeout)\n",
             name);
@@ -666,10 +673,10 @@ int main(int argc, char **argv)
                 is_service = 1;
                 break;
             case 't':
-                replace_esc_stdout = 1;
+                replace_chars_stdout = 1;
                 break;
             case 'T':
-                replace_esc_stderr = 1;
+                replace_chars_stderr = 1;
                 break;
             case 'w':
                 connection_timeout = atoi(optarg);
