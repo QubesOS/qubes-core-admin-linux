@@ -37,8 +37,7 @@ import qubesappmenus
 import qubesimgconverter
 
 parser = qubes.tools.QubesArgumentParser(
-    want_vm=True,
-    want_vm_optional=True,
+    vmname_nargs='?',
     want_force_root=True,
     description='retrieve appmenus')
 
