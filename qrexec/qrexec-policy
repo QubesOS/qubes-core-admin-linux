@@ -244,7 +244,7 @@ def main():
         text = "Domain '%s' doesn't exist (service %s called by domain %s)." % (
             args.target, args.service_name, args.domain)
         info_dialog("error", text)
-        exit(1)
+        return 1
 
     policy_list = read_policy_file(args.service_name)
     if policy_list is None:
@@ -271,9 +271,9 @@ def main():
 
     if args.just_evaluate:
         if policy_dict["action"] == "allow":
-            exit(0)
+            return 0
         else:
-            exit(1)
+            return 1
 
     if policy_dict["action"] == "allow":
         if "action.target" in policy_dict:
@@ -286,6 +286,7 @@ def main():
         do_execute(args.domain, args.target, user, args.service_name, process_ident, vm=vm)
 
     print >> sys.stderr, "Rpc denied:", args.domain, args.target, args.service_name
-    exit(1)
+    return 1
 
-main()
+if __name__ == '__main__':
+    sys.exit(main())
