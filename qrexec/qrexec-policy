@@ -1,4 +1,5 @@
 #!/usr/bin/python
+import argparse
 import sys
 import os
 import os.path
@@ -209,53 +210,58 @@ def policy_editor(domain, target, service_name):
 
 
 def main():
-    usage = "usage: %prog [options] <src-domain-id> <src-domain> <target-domain> <service> <process-ident>"
-    parser = OptionParser(usage)
-    parser.add_option("--assume-yes-for-ask", action="store_true",
+    parser = argparse.ArgumentParser(description="Evaluate qrexec policy")
+    parser.add_argument("--assume-yes-for-ask", action="store_true",
         dest="assume_yes_for_ask", default=False,
         help="Allow run of service without confirmation if policy say 'ask'")
-    parser.add_option("--just-evaluate", action="store_true",
+    parser.add_argument("--just-evaluate", action="store_true",
         dest="just_evaluate", default=False,
         help="Do not run the service, only evaluate policy; "
              "retcode=0 means 'allow'")
+    parser.add_argument('domain_id', metavar='src-domain-id',
+        help='Source domain ID (Xen ID or similar, not Qubes ID)')
+    parser.add_argument('domain', metavar='src-domain-name',
+        help='Source domain name')
+    parser.add_argument('target', metavar='dst-domain-name',
+        help='Target domain name')
+    parser.add_argument('service_name', metavar='service-name',
+        help='Service name')
+    parser.add_argument('process_ident', metavar='proces-ident',
+        help='Qrexec process identifier - for connecting data channel')
 
-    (options, args) = parser.parse_args()
-    domain_id = args[0]
-    domain = args[1]
-    target = args[2]
-    service_name = args[3]
-    process_ident = args[4]
+    args = parser.parse_args()
+    process_ident = args.process_ident
 
     # Add source domain information, required by qrexec-client for establishing
     # connection
-    process_ident += "," + domain + "," + domain_id
+    process_ident += "," + args.domain + "," + args.domain_id
 
     try:
-        vm = validate_target(target)
+        vm = validate_target(args.target)
     except KeyError:
         print >> sys.stderr, "Rpc failed (unknown domain):", \
-            domain, target, service_name
+            args.domain, args.target, args.service_name
         text = "Domain '%s' doesn't exist (service %s called by domain %s)." % (
-            target, service_name, domain)
+            args.target, args.service_name, args.domain)
         info_dialog("error", text)
         exit(1)
 
-    policy_list = read_policy_file(service_name)
+    policy_list = read_policy_file(args.service_name)
     if policy_list is None:
-        policy_editor(domain, target, service_name)
-        policy_list = read_policy_file(service_name)
+        policy_editor(args.domain, args.target, args.service_name)
+        policy_list = read_policy_file(args.service_name)
         if policy_list is None:
             policy_list = list()
 
-    policy_dict = find_policy(policy_list, domain, target)
+    policy_dict = find_policy(policy_list, args.domain, args.target)
 
-    if policy_dict["action"] == "ask" and options.assume_yes_for_ask:
+    if policy_dict["action"] == "ask" and args.assume_yes_for_ask:
         policy_dict["action"] = "allow"
 
     if policy_dict["action"] == "ask":
-        user_choice = confirm_execution(domain, target, service_name)
+        user_choice = confirm_execution(args.domain, args.target, args.service_name)
         if user_choice == UserChoice.ALWAYS_ALLOW:
-            add_always_allow(domain, target, service_name,
+            add_always_allow(args.domain, args.target, args.service_name,
                 policy_dict["full-action"].lstrip('ask'))
             policy_dict["action"] = "allow"
         elif user_choice == UserChoice.ALLOW:
@@ -263,7 +269,7 @@ def main():
         else:
             policy_dict["action"] = "deny"
 
-    if options.just_evaluate:
+    if args.just_evaluate:
         if policy_dict["action"] == "allow":
             exit(0)
         else:
@@ -271,16 +277,15 @@ def main():
 
     if policy_dict["action"] == "allow":
         if "action.target" in policy_dict:
-            target = policy_dict["action.target"]
+            args.target = policy_dict["action.target"]
         if "action.user" in policy_dict:
             user = policy_dict["action.user"]
         else:
             user = "DEFAULT"
-        print >> sys.stderr, "Rpc allowed:", domain, target, service_name
-        do_execute(domain, target, user, service_name, process_ident, vm=vm)
+        print >> sys.stderr, "Rpc allowed:", args.domain, args.target, args.service_name
+        do_execute(args.domain, args.target, user, args.service_name, process_ident, vm=vm)
 
-    print >> sys.stderr, "Rpc denied:", domain, target, service_name
+    print >> sys.stderr, "Rpc denied:", args.domain, args.target, args.service_name
     exit(1)
-
 
 main()
