@@ -342,7 +342,8 @@ void do_replace_chars(char *buf, int len) {
 		    (c != '\t') &&                 /* not tab */
 		    (c != '\n') &&                 /* not newline */
 		    (c != '\r') &&                 /* not return */
-		    (c != '\b'))                   /* not backspace */
+		    (c != '\b') &&                 /* not backspace */
+		    (c != '\a'))                   /* not bell */
 			buf[i] = '_';
 	}
 }
