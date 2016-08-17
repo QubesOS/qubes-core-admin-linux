@@ -32,7 +32,7 @@ def prepare_app():
 
 
 def ask(text, title="Question", yestoall=False):
-    prepare_app()
+    qtapp = prepare_app()
 
     buttons = QMessageBox.Yes | QMessageBox.No
     if yestoall:
@@ -176,7 +176,7 @@ def confirm_execution(domain, target, service_name):
     text += " operation on the domain \"" + target + "\"?<br>"
     text += " \"Yes to All\" option will automatically allow this " \
             "operation in the future."
-    return qubes.guihelpers.ask(text, yestoall=True)
+    return ask(text, yestoall=True)
 
 
 def add_always_allow(domain, target, service_name, options):
