@@ -143,25 +143,33 @@ def spawn_target_if_necessary(vm):
     vm.start()
 
 def do_execute(domain, target, user, service_name, process_ident, vm=None):
+    dispvm = False
     if target == "$dispvm":
-        cmd = "/usr/lib/qubes/qfile-daemon-dvm " + service_name + " " + \
-              domain + " " + user
-        os.execl(QREXEC_CLIENT, "qrexec-client",
-            "-d", "dom0", "-c", process_ident, cmd)
-    else:
-        if isinstance(vm, qubes.vm.qubesvm.QubesVM):
-            spawn_target_if_necessary(vm)
+        if domain.default_dispvm is None:
+            print >>sys.stderr, "No default DispVM set, aborting!"
+            exit(1)
+        target = "$dispvm:" + domain.default_dispvm.name
+    if target.startswith("$dispvm:"):
+        dispvm_tpl_name = target[len("$dispvm:"):]
+        vm = qubes.vm.dispvm.DispVM.from_appvm(dispvm_tpl_name)
+        dispvm = True
+    # at this point we should also have some VM *object*
+    assert vm is not None
+    try:
+        spawn_target_if_necessary(vm)
         if target == "dom0":
             cmd = QUBES_RPC_MULTIPLEXER_PATH + " " + service_name + " " + \
                 domain.name
         else:
             cmd = user + ":QUBESRPC " + service_name + " " + domain.name
-        # stderr should be logged in source/target VM
-        null = open(os.devnull, 'w')
-        os.dup2(null.fileno(), 2)
-        os.execl(QREXEC_CLIENT, "qrexec-client",
-            "-d", target, "-c", process_ident, cmd)
-
+        qrexec_opts = ["-d", vm.name, "-c", process_ident]
+        if dispvm:
+            # wait for qrexec connection end
+            qrexec_opts.append("-W")
+        subprocess.call([QREXEC_CLIENT] + qrexec_opts + [cmd])
+    finally:
+        if dispvm:
+            vm.cleanup()
 
 def confirm_execution(domain, target, service_name):
     text = "Do you allow domain \"" + domain + "\" to execute " + service_name
