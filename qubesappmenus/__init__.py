@@ -302,18 +302,20 @@ class AppmenusExtension(qubes.ext.Extension):
 
     @qubes.ext.handler('property-pre-set:name', vm=qubes.vm.qubesvm.QubesVM)
     def pre_rename(self, vm, event, prop, *args):
-        if not os.path.exists(vm.dir_path):
+        if not vm.dir_path or not os.path.exists(vm.dir_path):
             return
         self.appmenus_remove(vm)
 
     @qubes.ext.handler('property-set:name', vm=qubes.vm.qubesvm.QubesVM)
     def post_rename(self, vm, event, prop, *args):
-        if not os.path.exists(vm.dir_path):
+        if not vm.dir_path or not os.path.exists(vm.dir_path):
             return
         self.appmenus_create(vm)
 
     @qubes.ext.handler('domain-create-on-disk')
     def create_on_disk(self, vm, event):
+        if not vm.dir_path or not os.path.exists(vm.dir_path):
+            return
         try:
             source_template = vm.template
         except AttributeError:
@@ -353,6 +355,8 @@ class AppmenusExtension(qubes.ext.Extension):
 
     @qubes.ext.handler('domain-clone-files')
     def clone_disk_files(self, vm, event, src_vm):
+        if not vm.dir_path or not os.path.exists(vm.dir_path):
+            return
         if src_vm.updateable and self.templates_dir(vm) is not None and \
                 self.templates_dir(vm) is not None:
             vm.log.info("Copying the template's appmenus templates "
@@ -394,7 +398,7 @@ class AppmenusExtension(qubes.ext.Extension):
 
     @qubes.ext.handler('property-set:label')
     def label_setter(self, vm, event, *args):
-        if not os.path.exists(vm.dir_path):
+        if not vm.dir_path or not os.path.exists(vm.dir_path):
             return
         self.appicons_create(vm, force=True)
 
@@ -424,7 +428,7 @@ class AppmenusExtension(qubes.ext.Extension):
 
     @qubes.ext.handler('property-set:internal')
     def on_property_set_internal(self, vm, event, prop, newvalue, *args):
-        if not os.path.exists(vm.dir_path):
+        if not vm.dir_path or not os.path.exists(vm.dir_path):
             return
         if len(args):
             oldvalue = args[0]
@@ -437,7 +441,7 @@ class AppmenusExtension(qubes.ext.Extension):
 
     @qubes.ext.handler('backup-get-files')
     def files_for_backup(self, vm, event):
-        if not os.path.exists(vm.dir_path):
+        if not vm.dir_path or not os.path.exists(vm.dir_path):
             return
         if vm.internal:
             return
