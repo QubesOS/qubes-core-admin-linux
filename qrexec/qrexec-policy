@@ -129,9 +129,15 @@ def find_policy(policy, source_domain, target, target_domain=None):
 
 
 def validate_target(app, target):
+    """Validate target name. Throw KeYError for invalid name.
+
+    :param app: Qubes app object
+    :param target: target name to validate
+    :return: QubesVM object or None (in case of spacial target)
+    """
     # special targets
     if target == '$dispvm' or target.startswith('$dispvm:'):
-        return True
+        return None
 
     return app.domains[target]
 
