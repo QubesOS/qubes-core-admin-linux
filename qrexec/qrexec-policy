@@ -9,6 +9,7 @@ import qubes.guihelpers
 import libvirt
 from optparse import OptionParser
 import fcntl
+import shutil
 
 POLICY_FILE_DIR="/etc/qubes-rpc/policy"
 # XXX: Backward compatibility, to be removed soon
@@ -136,7 +137,12 @@ def confirm_execution(domain, target, service_name):
 def add_always_allow(domain, target, service_name, options):
     policy_file=POLICY_FILE_DIR+"/"+service_name
     if not os.path.isfile(policy_file):
-        return None
+        # if we add "always allow" for specifc argument value, base the new
+        # file on the generic one
+        policy_file_source = os.path.join(POLICY_FILE_DIR, service_name.split("+")[0])
+        if not os.path.isfile(policy_file_source):
+            return None
+        shutil.copy2(policy_file_source, policy_file)
     f = open(policy_file, 'r+')
     fcntl.flock(f, fcntl.LOCK_EX)
     lines = []
