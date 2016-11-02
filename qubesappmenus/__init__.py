@@ -482,3 +482,10 @@ class AppmenusExtension(qubes.ext.Extension):
                 subprocess.call([
                     'kbuildsycoca' + os.environ.get('KDE_SESSION_VERSION',
                         '4')])
+
+    @qubes.ext.handler('template-postinstall')
+    def on_template_postinstall(self, vm, event):
+        import qubesappmenus.receive
+        new_appmenus = qubesappmenus.receive.retrieve_appmenus_templates(
+            vm, use_stdin=False)
+        qubesappmenus.receive.process_appmenus_templates(self, vm, new_appmenus)
