@@ -462,3 +462,23 @@ class AppmenusExtension(qubes.ext.Extension):
                 'netvm-' + AppmenusSubdirs.whitelist):
             if os.path.exists(os.path.join(vm.dir_path, whitelist)):
                 yield os.path.join(vm.dir_path, whitelist)
+
+    def appmenus_update(self, vm):
+        '''Update (regenerate) desktop files and icons for this VM and (in
+        case of template) child VMs'''
+        self.appicons_create(vm)
+        self.appmenus_create(vm)
+        if hasattr(vm, 'appvms'):
+            for child_vm in vm.appvms:
+                try:
+                    self.appicons_create(child_vm)
+                    self.appmenus_create(child_vm, refresh_cache=False)
+                except Exception as e:
+                    child_vm.log.error("Failed to recreate appmenus for "
+                                       "'{0}': {1}".format(child_vm.name,
+                        str(e)))
+            subprocess.call(['xdg-desktop-menu', 'forceupdate'])
+            if 'KDE_SESSION_UID' in os.environ:
+                subprocess.call([
+                    'kbuildsycoca' + os.environ.get('KDE_SESSION_VERSION',
+                        '4')])

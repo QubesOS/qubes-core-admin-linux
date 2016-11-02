@@ -45,6 +45,11 @@ parser.add_argument('--force-rpc',
     action='store_true', default=False,
     help="Force to start a new RPC call, even if called from existing one")
 
+parser.add_argument('--regenerate-only',
+    action='store_true', default=False,
+    help='Only regenerate appmenus entries, do not synchronize with system '
+         'in template')
+
 # TODO offline mode
 
 # fields required to be present (and verified) in retrieved desktop file
@@ -237,6 +242,7 @@ def create_template(path, values):
         desktop_file.write(desktop_entry)
         desktop_file.close()
 
+
 def process_appmenus_templates(appmenusext, vm, appmenus):
     old_umask = os.umask(002)
 
@@ -305,6 +311,28 @@ def process_appmenus_templates(appmenusext, vm, appmenus):
     os.umask(old_umask)
 
 
+def retrieve_appmenus_templates(vm, use_stdin=True):
+    '''Retrieve appmenus from the VM. If not running in offline mode,
+    additionally retrieve application icons and store them into
+    :py:metch:`template_icons_dir`.
+
+    Returns: dict of desktop entries, each being dict itself.
+    '''
+    if hasattr(vm, 'template'):
+        raise qubes.exc.QubesException(
+            "To sync appmenus for template based VM, do it on template instead")
+
+    if not vm.is_running():
+        raise qubes.exc.QubesVMNotRunningError(vm,
+            "Appmenus can be retrieved only from running VM")
+
+    new_appmenus = get_appmenus(vm if not use_stdin else None)
+
+    if len(new_appmenus) == 0:
+        raise qubes.exc.QubesException("No appmenus received, terminating")
+    return new_appmenus
+
+
 def main(args=None):
     env_vmname = os.environ.get("QREXEC_REMOTE_DOMAIN")
 
@@ -318,39 +346,12 @@ def main(args=None):
     if vm is None:
         parser.error("You must specify at least the VM name!")
 
-    if hasattr(vm, 'template'):
-        raise qubes.exc.QubesException(
-            "To sync appmenus for template based VM, do it on template instead")
-
-    #TODO if not options.offline_mode and not vm.is_running():
-    if not vm.is_running():
-        raise qubes.exc.QubesVMNotRunningError(vm,
-            "Appmenus can be retrieved only from running VM")
-
-    # TODO if not options.offline_mode and env_vmname is None or
-    # options.force_rpc:
     if env_vmname is None or args.force_rpc:
-        new_appmenus = get_appmenus(vm)
+        use_stdin = False
     else:
-        new_appmenus = get_appmenus(None)
-
-    if len(new_appmenus) == 0:
-        raise qubes.exc.QubesException("No appmenus received, terminating")
-
+        use_stdin = True
     appmenusext = qubesappmenus.AppmenusExtension()
-
-    process_appmenus_templates(appmenusext, vm, new_appmenus)
-
-    appmenusext.appicons_create(vm)
-    appmenusext.appmenus_create(vm)
-    if hasattr(vm, 'appvms'):
-        for child_vm in vm.appvms:
-            try:
-                appmenusext.appicons_create(child_vm)
-                appmenusext.appmenus_create(child_vm, refresh_cache=False)
-            except Exception as e:
-                child_vm.log.error("Failed to recreate appmenus for "
-                    "'{0}': {1}".format(child_vm.name, str(e)))
-        subprocess.call(['xdg-desktop-menu', 'forceupdate'])
-        if 'KDE_SESSION_UID' in os.environ:
-            subprocess.call(['kbuildsycoca' + os.environ.get('KDE_SESSION_VERSION', '4')])
+    if not args.regenerate_only:
+        new_appmenus = retrieve_appmenus_templates(vm, use_stdin=use_stdin)
+        process_appmenus_templates(appmenusext, vm, new_appmenus)
+    appmenusext.appmenus_update(vm)
