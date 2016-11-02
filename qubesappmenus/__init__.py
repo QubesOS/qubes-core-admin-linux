@@ -68,6 +68,7 @@ class AppmenusExtension(qubes.ext.Extension):
             return None
 
     def template_icons_dir(self, vm):
+        '''Directory for not yet colore icons'''
         if vm.updateable:
             return os.path.join(vm.dir_path,
                 AppmenusSubdirs.template_icons_subdir)
@@ -77,15 +78,19 @@ class AppmenusExtension(qubes.ext.Extension):
             return None
 
     def appmenus_dir(self, vm):
+        '''Desktop files generated for particular VM'''
         return os.path.join(vm.dir_path, AppmenusSubdirs.subdir)
 
     def icons_dir(self, vm):
+        '''Icon files generated (colored) for particular VM'''
         return os.path.join(vm.dir_path, AppmenusSubdirs.icons_subdir)
 
     def whitelist_path(self, vm):
+        '''File listing files wanted in menu'''
         return os.path.join(vm.dir_path, AppmenusSubdirs.whitelist)
 
     def directory_template_name(self, vm):
+        '''File name of desktop directory entry template'''
         if isinstance(vm, qubes.vm.templatevm.TemplateVM):
             return 'qubes-templatevm.directory.template'
         elif vm.provides_network:
@@ -219,6 +224,7 @@ class AppmenusExtension(qubes.ext.Extension):
                                  os.environ.get('KDE_SESSION_VERSION', '4')])
 
     def appmenus_remove(self, vm, refresh_cache=True):
+        '''Remove desktop files for particular VM'''
         appmenus_dir = self.appmenus_dir(vm)
         if os.path.exists(appmenus_dir):
             vm.log.info("Removing appmenus")
@@ -296,6 +302,7 @@ class AppmenusExtension(qubes.ext.Extension):
                 os.unlink(os.path.join(dstdir, icon))
 
     def appicons_remove(self, vm):
+        '''Remove icons'''
         if not os.path.exists(self.icons_dir(vm)):
             return
         shutil.rmtree(self.icons_dir(vm))
