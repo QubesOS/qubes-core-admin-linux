@@ -280,7 +280,7 @@ def process_appmenus_templates(appmenusext, vm, appmenus):
                     old_icon = None
                 if old_icon is None or icon != old_icon:
                     icon.save(icondest)
-            except Exception, e:
+            except Exception as e:
                 vm.log.warning('Failed to get icon for {0}: {1!s}'.\
                     format(appmenu_file, e))
 
@@ -313,9 +313,9 @@ def main(args=None):
     if env_vmname:
         vm = args.app.domains[env_vmname]
     else:
-        vm = args.vm
+        vm = args.domains[0]
 
-    if args.vm is None:
+    if vm is None:
         parser.error("You must specify at least the VM name!")
 
     if hasattr(vm, 'template'):
@@ -341,12 +341,14 @@ def main(args=None):
 
     process_appmenus_templates(appmenusext, vm, new_appmenus)
 
-    appmenusext.appmenus_update(vm)
+    appmenusext.appicons_create(vm)
+    appmenusext.appmenus_create(vm)
     if hasattr(vm, 'appvms'):
         for child_vm in vm.appvms:
             try:
+                appmenusext.appicons_create(child_vm)
                 appmenusext.appmenus_create(child_vm, refresh_cache=False)
-            except Exception, e:
+            except Exception as e:
                 child_vm.log.error("Failed to recreate appmenus for "
                     "'{0}': {1}".format(child_vm.name, str(e)))
         subprocess.call(['xdg-desktop-menu', 'forceupdate'])
