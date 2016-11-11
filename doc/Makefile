@@ -21,7 +21,7 @@ install: manpages
 manpages: $(TOOLS_DOCS)
 	
 preview:	$(rst)
-	pandoc -s -f rst -t man $(rst) | groff -mandoc -Tlatin1 | less -R
+	$(PANDOC) $(rst) | groff -mandoc -Tlatin1 | less -R
 
 clean:
 	rm -f $(TOOLS_DOCS)
