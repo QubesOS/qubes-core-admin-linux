@@ -12,7 +12,7 @@ EFI_DIR=$(efibootmgr -v 2>/dev/null | awk '
         /^Boot....\* / { 
             if ("Boot" current "*" == $1) {
                 sub(".*File\\(", "");
-                sub("\\\\xen.efi\\)", "");
+                sub("\\\\xen.efi\\).*", "");
                 gsub("\\\\", "/");
                 print;
             }
