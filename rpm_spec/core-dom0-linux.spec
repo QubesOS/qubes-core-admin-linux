@@ -165,7 +165,7 @@ install -m 755 tools/qvm-xkill $RPM_BUILD_ROOT/usr/bin/
 # file copy to VM
 install -m 755 file-copy-vm/qfile-dom0-agent $RPM_BUILD_ROOT/usr/lib/qubes/
 install -m 755 file-copy-vm/qvm-copy-to-vm $RPM_BUILD_ROOT/usr/bin/
-install -m 755 file-copy-vm/qvm-move-to-vm $RPM_BUILD_ROOT/usr/bin/
+ln -s qvm-copy-to-vm $RPM_BUILD_ROOT/usr/bin/qvm-move-to-vm
 
 ### Icons
 mkdir -p $RPM_BUILD_ROOT/usr/share/qubes/icons
