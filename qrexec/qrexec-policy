@@ -1,4 +1,5 @@
-#!/usr/bin/python
+#!/usr/bin/python3
+
 import argparse
 import sys
 import os
@@ -75,7 +76,7 @@ def line_to_dict(line):
     # Warn if we're ignoring extra data after a space, such as:
     # vm1 vm2 allow, user=foo
     if len(tokens) > 3:
-        print >> sys.stderr, "Trailing data ignored in %s" % line
+        print("Trailing data ignored in %s" % line, file=sys.stderr)
 
     return policy_dict
 
@@ -89,9 +90,10 @@ def read_policy_file(service_name):
         policy_file = os.path.join(DEPRECATED_POLICY_FILE_DIR, service_name)
         if not os.path.isfile(policy_file):
             return None
-        print >> sys.stderr, \
-            "RPC service '%s' uses deprecated policy location, " \
-            "please move to %s" % (service_name, POLICY_FILE_DIR)
+        print(sys.stderr,
+            "RPC service '%s' uses deprecated policy location, "
+            "please move to %s" % (service_name, POLICY_FILE_DIR),
+            file=sys.stderr)
     policy_list = list()
     f = open(policy_file)
     fcntl.flock(f, fcntl.LOCK_SH)
@@ -152,7 +154,7 @@ def do_execute(domain, target, user, service_name, process_ident, vm=None):
     dispvm = False
     if target == "$dispvm":
         if domain.default_dispvm is None:
-            print >>sys.stderr, "No default DispVM set, aborting!"
+            print("No default DispVM set, aborting!", file=sys.stderr)
             exit(1)
         target = "$dispvm:" + domain.default_dispvm.name
     if target.startswith("$dispvm:"):
@@ -255,8 +257,8 @@ def main():
     try:
         source_vm = app.domains[args.domain]
     except KeyError:
-        print >> sys.stderr, "Rpc failed (unknown source domain): ", \
-            args.domain, args.target, args.service_name
+        print("Rpc failed (unknown source domain): ",
+            args.domain, args.target, args.service_name, file=sys.stderr)
         text = "Domain '%s' doesn't exist (service %s called to domain %s)." % (
             args.domain, args.service_name, args.target)
         info_dialog("error", text)
@@ -265,8 +267,8 @@ def main():
     try:
         target_vm = validate_target(app, args.target)
     except KeyError:
-        print >> sys.stderr, "Rpc failed (unknown domain):", \
-            args.domain, args.target, args.service_name
+        print("Rpc failed (unknown domain):",
+            args.domain, args.target, args.service_name, file=sys.stderr)
         text = "Domain '%s' doesn't exist (service %s called by domain %s)." % (
             args.target, args.service_name, args.domain)
         info_dialog("error", text)
@@ -308,11 +310,13 @@ def main():
             user = policy_dict["action.user"]
         else:
             user = "DEFAULT"
-        print >> sys.stderr, "Rpc allowed:", args.domain, args.target, args.service_name
+        print("Rpc allowed:", args.domain, args.target,
+            args.service_name, file=sys.stderr)
         do_execute(source_vm, args.target, user, args.service_name, process_ident,
             vm=target_vm)
         return 0
-    print >> sys.stderr, "Rpc denied:", args.domain, args.target, args.service_name
+    print("Rpc denied:", args.domain, args.target, args.service_name,
+        file=sys.stderr)
     return 1
 
 if __name__ == '__main__':
