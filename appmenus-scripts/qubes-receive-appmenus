@@ -213,6 +213,9 @@ def create_template(path, values):
         if key in values:
             desktop_entry += "{0}=%VMNAME%: {1}\n".format(key, values[key])
 
+    # force category X-Qubes-VM
+    values["Categories"] = values.get("Categories", "") + "X-Qubes-VM;"
+
     for key in ["Comment", "Categories"]:
         if key in values:
             desktop_entry += "{0}={1}\n".format(key, values[key])

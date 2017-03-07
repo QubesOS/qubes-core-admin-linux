@@ -6,7 +6,23 @@ COMMAND="$1"
 KVER="$2"
 
 ESP_MOUNTPOINT=/boot/efi
-EFI_DIR="$ESP_MOUNTPOINT/EFI/qubes"
+
+EFI_DIR=$(efibootmgr -v 2>/dev/null | awk '
+        /^BootCurrent:/ { current=$2; }
+        /^Boot....\* / { 
+            if ("Boot" current "*" == $1) {
+                sub(".*File\\(", "");
+                sub("\\\\xen.efi\\).*", "");
+                gsub("\\\\", "/");
+                print;
+            }
+        }')
+
+if [ -z "$EFI_DIR" ]; then
+    EFI_DIR="$ESP_MOUNTPOINT/EFI/qubes"
+else
+    EFI_DIR="$ESP_MOUNTPOINT$EFI_DIR"
+fi
 
 if [ ! -d "$EFI_DIR" ]; then
     # non-EFI system

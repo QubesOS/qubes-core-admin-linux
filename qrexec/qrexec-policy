@@ -70,7 +70,7 @@ def read_policy_file(service_name):
     return policy_list
 
 def is_match(item, config_term):
-    return (item is not "dom0" and config_term == "$anyvm") or item == config_term
+    return (item != "dom0" and config_term == "$anyvm") or item == config_term
 
 def get_default_policy():
     dict={}

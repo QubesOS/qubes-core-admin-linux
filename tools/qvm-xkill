@@ -1,0 +1,10 @@
+#!/bin/sh
+
+set -e
+
+ID=$(xdotool selectwindow)
+
+xprop -id "$ID" _QUBES_VMNAME | grep -q ' = ' \
+  || { echo "${0##*/}: Not killing dom0 window $ID" >&2; exit 1; }
+
+xdotool windowkill "$ID"

@@ -48,6 +48,7 @@ BuildRequires:  qubes-libvchan-devel
 Requires:	qubes-core-dom0
 Requires:	qubes-utils >= 3.1.3
 Requires:	%{name}-kernel-install
+Requires:	xdotool
 
 %define _builddir %(pwd)
 
@@ -159,11 +160,12 @@ install -m 644 -D system-config/75-qubes-dom0.preset \
     $RPM_BUILD_ROOT/usr/lib/systemd/system-preset/75-qubes-dom0.preset
 install -m 644 -D system-config/99-qubes-default-disable.preset \
     $RPM_BUILD_ROOT/usr/lib/systemd/system-preset/99-qubes-default-disable.preset
+install -m 755 tools/qvm-xkill $RPM_BUILD_ROOT/usr/bin/
 
 # file copy to VM
 install -m 755 file-copy-vm/qfile-dom0-agent $RPM_BUILD_ROOT/usr/lib/qubes/
 install -m 755 file-copy-vm/qvm-copy-to-vm $RPM_BUILD_ROOT/usr/bin/
-install -m 755 file-copy-vm/qvm-move-to-vm $RPM_BUILD_ROOT/usr/bin/
+ln -s qvm-copy-to-vm $RPM_BUILD_ROOT/usr/bin/qvm-move-to-vm
 
 ### Icons
 mkdir -p $RPM_BUILD_ROOT/usr/share/qubes/icons
@@ -186,7 +188,7 @@ for i in /usr/share/qubes/icons/*.png ; do
 done
 xdg-icon-resource forceupdate
 
-xdg-desktop-menu install /usr/share/qubes-appmenus/qubes-dispvm.directory /usr/share/qubes-appmenus/qubes-dispvm-firefox.desktop
+xdg-desktop-menu install /usr/share/qubes-appmenus/qubes-dispvm.directory /usr/share/qubes-appmenus/qubes-dispvm-*.desktop
 
 /usr/lib/qubes/patch-dnf-yum-config
 
@@ -200,7 +202,7 @@ if [ "$1" = 0 ] ; then
 		xdg-icon-resource uninstall --novendor --size 48 $i
 	done
 
-    xdg-desktop-menu uninstall /usr/share/qubes-appmenus/qubes-dispvm.directory /usr/share/qubes-appmenus/qubes-dispvm-firefox.desktop
+    xdg-desktop-menu uninstall /usr/share/qubes-appmenus/qubes-dispvm.directory /usr/share/qubes-appmenus/qubes-dispvm-*.desktop
 
     systemctl disable qubes-suspend.service > /dev/null 2>&1
 fi
@@ -231,6 +233,7 @@ chmod -x /etc/grub.d/10_linux
 /usr/libexec/qubes-appmenus/remove-appvm-appmenus.sh
 /usr/share/qubes-appmenus/qubes-appmenu-select.desktop
 /usr/share/qubes-appmenus/qubes-dispvm-firefox.desktop
+/usr/share/qubes-appmenus/qubes-dispvm-xterm.desktop
 /usr/share/qubes-appmenus/qubes-dispvm.directory
 /usr/share/qubes-appmenus/qubes-servicevm.directory.template
 /usr/share/qubes-appmenus/qubes-start.desktop
@@ -282,6 +285,7 @@ chmod -x /etc/grub.d/10_linux
 %config(noreplace) /etc/profile.d/zz-disable-lesspipe
 /usr/lib/systemd/system-preset/75-qubes-dom0.preset
 /usr/lib/systemd/system-preset/99-qubes-default-disable.preset
+/usr/bin/qvm-xkill
 # Man
 %{_mandir}/man1/qvm-*.1*
 %{_mandir}/man1/qubes-*.1*
