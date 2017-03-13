@@ -61,11 +61,12 @@ while [ $# -gt 0 ]; do
     shift
 done
 
-# Prevent template upgrade - this would override user changes -
-# but do allow explicit template reinstalls
-if [ "$YUM_ACTION" == "reinstall" ] && [[ "$PKGS" == *"qubes-template-"* ]]; then
+# Prevent implicit update of template - this would override user changes -
+# but do allow explicit template upgrade, downgrade, reinstall
+if [ "$YUM_ACTION" == "reinstall" ] || [ "$YUM_ACTION" == "upgrade" ] || [ "$YUM_ACTION" == "downgrade" ] \
+&& [[ "$PKGS" == *"qubes-template-"* ]]; then
     TEMPLATE_EXCLUDE_OPTS=""
-    echo "WARNING: Reinstalling a template will erase all files in template's /home and /rw !"
+    echo "WARNING: Replacing a template will erase all files in template's /home and /rw !"
 
     ONEPKG=`cut -f 1 -d ' ' <<<$PKGS`
     if [[ "$ONEPKG" == "qubes-template-"* ]] && [[ "$ONEPKG" == "${PKGS#\ }" ]]; then # test "$PKGS" minus space
@@ -83,7 +84,7 @@ if [ "$YUM_ACTION" == "reinstall" ] && [[ "$PKGS" == *"qubes-template-"* ]]; the
             TEMPLATE_NETVM="default"
         fi
     else
-        echo "ERROR: Specify only one package to reinstall template"
+        echo "ERROR: Specify only one package when replacing template"
         exit 1
     fi
 
