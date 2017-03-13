@@ -590,8 +590,6 @@ static void reap_children()
 
     pid_t pid;
     while ((pid=waitpid(-1, &status, WNOHANG)) > 0) {
-        /* FIXME: perhaps keep max(policy_pending) somewhere to optimize this
-         * search */
         for (i = 0; i <= policy_pending_max; i++) {
             if (policy_pending[i].pid == pid) {
                 status = WEXITSTATUS(status);
@@ -602,7 +600,7 @@ static void reap_children()
                  * MSG_SERVICE_CONNECT from client handler */
                 policy_pending[i].pid = 0;
                 while (policy_pending_max > 0 &&
-                        policy_pending[policy_pending_max].pid > 0)
+                        policy_pending[policy_pending_max].pid == 0)
                     policy_pending_max--;
                 break;
             }
