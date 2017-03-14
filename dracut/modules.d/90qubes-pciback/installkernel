@@ -1,3 +1,7 @@
 #!/bin/bash
-modinfo -k $kernel pciback > /dev/null 2>&1 && instmods pciback
-modinfo -k $kernel xen-pciback > /dev/null 2>&1 && instmods xen-pciback
+
+for mod in pciback xen-pciback; do
+    if modinfo -k "${kernel}" "${mod}" >/dev/null 2>&1; then
+        instmods "${mod}"
+    fi
+done
