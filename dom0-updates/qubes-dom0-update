@@ -63,15 +63,16 @@ done
 
 # Prevent implicit update of template - this would override user changes -
 # but do allow explicit template upgrade, downgrade, reinstall
-if [ "$YUM_ACTION" == "reinstall" ] || [ "$YUM_ACTION" == "upgrade" ] || [ "$YUM_ACTION" == "downgrade" ] \
-&& [[ "$PKGS" == *"qubes-template-"* ]]; then
+if [ "$YUM_ACTION" == "reinstall" ] || [ "$YUM_ACTION" == "upgrade" ] || [ "$YUM_ACTION" == "upgrade-to" ] \
+|| [ "$YUM_ACTION" == "downgrade" ] && [[ "$PKGS" == *"qubes-template-"* ]]; then
     TEMPLATE_EXCLUDE_OPTS=""
     echo "WARNING: Replacing a template will erase all files in template's /home and /rw !"
 
     ONEPKG=`cut -f 1 -d ' ' <<<$PKGS`
     if [[ "$ONEPKG" == "qubes-template-"* ]] && [[ "$ONEPKG" == "${PKGS#\ }" ]]; then # test "$PKGS" minus space
     # Prepare to backup template root.img in case reinstall doesn't complete.
-        TEMPLATE=${ONEPKG#qubes-template-}
+        ONEPKG=`sed -r 's/-[0-9]+(\.[0-9-]+)+(\.noarch)*$//' <<<$ONEPKG` # Remove version suffix
+        TEMPLATE=${ONEPKG#qubes-template-} # Remove prefix
         if qvm-shutdown --wait $TEMPLATE ; then
             echo "Template VM halted"
         fi
@@ -84,7 +85,7 @@ if [ "$YUM_ACTION" == "reinstall" ] || [ "$YUM_ACTION" == "upgrade" ] || [ "$YUM
             TEMPLATE_NETVM="default"
         fi
     else
-        echo "ERROR: Specify only one package when replacing template"
+        echo "ERROR: Specify only one package to reinstall template"
         exit 1
     fi
 
@@ -194,6 +195,9 @@ if [ "x$PKGS" != "x" ]; then
         mv "$BAK_TEMPLATE_ROOT" "$BAK_TEMPLATE_ROOT-bak"
         mv "$BAK_TEMPLATE_PRIVATE" "$BAK_TEMPLATE_PRIVATE-bak"
         TDIR=`qvm-prefs --force-root $TEMPLATE dir`
+        if [ -f "$TDIR/firewall.xml" ]; then
+            mv "$TDIR/firewall.xml" "$TDIR/firewall.xml-bak"
+        fi
         rm -f "$TDIR/volatile.img"
         echo "--> Creating private.img..."
         truncate -s 2G $BAK_TEMPLATE_PRIVATE
@@ -218,6 +222,10 @@ if [ "x$PKGS" != "x" ]; then
             echo "ERROR: NetVM setting could not be restored!"
             exit 1
         fi
+        if [ -f "$TDIR/firewall.xml-bak" ]; then
+            mv "$TDIR/firewall.xml-bak" "$TDIR/firewall.xml"
+        fi
+        
     fi
 elif [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
     # Above file exists only when at least one package was downloaded
