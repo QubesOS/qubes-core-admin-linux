@@ -6,8 +6,6 @@ NAME
 ====
 qubes-dom0-update - update software in dom0
 
-:Date:   2012-04-13
-
 SYNOPSIS
 ========
 | qubes-dom0-update [--action=ACTION] [--clean] [--check-only] [--gui] [<yum opts>] [<pkg list>]
