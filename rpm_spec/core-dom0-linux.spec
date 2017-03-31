@@ -160,7 +160,6 @@ install -m 644 -D system-config/75-qubes-dom0.preset \
     $RPM_BUILD_ROOT/usr/lib/systemd/system-preset/75-qubes-dom0.preset
 install -m 644 -D system-config/99-qubes-default-disable.preset \
     $RPM_BUILD_ROOT/usr/lib/systemd/system-preset/99-qubes-default-disable.preset
-install -m 755 tools/qvm-xkill $RPM_BUILD_ROOT/usr/bin/
 
 # file copy to VM
 install -m 755 file-copy-vm/qfile-dom0-agent $RPM_BUILD_ROOT/usr/lib/qubes/
@@ -285,7 +284,6 @@ chmod -x /etc/grub.d/10_linux
 %config(noreplace) /etc/profile.d/zz-disable-lesspipe
 /usr/lib/systemd/system-preset/75-qubes-dom0.preset
 /usr/lib/systemd/system-preset/99-qubes-default-disable.preset
-/usr/bin/qvm-xkill
 # Man
 %{_mandir}/man1/qvm-*.1*
 %{_mandir}/man1/qubes-*.1*
