@@ -50,7 +50,7 @@ fields_regexp = {
     "GenericName": std_re,
     "Comment": std_re,
     "Categories": re.compile(r"^[a-zA-Z0-9/.;:'() -]*$"),
-    "Exec": re.compile(r"^[a-zA-Z0-9()_%&>/{}\"'\\:.= -]*$"),
+    "Exec": re.compile(r"^[a-zA-Z0-9()_&>/{}\"'\\:.= -]*$"),
     "Icon": re.compile(r"^[a-zA-Z0-9/_.-]*$"),
 }
 
@@ -142,8 +142,8 @@ def get_appmenus(vm):
 
     appmenus = {}
     line_rx = re.compile(
-        r"([a-zA-Z0-9.()_-]+.desktop):([a-zA-Z0-9-]+(?:\[[a-zA-Z@_]+\])?)=(.*)")
-    ignore_rx = re.compile(r".*([a-zA-Z0-9._-]+.desktop):(#.*|\s+)$")
+        r"([a-zA-Z0-9._-]+\.desktop):([a-zA-Z0-9-]+(?:\[[a-zA-Z@_]+\])?)=(.*)")
+    ignore_rx = re.compile(r".*([a-zA-Z0-9._-]+\.desktop):(#.*|\s*)$")
     for untrusted_line in untrusted_appmenulist:
         # Ignore blank lines and comments
         if len(untrusted_line) == 0 or ignore_rx.match(untrusted_line):
