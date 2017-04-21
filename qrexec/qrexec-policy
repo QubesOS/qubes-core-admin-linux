@@ -148,24 +148,43 @@ def add_always_allow(domain, target, service_name, options):
     f.close()
 
 def info_dialog(msg_type, text):
-    if msg_type not in ['info', 'warning', 'error']:
+    if msg_type not in ['info', 'warning', 'error', 'entry']:
         raise ValueError("Invalid msg_type value")
-    try:
-        subprocess.call(["/usr/bin/zenity", "--{}".format(msg_type), "--text",
+    if msg_type in ['info', 'warning', 'error']:
+	    try: 
+		    subprocess.call(["/usr/bin/zenity", "--{}".format(msg_type), "--text",
                          text])
-    except OSError:
-        kdialog_msg_type = {
-            'info': 'msgbox',
-            'warning': 'sorry',
-            'error': 'error'
-        }[msg_type]
-        subprocess.call(["/usr/bin/kdialog", "--{}".format(kdialog_msg_type),
+	    except OSError:
+		    kdialog_msg_type = {
+		    'info': 'msgbox',
+		    'warning': 'sorry',
+		    'error': 'error'
+		}[msg_type]
+            subprocess.call(["/usr/bin/kdialog", "--{}".format(kdialog_msg_type), text])
+    else:
+        response = subprocess.check_output(["/usr/bin/zenity", "--{}".format(msg_type), "--text",
                          text])
+        return response
+
 
 def policy_editor(domain, target, service_name):
-    text = "No policy definition found for " + service_name + " action. "
-    text+= "Please create a policy file in Dom0 in " + POLICY_FILE_DIR + "/" + service_name
-    info_dialog("warning", text)
+    text = "No policy definition found for " + service_name + " action. \n"
+    text+= "Type YES if you want to create a default policy file"
+    response = info_dialog('entry', text)
+    if response.strip() == 'YES':
+        create_policy(service_name)
+
+
+def create_policy(service_name):
+    policyFile = "/etc/qubes-rpc/policy/"+service_name
+    policy = open(policyFile, "w")
+    policy.write("## Note that policy parsing stops at the first match,\n")
+    policy.write("## so adding anything below \"$anyvm $anyvm action\" line will have no effect\n")
+    policy.write("\n")
+    policy.write("## Please use a single # to start your custom comments\n")
+    policy.write("\n")
+    policy.write("$anyvm  $anyvm  ask\n")
+    policy.close()
 
 def main():
     usage = "usage: %prog [options] <src-domain-id> <src-domain> <target-domain> <service> <process-ident>"
