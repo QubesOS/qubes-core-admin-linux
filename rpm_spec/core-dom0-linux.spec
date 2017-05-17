@@ -108,11 +108,12 @@ install -m 0664 -D dom0-updates/qubes.ReceiveUpdates.policy $RPM_BUILD_ROOT/etc/
 install -d $RPM_BUILD_ROOT/var/lib/qubes/updates
 
 # Qrexec
-mkdir -p $RPM_BUILD_ROOT/usr/lib/qubes/
-cp qrexec/qrexec-daemon $RPM_BUILD_ROOT/usr/lib/qubes/
-cp qrexec/qrexec-client $RPM_BUILD_ROOT/usr/lib/qubes/
+mkdir -p $RPM_BUILD_ROOT/usr/bin $RPM_BUILD_ROOT/usr/sbin
+install qrexec/qrexec-daemon $RPM_BUILD_ROOT/usr/sbin/
+install qrexec/qrexec-client $RPM_BUILD_ROOT/usr/bin/
 # XXX: Backward compatibility
-ln -s qrexec-client $RPM_BUILD_ROOT/usr/lib/qubes/qrexec_client
+ln -s ../../bin/qrexec-client $RPM_BUILD_ROOT/usr/lib/qubes/qrexec-client
+ln -s ../../sbin/qrexec-daemon $RPM_BUILD_ROOT/usr/lib/qubes/qrexec-daemon
 cp qrexec/qubes-rpc-multiplexer $RPM_BUILD_ROOT/usr/lib/qubes
 
 ### pm-utils
@@ -245,10 +246,12 @@ chmod -x /etc/grub.d/10_linux
 %dir %{_dracutmoddir}/90extra-modules
 %{_dracutmoddir}/90extra-modules/*
 # Qrexec
-%attr(4750,root,qubes) /usr/lib/qubes/qrexec-daemon
-/usr/lib/qubes/qrexec-client
-/usr/lib/qubes/qrexec_client
+/usr/sbin/qrexec-daemon
+/usr/bin/qrexec-client
 /usr/lib/qubes/qubes-rpc-multiplexer
+# compat symlinks
+/usr/lib/qubes/qrexec-client
+/usr/lib/qubes/qrexec-daemon
 # file copy
 /usr/bin/qvm-copy-to-vm
 /usr/bin/qvm-move-to-vm
