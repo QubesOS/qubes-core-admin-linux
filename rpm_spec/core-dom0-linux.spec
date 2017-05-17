@@ -76,7 +76,6 @@ ln -sf . %{name}-%{version}
 %setup -T -D
 
 %build
-python setup.py build
 (cd dom0-updates; make)
 (cd qrexec; make)
 (cd file-copy-vm; make)
@@ -84,16 +83,9 @@ python setup.py build
 
 %install
 
-### Appmenus
-# force /usr/bin before /bin to have /usr/bin/python instead of /bin/python
-PATH="/usr/bin:$PATH" python setup.py install -O1 --skip-build --root $RPM_BUILD_ROOT
-
-mkdir -p $RPM_BUILD_ROOT/etc/qubes-rpc/policy
-cp qubesappmenus/qubes.SyncAppMenus $RPM_BUILD_ROOT/etc/qubes-rpc/
+## Appmenus
+install -d $RPM_BUILD_ROOT/etc/qubes-rpc/policy
 cp qubesappmenus/qubes.SyncAppMenus.policy $RPM_BUILD_ROOT/etc/qubes-rpc/policy/qubes.SyncAppMenus
-
-mkdir -p $RPM_BUILD_ROOT/usr/share/qubes-appmenus/
-cp -r appmenus-files/* $RPM_BUILD_ROOT/usr/share/qubes-appmenus/
 
 ### Dom0 updates
 install -D dom0-updates/qubes-dom0-updates.cron $RPM_BUILD_ROOT/etc/cron.daily/qubes-dom0-updates.cron
@@ -156,12 +148,6 @@ install -m 755 file-copy-vm/qfile-dom0-agent $RPM_BUILD_ROOT/usr/lib/qubes/
 install -m 755 file-copy-vm/qvm-copy-to-vm $RPM_BUILD_ROOT/usr/bin/
 install -m 755 file-copy-vm/qvm-move-to-vm $RPM_BUILD_ROOT/usr/bin/
 
-### Icons
-mkdir -p $RPM_BUILD_ROOT/usr/share/qubes/icons
-for icon in icons/*.png; do
-    convert -resize 48 $icon $RPM_BUILD_ROOT/usr/share/qubes/$icon
-done
-
 ### Documentation
 (cd doc; make DESTDIR=$RPM_BUILD_ROOT install)
 
@@ -172,13 +158,6 @@ fi
 
 %post
 
-for i in /usr/share/qubes/icons/*.png ; do
-	xdg-icon-resource install --noupdate --novendor --size 48 $i
-done
-xdg-icon-resource forceupdate
-
-xdg-desktop-menu install /usr/share/qubes-appmenus/qubes-dispvm.directory /usr/share/qubes-appmenus/qubes-dispvm-*.desktop
-
 /usr/lib/qubes/patch-dnf-yum-config
 
 systemctl enable qubes-suspend.service >/dev/null 2>&1
@@ -186,12 +165,6 @@ systemctl enable qubes-suspend.service >/dev/null 2>&1
 %preun
 if [ "$1" = 0 ] ; then
 	# no more packages left
-
-	for i in /usr/share/qubes/icons/*.png ; do
-		xdg-icon-resource uninstall --novendor --size 48 $i
-	done
-
-    xdg-desktop-menu uninstall /usr/share/qubes-appmenus/qubes-dispvm.directory /usr/share/qubes-appmenus/qubes-dispvm-*.desktop
 
     systemctl disable qubes-suspend.service > /dev/null 2>&1
 fi
@@ -208,27 +181,7 @@ rm -f /lib/udev/rules.d/69-xorg-vmmouse.rules
 chmod -x /etc/grub.d/10_linux
 
 %files
-%attr(2775,root,qubes) %dir /etc/qubes-rpc
-%attr(2775,root,qubes) %dir /etc/qubes-rpc/policy
-%dir %{python_sitelib}/qubeslinux-*.egg-info
-%{python_sitelib}/qubeslinux-*.egg-info/*
-/usr/lib/python2.7/site-packages/qubesappmenus/__init__.py*
-/usr/lib/python2.7/site-packages/qubesappmenus/receive.py*
-/usr/lib/python2.7/site-packages/qubesappmenus/qubes-appmenu-select.desktop.template
-/usr/lib/python2.7/site-packages/qubesappmenus/qubes-servicevm.directory.template
-/usr/lib/python2.7/site-packages/qubesappmenus/qubes-templatevm.directory.template
-/usr/lib/python2.7/site-packages/qubesappmenus/qubes-vm.directory.template
-/usr/lib/python2.7/site-packages/qubesappmenus/tests.py*
-/usr/lib/python2.7/site-packages/qubesappmenus/test-data
 /etc/qubes-rpc/policy/qubes.SyncAppMenus
-/etc/qubes-rpc/qubes.SyncAppMenus
-/usr/share/qubes-appmenus/qubes-dispvm-firefox.desktop
-/usr/share/qubes-appmenus/qubes-dispvm-xterm.desktop
-/usr/share/qubes-appmenus/qubes-dispvm.directory
-/usr/share/qubes-appmenus/qubes-start.desktop
-/usr/share/qubes-appmenus/hvm
-/usr/share/qubes/icons/*.png
-/usr/bin/qvm-sync-appmenus
 # Dom0 updates
 /etc/cron.daily/qubes-dom0-updates.cron
 /etc/yum.real.repos.d/qubes-cached.repo

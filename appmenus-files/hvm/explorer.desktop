@@ -1,8 +1,0 @@
-[Desktop Entry]
-Version=1.0
-Type=Application
-Terminal=false
-Name=Explorer
-Comment=Browse files
-Categories=Utility;Core;
-Exec=explorer

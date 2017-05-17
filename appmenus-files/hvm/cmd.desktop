@@ -1,8 +1,0 @@
-[Desktop Entry]
-Version=1.0
-Type=Application
-Terminal=false
-Name=Command Prompt
-Comment=Use the command line
-Categories=GNOME;GTK;Utility;TerminalEmulator;System;
-Exec=cmd /c start cmd
