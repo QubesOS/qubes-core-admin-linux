@@ -47,6 +47,7 @@ BuildRequires:  qubes-utils-devel >= 3.1.3
 BuildRequires:  qubes-libvchan-devel
 Requires:	qubes-core-dom0
 Requires:	qubes-utils >= 3.1.3
+Requires:   python3-PyQt4
 Requires:	%{name}-kernel-install
 Requires:	xdotool
 
@@ -76,8 +77,6 @@ ln -sf . %{name}-%{version}
 %setup -T -D
 
 %build
-python -m compileall appmenus-scripts
-python -O -m compileall appmenus-scripts
 (cd dom0-updates; make)
 (cd qrexec; make)
 (cd file-copy-vm; make)
@@ -85,25 +84,9 @@ python -O -m compileall appmenus-scripts
 
 %install
 
-### Appmenus
-
-mkdir -p $RPM_BUILD_ROOT%{python_sitearch}/qubes/modules
-cp appmenus-scripts/qubes-core-appmenus.py $RPM_BUILD_ROOT%{python_sitearch}/qubes/modules/10appmenus.py
-cp appmenus-scripts/qubes-core-appmenus.pyc $RPM_BUILD_ROOT%{python_sitearch}/qubes/modules/10appmenus.pyc
-cp appmenus-scripts/qubes-core-appmenus.pyo $RPM_BUILD_ROOT%{python_sitearch}/qubes/modules/10appmenus.pyo
-
-mkdir -p $RPM_BUILD_ROOT/usr/libexec/qubes-appmenus
-cp appmenus-scripts/*.sh $RPM_BUILD_ROOT/usr/libexec/qubes-appmenus/
-cp appmenus-scripts/qubes-receive-appmenus $RPM_BUILD_ROOT/usr/libexec/qubes-appmenus/
-
-install -D appmenus-scripts/qvm-sync-appmenus $RPM_BUILD_ROOT/usr/bin/qvm-sync-appmenus
-
-mkdir -p $RPM_BUILD_ROOT/etc/qubes-rpc/policy
-cp appmenus-scripts/qubes.SyncAppMenus $RPM_BUILD_ROOT/etc/qubes-rpc/
-cp appmenus-scripts/qubes.SyncAppMenus.policy $RPM_BUILD_ROOT/etc/qubes-rpc/policy/qubes.SyncAppMenus
-
-mkdir -p $RPM_BUILD_ROOT/usr/share/qubes-appmenus/
-cp -r appmenus-files/* $RPM_BUILD_ROOT/usr/share/qubes-appmenus/
+## Appmenus
+install -d $RPM_BUILD_ROOT/etc/qubes-rpc/policy
+cp qubesappmenus/qubes.SyncAppMenus.policy $RPM_BUILD_ROOT/etc/qubes-rpc/policy/qubes.SyncAppMenus
 
 ### Dom0 updates
 install -D dom0-updates/qubes-dom0-updates.cron $RPM_BUILD_ROOT/etc/cron.daily/qubes-dom0-updates.cron
@@ -118,12 +101,12 @@ install -m 0664 -D dom0-updates/qubes.ReceiveUpdates.policy $RPM_BUILD_ROOT/etc/
 install -d $RPM_BUILD_ROOT/var/lib/qubes/updates
 
 # Qrexec
-mkdir -p $RPM_BUILD_ROOT/usr/lib/qubes/
-cp qrexec/qrexec-daemon $RPM_BUILD_ROOT/usr/lib/qubes/
-cp qrexec/qrexec-client $RPM_BUILD_ROOT/usr/lib/qubes/
+mkdir -p $RPM_BUILD_ROOT/usr/bin $RPM_BUILD_ROOT/usr/sbin
+install qrexec/qrexec-daemon $RPM_BUILD_ROOT/usr/sbin/
+install qrexec/qrexec-client $RPM_BUILD_ROOT/usr/bin/
 # XXX: Backward compatibility
-ln -s qrexec-client $RPM_BUILD_ROOT/usr/lib/qubes/qrexec_client
-cp qrexec/qrexec-policy $RPM_BUILD_ROOT/usr/lib/qubes/
+ln -s ../../bin/qrexec-client $RPM_BUILD_ROOT/usr/lib/qubes/qrexec-client
+ln -s ../../sbin/qrexec-daemon $RPM_BUILD_ROOT/usr/lib/qubes/qrexec-daemon
 cp qrexec/qubes-rpc-multiplexer $RPM_BUILD_ROOT/usr/lib/qubes
 
 ### pm-utils
@@ -167,12 +150,6 @@ install -m 755 file-copy-vm/qfile-dom0-agent $RPM_BUILD_ROOT/usr/lib/qubes/
 install -m 755 file-copy-vm/qvm-copy-to-vm $RPM_BUILD_ROOT/usr/bin/
 ln -s qvm-copy-to-vm $RPM_BUILD_ROOT/usr/bin/qvm-move-to-vm
 
-### Icons
-mkdir -p $RPM_BUILD_ROOT/usr/share/qubes/icons
-for icon in icons/*.png; do
-    convert -resize 48 $icon $RPM_BUILD_ROOT/usr/share/qubes/$icon
-done
-
 ### Documentation
 (cd doc; make DESTDIR=$RPM_BUILD_ROOT install)
 
@@ -183,13 +160,6 @@ fi
 
 %post
 
-for i in /usr/share/qubes/icons/*.png ; do
-	xdg-icon-resource install --noupdate --novendor --size 48 $i
-done
-xdg-icon-resource forceupdate
-
-xdg-desktop-menu install /usr/share/qubes-appmenus/qubes-dispvm.directory /usr/share/qubes-appmenus/qubes-dispvm-*.desktop
-
 /usr/lib/qubes/patch-dnf-yum-config
 
 systemctl enable qubes-suspend.service >/dev/null 2>&1
@@ -197,12 +167,6 @@ systemctl enable qubes-suspend.service >/dev/null 2>&1
 %preun
 if [ "$1" = 0 ] ; then
 	# no more packages left
-
-	for i in /usr/share/qubes/icons/*.png ; do
-		xdg-icon-resource uninstall --novendor --size 48 $i
-	done
-
-    xdg-desktop-menu uninstall /usr/share/qubes-appmenus/qubes-dispvm.directory /usr/share/qubes-appmenus/qubes-dispvm-*.desktop
 
     systemctl disable qubes-suspend.service > /dev/null 2>&1
 fi
@@ -219,29 +183,7 @@ rm -f /lib/udev/rules.d/69-xorg-vmmouse.rules
 chmod -x /etc/grub.d/10_linux
 
 %files
-%attr(2775,root,qubes) %dir /etc/qubes-rpc
-%attr(2775,root,qubes) %dir /etc/qubes-rpc/policy
 /etc/qubes-rpc/policy/qubes.SyncAppMenus
-/etc/qubes-rpc/qubes.SyncAppMenus
-%{python_sitearch}/qubes/modules/10appmenus.py
-%{python_sitearch}/qubes/modules/10appmenus.pyc
-%{python_sitearch}/qubes/modules/10appmenus.pyo
-/usr/libexec/qubes-appmenus/convert-apptemplate2vm.sh
-/usr/libexec/qubes-appmenus/convert-dirtemplate2vm.sh
-/usr/libexec/qubes-appmenus/create-apps-for-appvm.sh
-/usr/libexec/qubes-appmenus/qubes-receive-appmenus
-/usr/libexec/qubes-appmenus/remove-appvm-appmenus.sh
-/usr/share/qubes-appmenus/qubes-appmenu-select.desktop
-/usr/share/qubes-appmenus/qubes-dispvm-firefox.desktop
-/usr/share/qubes-appmenus/qubes-dispvm-xterm.desktop
-/usr/share/qubes-appmenus/qubes-dispvm.directory
-/usr/share/qubes-appmenus/qubes-servicevm.directory.template
-/usr/share/qubes-appmenus/qubes-start.desktop
-/usr/share/qubes-appmenus/qubes-templatevm.directory.template
-/usr/share/qubes-appmenus/qubes-vm.directory.template
-/usr/share/qubes-appmenus/hvm
-/usr/share/qubes/icons/*.png
-/usr/bin/qvm-sync-appmenus
 # Dom0 updates
 /etc/cron.daily/qubes-dom0-updates.cron
 /etc/yum.real.repos.d/qubes-cached.repo
@@ -259,11 +201,12 @@ chmod -x /etc/grub.d/10_linux
 %dir %{_dracutmoddir}/90extra-modules
 %{_dracutmoddir}/90extra-modules/*
 # Qrexec
-%attr(4750,root,qubes) /usr/lib/qubes/qrexec-daemon
-/usr/lib/qubes/qrexec-client
-/usr/lib/qubes/qrexec_client
+/usr/sbin/qrexec-daemon
+/usr/bin/qrexec-client
 /usr/lib/qubes/qubes-rpc-multiplexer
-/usr/lib/qubes/qrexec-policy
+# compat symlinks
+/usr/lib/qubes/qrexec-client
+/usr/lib/qubes/qrexec-daemon
 # file copy
 /usr/bin/qvm-copy-to-vm
 /usr/bin/qvm-move-to-vm

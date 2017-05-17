@@ -1,4 +1,4 @@
-#!/usr/bin/python2
+#!/usr/bin/python3
 #
 # The Qubes OS Project, http://www.qubes-os.org
 #
@@ -18,16 +18,14 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #
-#
 import os
 import os.path
 import re
 import sys
 import subprocess
 import shutil
-import glob
 import grp
-from qubes.qubes import QubesVmCollection
+import qubes
 
 updates_dir = "/var/lib/qubes/updates"
 updates_rpm_dir = updates_dir + "/rpm"
@@ -48,20 +46,23 @@ package_regex = re.compile(r"^[A-Za-z0-9._+-]{1,128}.rpm$")
 #  .....rpm: RSA sha1 ((MD5) PGP) md5 NOT OK (MISSING KEYS: (MD5) PGP#246110c1)
 gpg_ok_regex = re.compile(r": [a-z0-9() ]* (pgp|gpg) [a-z0-9 ]*OK$")
 
+
 def dom0updates_fatal(pkg, msg):
     global updates_error_file_handle
-    print >> sys.stderr, msg
+    print(msg, file=sys.stderr)
     if updates_error_file_handle is None:
         updates_error_file_handle = open(updates_error_file, "a")
     updates_error_file_handle.write(msg + "\n")
     os.remove(pkg)
 
+
 def handle_dom0updates(updatevm):
     global updates_error_file_handle
 
-    source=os.getenv("QREXEC_REMOTE_DOMAIN")
+    source = os.getenv("QREXEC_REMOTE_DOMAIN")
     if source != updatevm.name:
-        print >> sys.stderr, 'Domain ' + str(source) + ' not allowed to send dom0 updates'
+        print('Domain ' + str(source) + ' not allowed to send dom0 updates',
+            file=sys.stderr)
         exit(1)
     # Clean old packages
     if os.path.exists(updates_rpm_dir):
@@ -72,15 +73,17 @@ def handle_dom0updates(updatevm):
         os.remove(updates_error_file)
     os.environ['LC_ALL'] = 'C'
     qubes_gid = grp.getgrnam('qubes').gr_gid
-    old_umask = os.umask(002)
+    old_umask = os.umask(0o002)
     os.mkdir(updates_rpm_dir)
     os.chown(updates_rpm_dir, -1, qubes_gid)
-    os.chmod(updates_rpm_dir, 0775)
-    subprocess.check_call(["/usr/libexec/qubes/qfile-dom0-unpacker", str(os.getuid()), updates_rpm_dir])
+    os.chmod(updates_rpm_dir, 0o0775)
+    subprocess.check_call(["/usr/libexec/qubes/qfile-dom0-unpacker",
+        str(os.getuid()), updates_rpm_dir])
     # Verify received files
     for untrusted_f in os.listdir(updates_rpm_dir):
         if not package_regex.match(untrusted_f):
-            dom0updates_fatal(updates_rpm_dir + '/' + untrusted_f, 'Domain ' + source + ' sent unexpected file: ' + untrusted_f)
+            dom0updates_fatal(updates_rpm_dir + '/' + untrusted_f,
+                'Domain ' + source + ' sent unexpected file: ' + untrusted_f)
         else:
             f = untrusted_f
             assert '/' not in f
@@ -89,14 +92,17 @@ def handle_dom0updates(updatevm):
 
             full_path = updates_rpm_dir + "/" + f
             if os.path.islink(full_path) or not os.path.isfile(full_path):
-                dom0updates_fatal(full_path, 'Domain ' + source + ' sent not regular file')
-            p = subprocess.Popen (["/bin/rpm", "-K", full_path],
+                dom0updates_fatal(
+                    full_path, 'Domain ' + source + ' sent not regular file')
+            p = subprocess.Popen(["/bin/rpm", "-K", full_path],
                     stdout=subprocess.PIPE)
-            output = p.communicate()[0]
+            output = p.communicate()[0].decode('ascii')
             if p.returncode != 0:
-                dom0updates_fatal(full_path, 'Error while verifing %s signature: %s' % (f, output))
+                dom0updates_fatal(full_path,
+                    'Error while verifing %s signature: %s' % (f, output))
             if not gpg_ok_regex.search(output.strip()):
-                dom0updates_fatal(full_path, 'Domain ' + source + ' sent not signed rpm: ' + f)
+                dom0updates_fatal(full_path,
+                    'Domain ' + source + ' sent not signed rpm: ' + f)
     if updates_error_file_handle is not None:
         updates_error_file_handle.close()
     # After updates received - create repo metadata
@@ -106,27 +112,28 @@ def handle_dom0updates(updatevm):
     createrepo_cmd += ["-q", updates_dir]
     subprocess.check_call(createrepo_cmd)
     os.chown(updates_repodata_dir, -1, qubes_gid)
-    os.chmod(updates_repodata_dir, 0775)
+    os.chmod(updates_repodata_dir, 0o0775)
     # Clean old cache
-    subprocess.call(["sudo", "/usr/bin/yum", "-q", "clean", "all"], stdout=sys.stderr)
-    # This will fail because of "smart" detection of no-network, but it will invalidate the cache
+    subprocess.call(["sudo", "/usr/bin/yum", "-q", "clean", "all"],
+        stdout=sys.stderr)
+    # This will fail because of "smart" detection of no-network,
+    # but it will invalidate the cache
     try:
-        null = open('/dev/null','w')
+        null = open('/dev/null', 'w')
         subprocess.call(["/usr/bin/pkcon", "refresh"], stdout=null)
         null.close()
-    except:
+    except subprocess.CalledProcessError:
         pass
     os.umask(old_umask)
     exit(0)
 
-def main():
 
-    qvm_collection = QubesVmCollection()
-    qvm_collection.lock_db_for_reading()
-    qvm_collection.load()
-    qvm_collection.unlock_db()
+def main():
+    app = qubes.Qubes()
     
-    updatevm = qvm_collection.get_updatevm_vm()
+    updatevm = app.updatevm
+    if updatevm is None:
+        exit(1)
     handle_dom0updates(updatevm)
 
 main()

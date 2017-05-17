@@ -545,12 +545,13 @@ static void select_loop(libvchan_t *vchan)
 static void usage(char *name)
 {
     fprintf(stderr,
-            "usage: %s [-w timeout] [-t] [-T] -d domain_name ["
+            "usage: %s [-w timeout] [-W] [-t] [-T] -d domain_name ["
             "-l local_prog|"
             "-c request_id,src_domain_name,src_domain_id|"
             "-e] remote_cmdline\n"
             "-e means exit after sending cmd,\n"
             "-t enables replacing problematic bytes with '_' in command output, -T is the same for stderr\n"
+            "-W waits for connection end even in case of VM-VM (-c)\n"
             "-c: connect to existing process (response to trigger service call)\n"
             "-w timeout: override default connection timeout of 5s (set 0 for no timeout)\n",
             name);
@@ -649,6 +650,7 @@ int main(int argc, char **argv)
     int msg_type;
     int s;
     int just_exec = 0;
+    int wait_connection_end = 0;
     int connect_existing = 0;
     char *local_cmdline = NULL;
     char *remote_cmdline = NULL;
@@ -657,7 +659,7 @@ int main(int argc, char **argv)
     int src_domain_id = 0; /* if not -c given, the process is run in dom0 */
     int connection_timeout = 5;
     struct service_params svc_params;
-    while ((opt = getopt(argc, argv, "d:l:ec:tTw:")) != -1) {
+    while ((opt = getopt(argc, argv, "d:l:ec:tTw:W")) != -1) {
         switch (opt) {
             case 'd':
                 domname = strdup(optarg);
@@ -681,6 +683,9 @@ int main(int argc, char **argv)
                 break;
             case 'w':
                 connection_timeout = atoi(optarg);
+                break;
+            case 'W':
+                wait_connection_end = 1;
                 break;
             default:
                 usage(argv[0]);
@@ -757,13 +762,25 @@ int main(int argc, char **argv)
                 strlen(remote_cmdline) + 1,
                 &data_domain,
                 &data_port);
-        close(s);
+        if (wait_connection_end && connect_existing)
+            /* save socket fd, 's' will be reused for the other qrexec-daemon
+             * connection */
+            wait_connection_end = s;
+        else
+            close(s);
         setenv("QREXEC_REMOTE_DOMAIN", domname, 1);
         prepare_local_fds(local_cmdline);
         if (connect_existing) {
             s = connect_unix_socket(src_domain_name);
             send_service_connect(s, request_id, data_domain, data_port);
             close(s);
+            if (wait_connection_end) {
+                /* wait for EOF */
+                fd_set read_fd;
+                FD_ZERO(&read_fd);
+                FD_SET(wait_connection_end, &read_fd);
+                select(wait_connection_end+1, &read_fd, NULL, NULL, 0);
+            }
         } else {
             data_vchan = libvchan_server_init(data_domain, data_port,
                     VCHAN_BUFFER_SIZE, VCHAN_BUFFER_SIZE);

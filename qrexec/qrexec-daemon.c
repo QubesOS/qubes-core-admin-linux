@@ -71,6 +71,12 @@ int policy_pending_max = -1;
  * either VCHAN_PORT_* or remote domain id for used port */
 int used_vchan_ports[MAX_CLIENTS];
 
+/* notify client (close its connection) when connection initiated by it was
+ * terminated - used by qrexec-policy to cleanup (disposable) VM; indexed with
+ * vchan port number relative to VCHAN_BASE_DATA_PORT; stores fd of given
+ * client or -1 if none requested */
+int vchan_port_notify_client[MAX_CLIENTS];
+
 int max_client_fd = -1;		// current max fd of all clients; so that we need not to scan all the "clients" table
 int qrexec_daemon_unix_socket_fd;	// /var/run/qubes/qrexec.xid descriptor
 const char *default_user = "user";
@@ -312,6 +318,7 @@ void init(int xid)
         clients[i].state = CLIENT_INVALID;
         policy_pending[i].pid = 0;
         used_vchan_ports[i] = VCHAN_PORT_UNUSED;
+        vchan_port_notify_client[i] = VCHAN_PORT_UNUSED;
     }
 
     /* When running as root, make the socket accessible; perms on /var/run/qubes still apply */
@@ -358,14 +365,6 @@ static int allocate_vchan_port(int new_state)
     return -1;
 }
 
-static void release_vchan_port(int port, int expected_remote_id)
-{
-    /* release only if was reserved for connection to given domain */
-    if (used_vchan_ports[port-VCHAN_BASE_DATA_PORT] == expected_remote_id) {
-        used_vchan_ports[port-VCHAN_BASE_DATA_PORT] = VCHAN_PORT_UNUSED;
-    }
-}
-
 static void handle_new_client()
 {
     int fd = do_accept(qrexec_daemon_unix_socket_fd);
@@ -387,8 +386,25 @@ static void handle_new_client()
 
 static void terminate_client(int fd)
 {
+    int port;
     clients[fd].state = CLIENT_INVALID;
     close(fd);
+    /* if client requested vchan connection end notify, cancel it */
+    for (port = 0; port < MAX_CLIENTS; port++) {
+        if (vchan_port_notify_client[port] == fd)
+            vchan_port_notify_client[port] = VCHAN_PORT_UNUSED;
+    }
+}
+
+static void release_vchan_port(int port, int expected_remote_id)
+{
+    /* release only if was reserved for connection to given domain */
+    if (used_vchan_ports[port-VCHAN_BASE_DATA_PORT] == expected_remote_id) {
+        used_vchan_ports[port-VCHAN_BASE_DATA_PORT] = VCHAN_PORT_UNUSED;
+        /* notify client if requested - it will clear notification request */
+        if (vchan_port_notify_client[port-VCHAN_BASE_DATA_PORT] != VCHAN_PORT_UNUSED)
+            terminate_client(vchan_port_notify_client[port-VCHAN_BASE_DATA_PORT]);
+    }
 }
 
 static int handle_cmdline_body_from_client(int fd, struct msg_header *hdr)
@@ -433,6 +449,8 @@ static int handle_cmdline_body_from_client(int fd, struct msg_header *hdr)
             terminate_client(fd);
             return 0;
         }
+        /* notify the client when this connection got terminated */
+        vchan_port_notify_client[params.connect_port-VCHAN_BASE_DATA_PORT] = fd;
         client_params.connect_port = params.connect_port;
         client_params.connect_domain = remote_domain_id;
         hdr->len = sizeof(client_params);
@@ -694,7 +712,7 @@ static void handle_execute_service(void)
     signal(SIGPIPE, SIG_DFL);
     snprintf(remote_domain_id_str, sizeof(remote_domain_id_str), "%d",
             remote_domain_id);
-    execl("/usr/lib/qubes/qrexec-policy", "qrexec-policy", "--",
+    execl("/usr/bin/qrexec-policy", "qrexec-policy", "--",
             remote_domain_id_str, remote_domain_name, params.target_domain,
             params.service_name, params.request_id.ident, NULL);
     perror("execl");

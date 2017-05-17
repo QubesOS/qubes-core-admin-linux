@@ -28,6 +28,7 @@ enable xenstored.service
 enable xenstored.socket
 enable xenstored_ro.socket
 enable xenconsoled.service
+enable xen-init-dom0.service
 enable libvirtd.service
 enable virlockd.socket
 
@@ -45,6 +46,7 @@ enable qubes-qmemman.service
 enable qubes-suspend.service
 enable qubes-setupdvm.service
 enable qubes-block-cleaner.service
+enable qubesd.service
 enable anti-evil-maid-unseal.service
 enable anti-evil-maid-check-mount-devs.service
 enable anti-evil-maid-seal.service

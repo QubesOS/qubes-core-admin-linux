@@ -1,6 +1,6 @@
 #!/bin/bash
 
-UPDATEVM=`qubes-prefs --get updatevm`
+UPDATEVM=`qubes-prefs --force-root updatevm`
 UPDATES_STAT_FILE=/var/lib/qubes/updates/dom0-updates-available
 
 if [ -z "$UPDATEVM" ]; then
