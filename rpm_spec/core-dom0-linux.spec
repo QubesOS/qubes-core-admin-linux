@@ -113,7 +113,6 @@ cp qrexec/qrexec-daemon $RPM_BUILD_ROOT/usr/lib/qubes/
 cp qrexec/qrexec-client $RPM_BUILD_ROOT/usr/lib/qubes/
 # XXX: Backward compatibility
 ln -s qrexec-client $RPM_BUILD_ROOT/usr/lib/qubes/qrexec_client
-cp qrexec/qrexec-policy $RPM_BUILD_ROOT/usr/lib/qubes/
 cp qrexec/qubes-rpc-multiplexer $RPM_BUILD_ROOT/usr/lib/qubes
 
 ### pm-utils
@@ -250,7 +249,6 @@ chmod -x /etc/grub.d/10_linux
 /usr/lib/qubes/qrexec-client
 /usr/lib/qubes/qrexec_client
 /usr/lib/qubes/qubes-rpc-multiplexer
-/usr/lib/qubes/qrexec-policy
 # file copy
 /usr/bin/qvm-copy-to-vm
 /usr/bin/qvm-move-to-vm

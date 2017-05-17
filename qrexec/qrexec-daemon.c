@@ -712,7 +712,7 @@ static void handle_execute_service(void)
     signal(SIGPIPE, SIG_DFL);
     snprintf(remote_domain_id_str, sizeof(remote_domain_id_str), "%d",
             remote_domain_id);
-    execl("/usr/lib/qubes/qrexec-policy", "qrexec-policy", "--",
+    execl("/usr/bin/qrexec-policy", "qrexec-policy", "--",
             remote_domain_id_str, remote_domain_name, params.target_domain,
             params.service_name, params.request_id.ident, NULL);
     perror("execl");
