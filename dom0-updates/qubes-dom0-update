@@ -155,17 +155,13 @@ if [ -n "$CLEAN" ]; then
 fi
 rm -f /var/lib/qubes/updates/errors
 
-# We should ensure the clocks in Dom0 and UpdateVM are in sync
-# becuase otherwise yum might complain about future timestamps
-qvm-sync-clock
-
 echo "Using $UPDATEVM as UpdateVM to download updates for Dom0; this may take some time..." >&2
 
 # Start VM if not running already
-qvm-run $QVMRUN_OPTS -a $UPDATEVM true || exit 1
-qvm-run  $UPDATEVM 'rm -rf /var/lib/qubes/dom0-updates/etc' || exit 1
+qvm-start --skip-if-running $UPDATEVM
+qvm-run --nogui -q $UPDATEVM 'rm -rf /var/lib/qubes/dom0-updates/etc' || exit 1
 tar c /var/lib/rpm /etc/yum.repos.d /etc/yum.conf 2>/dev/null | \
-   qvm-run -p "$UPDATEVM" 'LC_MESSAGES=C tar x -C /var/lib/qubes/dom0-updates 2>&1 | grep -v -E "s in the future"'
+   qvm-run --nogui --pass-io "$UPDATEVM" 'LC_MESSAGES=C tar x -C /var/lib/qubes/dom0-updates 2>&1 | grep -v -E "s in the future"'
 
 qvm-run $QVMRUN_OPTS --pass-io $UPDATEVM "script --quiet --return --command '/usr/lib/qubes/qubes-download-dom0-updates.sh --doit --nogui $ALL_OPTS' /dev/null"
 RETCODE=$?
@@ -206,7 +202,7 @@ if [ "x$PKGS" != "x" ]; then
         chmod 0660 $BAK_TEMPLATE_PRIVATE
     fi
 
-    yum $YUM_OPTS $YUM_ACTION $PKGS ; RETCODE=$?
+    dnf $YUM_OPTS $YUM_ACTION $PKGS ; RETCODE=$?
 
     if [[ -n "$BAK_TEMPLATE_ROOT" ]] ; then # Handle template details
         if [ $RETCODE -eq 0 ] ; then
@@ -232,12 +228,12 @@ elif [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
     if [ "$GUI" == "1" ]; then
         $guiapp
     else
-        yum check-update
+        dnf check-update
         if [ $? -eq 100 ]; then # Run yum with options
-            yum $YUM_OPTS $YUM_ACTION
+            dnf $YUM_OPTS $YUM_ACTION
         fi
     fi
-    yum -q check-update && rm -f $UPDATES_STAT_FILE
+    dnf -q check-update && rm -f $UPDATES_STAT_FILE
 else
     rm -f $UPDATES_STAT_FILE
     echo "No updates avaliable" >&2
