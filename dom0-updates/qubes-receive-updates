@@ -25,7 +25,7 @@ import sys
 import subprocess
 import shutil
 import grp
-import qubes
+import qubesadmin
 
 updates_dir = "/var/lib/qubes/updates"
 updates_rpm_dir = updates_dir + "/rpm"
@@ -129,7 +129,7 @@ def handle_dom0updates(updatevm):
 
 
 def main():
-    app = qubes.Qubes()
+    app = qubesadmin.Qubes()
     
     updatevm = app.updatevm
     if updatevm is None:
