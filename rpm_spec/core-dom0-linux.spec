@@ -152,7 +152,7 @@ install -D system-config/qubes-sync-clock.cron $RPM_BUILD_ROOT/etc/cron.d/qubes-
 install -d $RPM_BUILD_ROOT/etc/udev/rules.d
 install -m 644 system-config/00-qubes-ignore-devices.rules $RPM_BUILD_ROOT/etc/udev/rules.d/
 install -m 644 system-config/60-persistent-storage.rules $RPM_BUILD_ROOT/etc/udev/rules.d/
-install -m 644 -D system-config/disable-lesspipe $RPM_BUILD_ROOT/etc/profile.d/zz-disable-lesspipe
+install -m 644 -D system-config/disable-lesspipe.sh $RPM_BUILD_ROOT/etc/profile.d/zz-disable-lesspipe.sh
 install -m 755 -D system-config/kernel-grub2.install $RPM_BUILD_ROOT/usr/lib/kernel/install.d/90-grub2.install
 install -m 755 -D system-config/kernel-xen-efi.install $RPM_BUILD_ROOT/usr/lib/kernel/install.d/90-xen-efi.install
 install -m 755 -D system-config/kernel-remove-bls.install $RPM_BUILD_ROOT/usr/lib/kernel/install.d/99-remove-bls.install
@@ -282,7 +282,7 @@ chmod -x /etc/grub.d/10_linux
 %config /etc/udev/rules.d/00-qubes-ignore-devices.rules
 %config(noreplace) /etc/udev/rules.d/60-persistent-storage.rules
 %attr(0644,root,root) /etc/cron.d/qubes-sync-clock.cron
-%config(noreplace) /etc/profile.d/zz-disable-lesspipe
+%config(noreplace) /etc/profile.d/zz-disable-lesspipe.sh
 /usr/lib/systemd/system-preset/75-qubes-dom0.preset
 /usr/lib/systemd/system-preset/99-qubes-default-disable.preset
 /usr/bin/qvm-xkill
