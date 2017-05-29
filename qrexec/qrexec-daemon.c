@@ -433,7 +433,7 @@ static int handle_cmdline_body_from_client(int fd, struct msg_header *hdr)
                     strncmp(policy_pending[i].params.ident, buf, len) == 0) {
                 policy_pending[i].pid = 0;
                 while (policy_pending_max > 0 &&
-                        policy_pending[policy_pending_max].pid > 0)
+                        policy_pending[policy_pending_max].pid == 0)
                     policy_pending_max--;
                 break;
             }
