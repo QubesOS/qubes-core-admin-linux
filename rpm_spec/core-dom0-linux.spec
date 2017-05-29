@@ -47,6 +47,7 @@ BuildRequires:  qubes-utils-devel >= 3.1.3
 BuildRequires:  qubes-libvchan-devel
 Requires:	qubes-core-dom0
 Requires:	python3-qubesadmin
+Requires:	qubes-core-admin-client
 Requires:	qubes-utils >= 3.1.3
 Requires:	%{name}-kernel-install
 Requires:	xdotool
