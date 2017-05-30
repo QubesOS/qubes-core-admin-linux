@@ -647,6 +647,7 @@ int main(int argc, char **argv)
     libvchan_t *data_vchan = NULL;
     int data_port;
     int data_domain;
+    char data_domain_s[16];
     int msg_type;
     int s;
     int just_exec = 0;
@@ -716,7 +717,6 @@ int main(int argc, char **argv)
         else
             msg_type = MSG_EXEC_CMDLINE;
         assert(src_domain_name);
-        setenv("QREXEC_REMOTE_DOMAIN", src_domain_name, 1);
         s = connect_unix_socket(src_domain_name);
         negotiate_connection_params(s,
                 0, /* dom0 */
@@ -725,6 +725,9 @@ int main(int argc, char **argv)
                 connect_existing ? sizeof(svc_params) : strlen(remote_cmdline) + 1,
                 &data_domain,
                 &data_port);
+        setenv("QREXEC_REMOTE_DOMAIN", src_domain_name, 1);
+        snprintf(data_domain_s, sizeof(data_domain_s), "%d", data_domain);
+        setenv("QREXEC_REMOTE_DOMAIN_ID", data_domain_s, 1);
 
         prepare_local_fds(remote_cmdline);
         if (connect_existing) {
@@ -769,6 +772,8 @@ int main(int argc, char **argv)
         else
             close(s);
         setenv("QREXEC_REMOTE_DOMAIN", domname, 1);
+        snprintf(data_domain_s, sizeof(data_domain_s), "%d", data_domain);
+        setenv("QREXEC_REMOTE_DOMAIN_ID", data_domain_s, 1);
         prepare_local_fds(local_cmdline);
         if (connect_existing) {
             s = connect_unix_socket(src_domain_name);
