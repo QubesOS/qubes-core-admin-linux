@@ -209,7 +209,7 @@ if [ "x$PKGS" != "x" ]; then
     yum $YUM_OPTS $YUM_ACTION $PKGS ; RETCODE=$?
 
     if [[ -n "$BAK_TEMPLATE_ROOT" ]] ; then # Handle template details
-        if [ $RETCODE -eq 0 ] ; then
+        if [[ $RETCODE -eq 0 && -f "$BAK_TEMPLATE_ROOT" ]]; then
         # Reinstall went OK, remove backup files.
             rm -f "$BAK_TEMPLATE_ROOT-bak"
             rm -f "$BAK_TEMPLATE_PRIVATE-bak"
@@ -218,12 +218,12 @@ if [ "x$PKGS" != "x" ]; then
             mv "$BAK_TEMPLATE_ROOT-bak" "$BAK_TEMPLATE_ROOT"
             mv "$BAK_TEMPLATE_PRIVATE-bak" "$BAK_TEMPLATE_PRIVATE"
         fi
+        if [ -f "$TDIR/firewall.xml-bak" ]; then
+            mv "$TDIR/firewall.xml-bak" "$TDIR/firewall.xml"
+        fi
         if ! qvm-prefs --force-root -s $TEMPLATE netvm $TEMPLATE_NETVM ; then
             echo "ERROR: NetVM setting could not be restored!"
             exit 1
-        fi
-        if [ -f "$TDIR/firewall.xml-bak" ]; then
-            mv "$TDIR/firewall.xml-bak" "$TDIR/firewall.xml"
         fi
         
     fi
