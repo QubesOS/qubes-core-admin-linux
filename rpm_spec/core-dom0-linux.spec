@@ -112,7 +112,6 @@ cp qrexec/qubes-rpc-multiplexer $RPM_BUILD_ROOT/usr/lib/qubes
 
 ### pm-utils
 mkdir -p $RPM_BUILD_ROOT/usr/lib64/pm-utils/sleep.d
-cp pm-utils/01qubes-sync-vms-clock $RPM_BUILD_ROOT/usr/lib64/pm-utils/sleep.d/
 cp pm-utils/52qubes-pause-vms $RPM_BUILD_ROOT/usr/lib64/pm-utils/sleep.d/
 mkdir -p $RPM_BUILD_ROOT/usr/lib/systemd/system
 cp pm-utils/qubes-suspend.service $RPM_BUILD_ROOT/usr/lib/systemd/system/
@@ -210,7 +209,6 @@ chmod -x /etc/grub.d/10_linux
 /usr/bin/qvm-move-to-vm
 /usr/lib/qubes/qfile-dom0-agent
 # pm-utils
-/usr/lib64/pm-utils/sleep.d/01qubes-sync-vms-clock
 /usr/lib64/pm-utils/sleep.d/52qubes-pause-vms
 /usr/lib/systemd/system/qubes-suspend.service
 # Others
