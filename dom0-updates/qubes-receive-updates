@@ -106,7 +106,7 @@ def handle_dom0updates(updatevm):
     if updates_error_file_handle is not None:
         updates_error_file_handle.close()
     # After updates received - create repo metadata
-    createrepo_cmd = ["/usr/bin/createrepo"]
+    createrepo_cmd = ["/usr/bin/createrepo_c"]
     if comps_file:
         createrepo_cmd += ["-g", comps_file]
     createrepo_cmd += ["-q", updates_dir]
