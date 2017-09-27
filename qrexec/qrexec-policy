@@ -244,6 +244,13 @@ def main():
     if policy_dict["action"] == "allow":
         if policy_dict.has_key("action.target"):
             target=policy_dict["action.target"]
+            vm = validate_target(target)
+            if vm is None:
+                print >> sys.stderr, "Rpc failed (unknown domain specified by policy):", domain, target, service_name
+                text = "Domain '%s' doesn't exist (service %s called by domain %s)." % (
+                        target, service_name, domain)
+                info_dialog("error", text)
+                exit(1)
         if policy_dict.has_key("action.user"):
             user=policy_dict["action.user"]
         else:
