@@ -683,7 +683,7 @@ static void handle_execute_service(void)
     ENSURE_NULL_TERMINATED(untrusted_params.target_domain);
     ENSURE_NULL_TERMINATED(untrusted_params.request_id.ident);
     sanitize_name(untrusted_params.service_name, "+");
-    sanitize_name(untrusted_params.target_domain, "");
+    sanitize_name(untrusted_params.target_domain, ":");
     sanitize_name(untrusted_params.request_id.ident, " ");
     params = untrusted_params;
     /* sanitize end */
