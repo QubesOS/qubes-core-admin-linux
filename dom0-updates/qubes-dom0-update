@@ -144,7 +144,7 @@ if [ "$GUI" != "1" ]; then
 fi
 
 # Do not start VM automaticaly when running from cron (only checking for updates)
-if [ "$CHECK_ONLY" == "1" ] && ! xl domid $UPDATEVM > /dev/null 2>&1; then
+if [ "$CHECK_ONLY" == "1" ] && ! qvm-check -q --running $UPDATEVM > /dev/null 2>&1; then
     echo "ERROR: UpdateVM not running, not starting it in non-interactive mode" >&2
     exit 1
 fi
