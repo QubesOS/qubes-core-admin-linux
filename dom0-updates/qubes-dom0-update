@@ -157,8 +157,7 @@ rm -f /var/lib/qubes/updates/errors
 
 echo "Using $UPDATEVM as UpdateVM to download updates for Dom0; this may take some time..." >&2
 
-# Start VM if not running already
-qvm-start --skip-if-running $UPDATEVM
+# qvm-run by default auto-starts the VM if not running
 qvm-run --nogui -q $UPDATEVM 'rm -rf /var/lib/qubes/dom0-updates/etc' || exit 1
 tar c /var/lib/rpm /etc/yum.repos.d /etc/yum.conf 2>/dev/null | \
    qvm-run --nogui --pass-io "$UPDATEVM" 'LC_MESSAGES=C tar x -C /var/lib/qubes/dom0-updates 2>&1 | grep -v -E "s in the future"'
