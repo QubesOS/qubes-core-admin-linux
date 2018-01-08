@@ -212,6 +212,8 @@ if [ -n "$PKGS" ]; then
 elif [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
     # Above file exists only when at least one package was downloaded
     if [ "$GUI" == "1" ]; then
+        # refresh packagekit metadata, GUI utilities use it
+        pkcon refresh force
         $guiapp
     else
         dnf check-update

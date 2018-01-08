@@ -116,14 +116,6 @@ def handle_dom0updates(updatevm):
     # Clean old cache
     subprocess.call(["sudo", "/usr/bin/yum", "-q", "clean", "all"],
         stdout=sys.stderr)
-    # This will fail because of "smart" detection of no-network,
-    # but it will invalidate the cache
-    try:
-        null = open('/dev/null', 'w')
-        subprocess.call(["/usr/bin/pkcon", "refresh"], stdout=null)
-        null.close()
-    except subprocess.CalledProcessError:
-        pass
     os.umask(old_umask)
     exit(0)
 
