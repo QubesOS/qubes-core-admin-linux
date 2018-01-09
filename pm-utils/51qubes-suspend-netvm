@@ -6,7 +6,7 @@ get_running_netvms() {
     RUNNING_NETVMS=""
     for VM in $RUNNING_VMS; do
         if [ -n "`xl pci-list $VM|tail -n +2`" ]; then
-            echo "$VM"
+            echo "${VM%-dm}"
         fi
     done
 }
