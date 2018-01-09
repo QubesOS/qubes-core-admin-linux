@@ -633,6 +633,7 @@ static void wait_for_vchan_client_with_timeout(libvchan_t *conn, int timeout) {
                     fprintf(stderr, "vchan connection error\n");
                     libvchan_close(conn);
                     do_exit(1);
+                    break;
                 case 0:
                     fprintf(stderr, "vchan connection timeout\n");
                     libvchan_close(conn);
