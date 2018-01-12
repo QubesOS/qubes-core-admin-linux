@@ -113,10 +113,10 @@ if [ "$GUI" == "1" -a -n "$PKGS" ]; then
 fi
 
 if [ "$GUI" == "1" ]; then
-    apps="yumex apper gpk-update-viewer"
+    apps="xterm konsole yumex apper gpk-update-viewer"
 
     if [ -n "$KDE_FULL_SESSION" ]; then
-        apps="apper yumex gpk-update-viewer"
+        apps="konsole xterm apper yumex gpk-update-viewer"
     fi
 
     guiapp=
@@ -125,6 +125,8 @@ if [ "$GUI" == "1" ]; then
             guiapp=$app
             case $guiapp in
                 apper) guiapp="apper --updates --nofork" ;;
+                xterm) guiapp="xterm -e sudo dnf update" ;;
+                konsole) guiapp="konsole --hold -e sudo dnf update" ;;
                 *) guiapp=$app ;;
             esac
             break;
