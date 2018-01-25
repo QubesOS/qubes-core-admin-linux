@@ -24,15 +24,13 @@
 
 %{!?python_sitearch: %define python_sitearch %(%{__python} -c "from distutils.sysconfig import get_python_lib; print get_python_lib(1)")}
 
-%{!?version: %define version %(cat version)}
-
 %define _dracutmoddir	/usr/lib/dracut/modules.d
 %if %{fedora} < 17
 %define _dracutmoddir   /usr/share/dracut/modules.d
 %endif
 
 Name:		qubes-core-dom0-linux
-Version:	%{version}
+Version:	@VERSION@
 Release:	1%{?dist}
 Summary:	Linux-specific files for Qubes dom0
 
@@ -54,7 +52,11 @@ Conflicts:	qubes-core-dom0 < 4.0.23
 Requires:	%{name}-kernel-install
 Requires:	xdotool
 
+Source0: %{name}-%{version}.tar.gz
+
+%if 0%{?qubes_builder}
 %define _builddir %(pwd)
+%endif
 
 %description
 Linux customizations required to use system as Qubes dom0.
@@ -73,11 +75,7 @@ Obsoletes: os-prober
 Kernel install hook for Xen-based system.
 
 %prep
-# we operate on the current directory, so no need to unpack anything
-# symlink is to generate useful debuginfo packages
-rm -f %{name}-%{version}
-ln -sf . %{name}-%{version}
-%setup -T -D
+%setup -q
 
 %build
 (cd dom0-updates; make)

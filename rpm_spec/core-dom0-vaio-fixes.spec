@@ -11,7 +11,9 @@ Vendor:		Invisible Things Lab
 License:	GPL
 URL:		http://www.qubes-os.org
 
+%if 0%{?qubes_builder}
 %define _builddir %(pwd)
+%endif
 
 %description
 Additional scripts for supporting suspend on Vaio Z laptops.
