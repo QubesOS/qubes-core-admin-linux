@@ -54,10 +54,6 @@ Requires:	xdotool
 
 Source0: %{name}-%{version}.tar.gz
 
-%if 0%{?qubes_builder}
-%define _builddir %(pwd)
-%endif
-
 %description
 Linux customizations required to use system as Qubes dom0.
 Additionally some graphical elements for every Linux desktop envirnment (icons,
