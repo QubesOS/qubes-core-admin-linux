@@ -47,6 +47,8 @@ pid_t local_pid = 0;
 int is_service = 0;
 int child_exited = 0;
 
+extern char **environ;
+
 static int handle_agent_handshake(libvchan_t *vchan, int remote_send_first)
 {
     struct msg_header hdr;
@@ -164,9 +166,15 @@ static void sigchld_handler(int x __attribute__((__unused__)))
 }
 
 /* called from do_fork_exec */
-void do_exec(const char *prog)
+_Noreturn void do_exec(char *prog)
 {
+    /* avoid calling qubes-rpc-multiplexer through shell */
+    exec_qubes_rpc_if_requested(prog, environ);
+
+    /* if above haven't executed qubes-rpc-multiplexer, pass it to shell */
     execl("/bin/bash", "bash", "-c", prog, NULL);
+    perror("exec bash");
+    exit(1);
 }
 
 static void do_exit(int code)
