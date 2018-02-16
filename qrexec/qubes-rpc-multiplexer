@@ -8,11 +8,17 @@ rm -f /tmp/qrexec-rpc-stderr.$$
 QUBES_RPC=/etc/qubes-rpc
 LOCAL_QUBES_RPC=/usr/local/etc/qubes-rpc
 
-if ! [ $# = 2 -o $# == 3 ] ; then
-	echo "$0: bad argument count, usage: $0 SERVICE-NAME REMOTE-DOMAIN-NAME [REQUESTED_TARGET]" >&2
+if ! [ $# = 2 -o $# = 4 ] ; then
+	echo "$0: bad argument count, usage: $0 SERVICE-NAME REMOTE-DOMAIN-NAME [REQUESTED_TARGET_TYPE REQUESTED_TARGET]" >&2
 	exit 1
 fi
-export QREXEC_REQUESTED_TARGET="$3"
+export QREXEC_REQUESTED_TARGET_TYPE="$3"
+if [ "$QREXEC_REQUESTED_TARGET_TYPE" = "name" ]; then
+    export QREXEC_REQUESTED_TARGET="$4"
+elif [ "$QREXEC_REQUESTED_TARGET_TYPE" = "keyword" ]; then
+    export QREXEC_REQUESTED_TARGET_KEYWORD="$4"
+fi
+# else: requested target type unknown or not given, ignore
 export QREXEC_REMOTE_DOMAIN="$2"
 export QREXEC_SERVICE_FULL_NAME="$1"
 SERVICE_WITHOUT_ARGUMENT="${1%%+*}"
