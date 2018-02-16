@@ -650,8 +650,7 @@ static void sanitize_name(char * untrusted_s_signed, char *extra_allowed_chars)
             continue;
         if (*untrusted_s >= '0' && *untrusted_s <= '9')
             continue;
-        if (*untrusted_s == '$' ||
-               *untrusted_s == '_' ||
+        if (*untrusted_s == '_' ||
                *untrusted_s == '-' ||
                *untrusted_s == '.')
             continue;
@@ -683,7 +682,7 @@ static void handle_execute_service(void)
     ENSURE_NULL_TERMINATED(untrusted_params.target_domain);
     ENSURE_NULL_TERMINATED(untrusted_params.request_id.ident);
     sanitize_name(untrusted_params.service_name, "+");
-    sanitize_name(untrusted_params.target_domain, ":");
+    sanitize_name(untrusted_params.target_domain, "@:");
     sanitize_name(untrusted_params.request_id.ident, " ");
     params = untrusted_params;
     /* sanitize end */
