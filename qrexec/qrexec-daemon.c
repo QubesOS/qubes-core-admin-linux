@@ -632,6 +632,10 @@ static void sanitize_name(char * untrusted_s_signed, char *extra_allowed_chars)
             continue;
         if (*untrusted_s >= '0' && *untrusted_s <= '9')
             continue;
+        if (*untrusted_s == '$' && strchr(extra_allowed_chars, '@')) {
+            *untrusted_s = '@';
+            continue;
+        }
         if (*untrusted_s == '_' ||
                *untrusted_s == '-' ||
                *untrusted_s == '.')
