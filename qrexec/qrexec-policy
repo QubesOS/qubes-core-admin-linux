@@ -119,7 +119,7 @@ def do_execute(domain, target, user, service_name, process_ident, vm=None):
         if isinstance(vm, qubes.qubes.QubesVm):
             spawn_target_if_necessary(vm)
         if target == "dom0":
-            cmd = QUBES_RPC_MULTIPLEXER_PATH + " " + service_name + " " + domain
+            cmd = "QUBESRPC " + service_name + " " + domain
         else:
             cmd = user + ":QUBESRPC "+ service_name + " " + domain
         # stderr should be logged in source/target VM
