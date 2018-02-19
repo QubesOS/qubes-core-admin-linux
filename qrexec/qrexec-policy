@@ -63,6 +63,7 @@ def read_policy_file(service_name):
     f = open(policy_file)
     fcntl.flock(f, fcntl.LOCK_SH)
     for iter in f.readlines():
+        iter = iter.replace('$', '@')
         dict = line_to_dict(iter)
         if dict is not None:
             policy_list.append(dict)
@@ -70,7 +71,7 @@ def read_policy_file(service_name):
     return policy_list
 
 def is_match(item, config_term):
-    return (item != "dom0" and config_term == "$anyvm") or item == config_term
+    return (item != "dom0" and config_term == "@anyvm") or item == config_term
 
 def get_default_policy():
     dict={}
@@ -89,7 +90,7 @@ def find_policy(policy, domain, target):
 
 def validate_target(target):
     # special targets
-    if target in ['$dispvm']:
+    if target in ['@dispvm']:
         return True
 
     qc = QubesVmCollection()
@@ -110,7 +111,7 @@ def spawn_target_if_necessary(vm):
     null.close()
 
 def do_execute(domain, target, user, service_name, process_ident, vm=None):
-    if target == "$dispvm":
+    if target == "@dispvm":
         cmd = "/usr/lib/qubes/qfile-daemon-dvm " + service_name + " " + domain + " " +user
         os.execl(QREXEC_CLIENT, "qrexec-client",
                 "-d", "dom0", "-c", process_ident, cmd)
@@ -179,11 +180,11 @@ def create_policy(service_name):
     policyFile = "/etc/qubes-rpc/policy/"+service_name
     policy = open(policyFile, "w")
     policy.write("## Note that policy parsing stops at the first match,\n")
-    policy.write("## so adding anything below \"$anyvm $anyvm action\" line will have no effect\n")
+    policy.write("## so adding anything below \"@anyvm @anyvm action\" line will have no effect\n")
     policy.write("\n")
     policy.write("## Please use a single # to start your custom comments\n")
     policy.write("\n")
-    policy.write("$anyvm  $anyvm  ask\n")
+    policy.write("@anyvm  @anyvm  ask\n")
     policy.close()
 
 def main():
