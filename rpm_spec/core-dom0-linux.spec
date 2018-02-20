@@ -49,6 +49,8 @@ Requires:	qubes-core-dom0
 Requires:	python3-qubesadmin
 Requires:	qubes-core-admin-client
 Requires:	qubes-utils >= 3.1.3
+Requires:	qubes-utils-libs >= 4.0.16
+Conflicts:	qubes-core-dom0 < 4.0.23
 Requires:	%{name}-kernel-install
 Requires:	xdotool
 
