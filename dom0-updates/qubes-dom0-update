@@ -134,7 +134,7 @@ if [ "$GUI" == "1" ]; then
     done
 
     if [ -z "$guiapp" ]; then
-        message1="You don't have installed any supported yum frontend."
+        message1="You don't have any supported yum frontend installed."
         message2="Install (using qubes-dom0-update) one of: $apps"
 
         if [ "$KDE_FULL_SESSION" ]; then
@@ -151,7 +151,7 @@ if [ "$GUI" != "1" ]; then
     QVMRUN_OPTS=--nogui
 fi
 
-# Do not start VM automaticaly when running from cron (only checking for updates)
+# Do not start VM automatically when running from cron (only checking for updates)
 if [ "$CHECK_ONLY" == "1" ] && ! qvm-check -q --running $UPDATEVM > /dev/null 2>&1; then
     echo "ERROR: UpdateVM not running, not starting it in non-interactive mode" >&2
     exit 1
@@ -226,5 +226,5 @@ elif [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
     dnf -q check-update && rm -f $UPDATES_STAT_FILE
 else
     rm -f $UPDATES_STAT_FILE
-    echo "No updates avaliable" >&2
+    echo "No updates available" >&2
 fi
