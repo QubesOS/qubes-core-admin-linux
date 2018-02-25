@@ -163,7 +163,7 @@ echo "Using $UPDATEVM as UpdateVM to download updates for Dom0; this may take so
 
 # Start VM if not running already
 qvm-run $QVMRUN_OPTS -a $UPDATEVM true || exit 1
-qvm-run -u root  $UPDATEVM 'mkdir -m 775 /var/lib/qubes/dom0-updates/' || exit 1
+qvm-run -u root  $UPDATEVM 'mkdir -m 775 -p /var/lib/qubes/dom0-updates/' || exit 1
 qvm-run -u root  $UPDATEVM 'chown user:user /var/lib/qubes/dom0-updates/' || exit 1
 qvm-run  $UPDATEVM 'rm -rf /var/lib/qubes/dom0-updates/etc' || exit 1
 tar c /var/lib/rpm /etc/yum.repos.d /etc/yum.conf 2>/dev/null | \
