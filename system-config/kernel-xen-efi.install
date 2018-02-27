@@ -77,7 +77,11 @@ case "$COMMAND" in
         fi
 
         cp "/boot/vmlinuz-$KVER" "$EFI_DIR/"
-        dracut -f "$EFI_DIR/initramfs-${KVER}.img" "$KVER"
+        if [ -e "/boot/initramfs-${KVER}.img" ]; then
+            cp -f "/boot/initramfs-${KVER}.img" "$EFI_DIR/"
+        else
+            dracut -f "$EFI_DIR/initramfs-${KVER}.img" "$KVER"
+        fi
         ;;
     remove)
         # don't care about changing default= line - yum should prevent removing
