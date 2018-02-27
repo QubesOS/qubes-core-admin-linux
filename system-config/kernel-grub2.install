@@ -2,10 +2,17 @@
 
 COMMAND="$1"
 KVER="$2"
+BOOT_DIR_ABS="$3"
 
 case "$COMMAND" in
     add)
-        dracut -f "/boot/initramfs-${KVER}.img" "$KVER"
+        if [ ! -e "/boot/initramfs-${KVER}.img" ]; then
+            if [ -e "$BOOT_DIR_ABS"/initrd ]; then
+                cp "$BOOT_DIR_ABS"/initrd "/boot/initramfs-${KVER}.img"
+            else
+                dracut "/boot/initramfs-${KVER}.img" "$KVER"
+            fi
+        fi
         ;;
     remove)
         rm -f "/boot/initramfs-${KVER}.img"
