@@ -16,6 +16,7 @@ enable lvm2-monitor.*
 enable lvm2-lvmetad.*
 enable dm-event.*
 enable dmraid-activation.service
+enable fstrim.timer
 
 
 enable abrtd.service
