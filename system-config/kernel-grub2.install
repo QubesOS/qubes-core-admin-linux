@@ -6,12 +6,12 @@ BOOT_DIR_ABS="$3"
 
 case "$COMMAND" in
     add)
+        # use newer image if available
+        if [ -e "$BOOT_DIR_ABS"/initrd ]; then
+            cp -u "$BOOT_DIR_ABS"/initrd "/boot/initramfs-${KVER}.img"
+        fi
         if [ ! -e "/boot/initramfs-${KVER}.img" ]; then
-            if [ -e "$BOOT_DIR_ABS"/initrd ]; then
-                cp "$BOOT_DIR_ABS"/initrd "/boot/initramfs-${KVER}.img"
-            else
-                dracut "/boot/initramfs-${KVER}.img" "$KVER"
-            fi
+            dracut "/boot/initramfs-${KVER}.img" "$KVER"
         fi
         ;;
     remove)
