@@ -238,3 +238,4 @@ chmod -x /etc/grub.d/10_linux
 /usr/lib/kernel/install.d/99-remove-bls.install
 
 %changelog
+@CHANGELOG@
