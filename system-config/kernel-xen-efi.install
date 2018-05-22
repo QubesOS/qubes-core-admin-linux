@@ -105,5 +105,6 @@ case "$COMMAND" in
             mv $EFI_DIR/xen.cfg.new $EFI_DIR/xen.cfg
         fi
         rm -f "$EFI_DIR/initramfs-${KVER}.img"
+        rm -f "$EFI_DIR/vmlinuz-${KVER}"
         ;;
 esac
