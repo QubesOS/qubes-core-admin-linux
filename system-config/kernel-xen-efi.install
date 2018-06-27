@@ -9,7 +9,7 @@ ESP_MOUNTPOINT=/boot/efi
 
 EFI_DIR=$(efibootmgr -v 2>/dev/null | awk '
         /^BootCurrent:/ { current=$2; }
-        /^Boot....\* / { 
+        /^Boot....\* .*xen\.efi/ { 
             if ("Boot" current "*" == $1) {
                 sub(".*File\\(", "");
                 sub("\\\\xen.efi\\).*", "");
