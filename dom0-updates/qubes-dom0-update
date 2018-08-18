@@ -13,10 +13,10 @@ if [ "$1" = "--help" ]; then
     echo "it checks for updates for installed packages"
     echo ""
     echo "Usage: $0 [--clean] [--check-only] [--gui] [<pkg list>]"
-    echo "    --clean      clean yum cache before doing anything"
+    echo "    --clean      clean dnf cache before doing anything"
     echo "    --check-only only check for updates (no install)"
     echo "    --gui        use gpk-update-viewer for update selection"
-    echo "    --action=... use specific yum action, instead of automatic install/update"
+    echo "    --action=... use specific dnf action, instead of automatic install/update"
     echo "    <pkg list>   download (and install if run by root) new packages"
     echo "                 in dom0 instead of updating"
     exit
@@ -32,7 +32,7 @@ QVMRUN_OPTS=
 CLEAN=
 TEMPLATE=
 TEMPLATE_BACKUP=
-# Filter out some yum options and collect packages list
+# Filter out some dnf options and collect packages list
 while [ $# -gt 0 ]; do
     case "$1" in
         --enablerepo=*|\
@@ -134,7 +134,7 @@ if [ "$GUI" == "1" ]; then
     done
 
     if [ -z "$guiapp" ]; then
-        message1="You don't have any supported yum frontend installed."
+        message1="You don't have any supported dnf frontend installed."
         message2="Install (using qubes-dom0-update) one of: $apps"
 
         if [ "$KDE_FULL_SESSION" ]; then
@@ -185,7 +185,7 @@ while pidof -x qubes-receive-updates >/dev/null; do sleep 0.5; done
 if [ -r /var/lib/qubes/updates/errors ]; then
     echo "*** ERROR while receiving updates:" >&2
     cat /var/lib/qubes/updates/errors >&2
-    echo "--> if you want to use packages that were downloaded correctly, use yum directly now" >&2
+    echo "--> if you want to use packages that were downloaded correctly, use dnf directly now" >&2
     exit 1
 fi
 
@@ -221,7 +221,7 @@ elif [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
         $guiapp
     else
         dnf check-update
-        if [ $? -eq 100 ]; then # Run yum with options
+        if [ $? -eq 100 ]; then # Run dnf with options
             dnf $YUM_OPTS $YUM_ACTION
         fi
     fi
