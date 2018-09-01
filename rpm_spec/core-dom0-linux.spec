@@ -45,6 +45,7 @@ BuildRequires:  ImageMagick
 BuildRequires:  pandoc
 BuildRequires:  qubes-utils-devel >= 3.1.3
 BuildRequires:  qubes-libvchan-devel
+BuildRequires:  python
 Requires:	qubes-core-dom0
 Requires:	qubes-utils >= 3.1.3
 Requires:	qubes-utils-libs >= 3.2.7
