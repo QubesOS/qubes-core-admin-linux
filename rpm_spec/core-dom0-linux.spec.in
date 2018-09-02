@@ -48,6 +48,7 @@ Requires:	qubes-utils-libs >= 4.0.16
 Conflicts:	qubes-core-dom0 < 4.0.23
 Requires:	%{name}-kernel-install
 Requires:	xdotool
+Requires:	createrepo_c
 
 Source0: %{name}-%{version}.tar.gz
 
