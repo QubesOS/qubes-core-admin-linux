@@ -230,6 +230,6 @@ else
     rm -f $UPDATES_STAT_FILE
     echo "No updates available" >&2
     if [ "$GUI" == "1" ]; then
-        zenity --title='Dom0 updates' --text='No updates available'
+        zenity --info --title='Dom0 updates' --text='No updates available'
     fi
 fi
