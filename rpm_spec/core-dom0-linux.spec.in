@@ -72,6 +72,7 @@ Kernel install hook for Xen-based system.
 %setup -q
 
 %build
+export BACKEND_VMM=@BACKEND_VMM@
 (cd dom0-updates; make)
 (cd qrexec; make)
 (cd file-copy-vm; make)
