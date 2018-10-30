@@ -95,6 +95,8 @@ if [ "$YUM_ACTION" == "reinstall" ] || [ "$YUM_ACTION" == "upgrade" ] || [ "$YUM
         echo "ERROR: Specify only one package to reinstall template"
         exit 1
     fi
+elif [ "$YUM_ACTION" == "search" ] || [ "$YUM_ACTION" == "info" ]; then # No need to shutdown for search/info
+    TEMPLATE_EXCLUDE_OPTS=""
 else
     TEMPLATE_EXCLUDE_OPTS="--exclude=`rpm -qa --qf '%{NAME},' qubes-template-\*`"
 fi
