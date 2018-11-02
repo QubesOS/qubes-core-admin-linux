@@ -227,9 +227,9 @@ elif [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
             dnf $YUM_OPTS $YUM_ACTION
         fi
     fi
-    dnf -q check-update && rm -f $UPDATES_STAT_FILE
+    dnf -q check-update && qvm-features dom0 updates-available ''
 else
-    rm -f $UPDATES_STAT_FILE
+    qvm-features dom0 updates-available ''
     echo "No updates available" >&2
     if [ "$GUI" == "1" ]; then
         zenity --info --title='Dom0 updates' --text='No updates available'

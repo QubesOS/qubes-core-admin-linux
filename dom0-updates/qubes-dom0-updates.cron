@@ -1,7 +1,5 @@
 #!/bin/bash
 
-NOTIFY_ICON=/usr/share/qubes/icons/dom0-update-avail.svg
-UPDATES_STAT_FILE=/var/lib/qubes/updates/dom0-updates-available
 UPDATES_DISABLE_FLAG=/var/lib/qubes/updates/disable-updates
 
 if [ -f "$UPDATES_DISABLE_FLAG" ]; then
@@ -17,7 +15,4 @@ if [ "$RETCODE" -ne 100 ]; then
     exit $RETCODE
 fi
 
-# Touch stat file for qubes-manager
-touch "$UPDATES_STAT_FILE"
-chgrp qubes "$UPDATES_STAT_FILE"
-chmod g+w "$UPDATES_STAT_FILE"
+qvm-features dom0 updates-available 1
