@@ -1,8 +1,6 @@
 #!/bin/bash
 
-UPDATES_DISABLE_FLAG=/var/lib/qubes/updates/disable-updates
-
-if [ -f "$UPDATES_DISABLE_FLAG" ]; then
+if [ "$(qvm-features dom0 service.qubes-update-check || echo 1)" != 1 ]; then
     exit 0
 fi
 

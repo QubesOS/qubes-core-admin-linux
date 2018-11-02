@@ -165,6 +165,14 @@ fi
 
 systemctl enable qubes-suspend.service >/dev/null 2>&1
 
+# migrate dom0-updates check disable flag
+if [ $1 -ge 2 ]; then
+    if [ -e /var/lib/qubes/updates/disable-updates ]; then
+        qvm-features dom0 service.qubes-update-check ''
+        rm -f /var/lib/qubes/updates/disable-updates
+    fi
+fi
+
 %preun
 if [ "$1" = 0 ] ; then
 	# no more packages left
