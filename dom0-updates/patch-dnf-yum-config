@@ -73,8 +73,7 @@ EOF
 if [ -e /etc/dnf/dnf.conf ]; then
     update_conf /etc/dnf/dnf.conf "
 reposdir=/etc/yum.real.repos.d
-installonlypkgs = kernel, kernel-qubes-vm
-distroverpkg = qubes-release"
+installonlypkgs = kernel, kernel-qubes-vm"
 fi
 
 if [ -e /etc/yum.conf ]; then
