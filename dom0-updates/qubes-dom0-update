@@ -98,7 +98,7 @@ if [ "$YUM_ACTION" == "reinstall" ] || [ "$YUM_ACTION" == "upgrade" ] || [ "$YUM
 elif [ "$YUM_ACTION" == "search" ] || [ "$YUM_ACTION" == "info" ]; then # No need to shutdown for search/info
     TEMPLATE_EXCLUDE_OPTS=""
 else
-    TEMPLATE_EXCLUDE_OPTS="--exclude=`rpm -qa --qf '%{NAME},' qubes-template-\*`"
+    TEMPLATE_EXCLUDE_OPTS="--exclude=`rpm -qa --qf '%{NAME},' qubes-template-\*|head -c -1`"
 fi
 YUM_OPTS="$TEMPLATE_EXCLUDE_OPTS $YUM_OPTS"
 ALL_OPTS="$TEMPLATE_EXCLUDE_OPTS $ALL_OPTS"
