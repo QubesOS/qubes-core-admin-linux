@@ -13,7 +13,7 @@ base = dnf.Base()
 
 base.read_all_repos()
 
-reponame = sys.stdin.readline()
+reponame = sys.argv[1]
 repo = base.repos[reponame]
 
 # Loosely based on write_raw_configfile() from DNF source code,
