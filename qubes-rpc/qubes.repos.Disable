@@ -4,6 +4,7 @@
 
 import dnf
 import iniparse
+import os
 import sys
 
 base = dnf.Base()
@@ -20,5 +21,7 @@ with open(repo.repofile) as fp:
 
 ini[reponame]['enabled'] = 0
 
-with open(repo.repofile, 'w') as fp:
+with open(repo.repofile + '.new', 'w') as fp:
     fp.write(str(ini))
+
+os.rename(repo.repofile + '.new', repo.repofile)
