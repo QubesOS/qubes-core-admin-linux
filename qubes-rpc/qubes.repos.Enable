@@ -7,6 +7,8 @@ import iniparse
 import os
 import sys
 
+os.umask(0o022)
+
 base = dnf.Base()
 
 base.read_all_repos()
