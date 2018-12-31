@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
-# Empty output indicates success; any input indicates error (probably an exception)
+# `ok` on stdout indicates success; any stderr output indicates an error
+# (probably an exception)
 
 import dnf
 import iniparse
@@ -16,8 +17,8 @@ base.read_all_repos()
 reponame = sys.argv[1]
 repo = base.repos[reponame]
 
-# Loosely based on write_raw_configfile() from DNF source code,
-# because that method was introduced in DNF 2.0 but Qubes dom0 has DNF 1.x.
+# Loosely based on write_raw_configfile() from DNF source code, because
+# that method was introduced in DNF 2.0 but Qubes dom0 has DNF 1.x.
 with open(repo.repofile) as fp:
     ini = iniparse.INIConfig(fp)
 
@@ -27,3 +28,5 @@ with open(repo.repofile + '.new', 'w') as fp:
     fp.write(str(ini))
 
 os.rename(repo.repofile + '.new', repo.repofile)
+
+print('ok')
