@@ -84,7 +84,7 @@ if [ "$YUM_ACTION" == "reinstall" ] || [ "$YUM_ACTION" == "upgrade" ] || [ "$YUM
         UPDATEVM_TEMPLATE=$(qvm-prefs -- "$UPDATEVM" template 2>/dev/null)
         if [ X"$UPDATEVM_TEMPLATE" = X"$TEMPLATE" ]; then
             TEMPLATE_BACKUP="${TEMPLATE}-backup-$(date +%Y%m%d)-$(mktemp -u XXXX)"
-            TEMPLATE_BACKUP=${TEMPLATE_BACKUP:0:32}
+            TEMPLATE_BACKUP=${TEMPLATE_BACKUP:0:31}
             echo "Attempting to operate on template of UpdateVM... backing up $TEMPLATE to $TEMPLATE_BACKUP"
             if ! qvm-clone -- "$TEMPLATE" "$TEMPLATE_BACKUP"; then
                 echo "ERROR: Unable to make backup of UpdateVM template!" >&2
