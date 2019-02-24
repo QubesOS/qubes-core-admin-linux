@@ -3,10 +3,10 @@
 case "$1" in
     suspend|hibernate)
         qubesd-query -e --fail -c /var/run/qubesd.internal.sock \
-            dom0 internal.SuspendPre dom0
+            dom0 internal.SuspendPre dom0 | tr '\0' ' '
         ;;
     resume|thaw)
         qubesd-query -e --fail -c /var/run/qubesd.internal.sock \
-            dom0 internal.SuspendPost dom0
+            dom0 internal.SuspendPost dom0 | tr '\0' ' '
         ;;
 esac
