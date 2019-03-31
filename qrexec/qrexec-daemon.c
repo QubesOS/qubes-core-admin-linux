@@ -186,6 +186,7 @@ int handle_agent_hello(libvchan_t *ctrl, const char *domain_name)
 {
     struct msg_header hdr;
     struct peer_info info;
+    int actual_version;
 
     if (libvchan_recv(ctrl, &hdr, sizeof(hdr)) != sizeof(hdr)) {
         fprintf(stderr, "Failed to read agent HELLO hdr\n");
@@ -202,7 +203,9 @@ int handle_agent_hello(libvchan_t *ctrl, const char *domain_name)
         return -1;
     }
 
-    if (info.version != QREXEC_PROTOCOL_VERSION) {
+    actual_version = info.version < QREXEC_PROTOCOL_VERSION ? info.version : QREXEC_PROTOCOL_VERSION;
+
+    if (actual_version != QREXEC_PROTOCOL_VERSION) {
         fprintf(stderr, "Incompatible agent protocol version (remote %d, local %d)\n", info.version, QREXEC_PROTOCOL_VERSION);
         incompatible_protocol_error_message(domain_name, info.version);
         return -1;
