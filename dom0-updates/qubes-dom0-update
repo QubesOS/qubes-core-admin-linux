@@ -171,7 +171,7 @@ echo "Using $UPDATEVM as UpdateVM to download updates for Dom0; this may take so
 qvm-run --nogui -q -u root $UPDATEVM 'mkdir -m 775 -p /var/lib/qubes/dom0-updates/' || exit 1
 qvm-run --nogui -q -u root $UPDATEVM 'chown user:user /var/lib/qubes/dom0-updates/' || exit 1
 qvm-run --nogui -q $UPDATEVM 'rm -rf /var/lib/qubes/dom0-updates/etc' || exit 1
-tar c /var/lib/rpm /etc/yum.repos.d /etc/yum.conf 2>/dev/null | \
+tar c /var/lib/rpm /etc/yum.repos.d /etc/yum.conf /etc/dnf/dnf.conf 2>/dev/null | \
    qvm-run --nogui -q --pass-io "$UPDATEVM" 'LC_MESSAGES=C tar x -C /var/lib/qubes/dom0-updates 2>&1 | grep -v -E "s in the future"'
 
 qvm-run $QVMRUN_OPTS --pass-io $UPDATEVM "script --quiet --return --command '/usr/lib/qubes/qubes-download-dom0-updates.sh --doit --nogui $ALL_OPTS' /dev/null"
