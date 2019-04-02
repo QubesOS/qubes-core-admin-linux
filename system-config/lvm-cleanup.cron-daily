@@ -1,0 +1,3 @@
+#!/bin/sh
+
+find /etc/lvm/archive/ -type f -mtime +1 -name '*.vg' -delete

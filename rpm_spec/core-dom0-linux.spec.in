@@ -127,6 +127,7 @@ install -m 0440 -D system-config/qubes.sudoers $RPM_BUILD_ROOT/etc/sudoers.d/qub
 install -D system-config/polkit-1-qubes-allow-all.rules $RPM_BUILD_ROOT/etc/polkit-1/rules.d/00-qubes-allow-all.rules
 install -D system-config/qubes-dom0.modules $RPM_BUILD_ROOT/etc/sysconfig/modules/qubes-dom0.modules
 install -D system-config/qubes-sync-clock.cron $RPM_BUILD_ROOT/etc/cron.d/qubes-sync-clock.cron
+install -D system-config/lvm-cleanup.cron-daily $RPM_BUILD_ROOT/etc/cron.daily/lvm-cleanup
 install -d $RPM_BUILD_ROOT/etc/udev/rules.d
 install -m 644 system-config/00-qubes-ignore-devices.rules $RPM_BUILD_ROOT/etc/udev/rules.d/
 install -m 644 system-config/12-qubes-ignore-lvm-devices.rules $RPM_BUILD_ROOT/etc/udev/rules.d/
@@ -237,6 +238,7 @@ chmod -x /etc/grub.d/10_linux
 %config /etc/udev/rules.d/00-qubes-ignore-devices.rules
 %config /etc/udev/rules.d/12-qubes-ignore-lvm-devices.rules
 %attr(0644,root,root) /etc/cron.d/qubes-sync-clock.cron
+/etc/cron.daily/lvm-cleanup
 %config(noreplace) /etc/profile.d/zz-disable-lesspipe.sh
 %config(noreplace) /etc/dnf/protected.d/qubes-core-dom0.conf
 /usr/lib/systemd/system-preset/75-qubes-dom0.preset
