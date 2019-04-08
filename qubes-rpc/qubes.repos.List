@@ -1,5 +1,8 @@
 #!/usr/bin/python3
 
+# Records in the output are separated by newlines; fields are separated by \0
+# Each record is unique_id:pretty_name:enabled
+
 import dnf
 
 base = dnf.Base()
