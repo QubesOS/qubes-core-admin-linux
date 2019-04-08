@@ -6,6 +6,9 @@ base = dnf.Base()
 
 base.read_all_repos()
 
+first = True
 for repo in base.repos.all():
     l = [repo.id, repo.name, 'enabled' if repo.enabled else 'disabled']
-    print('\0'.join(l))
+    if not first: print()
+    first = False
+    print('\0'.join(l), end='')
