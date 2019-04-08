@@ -39,10 +39,10 @@ URL:		http://www.qubes-os.org
 BuildRequires:  ImageMagick
 BuildRequires:  pandoc
 BuildRequires:  qubes-utils-devel >= 3.1.3
-BuildRequires:  qubes-libvchan-devel
 BuildRequires:  gcc
 Requires:	qubes-core-dom0
 Requires:	python3-qubesadmin
+Requires:	qubes-core-qrexec-dom0
 Requires:	qubes-core-admin-client
 Requires:	qubes-utils >= 3.1.3
 Requires:	qubes-utils-libs >= 4.0.16
@@ -75,7 +75,6 @@ Kernel install hook for Xen-based system.
 %build
 export BACKEND_VMM=@BACKEND_VMM@
 (cd dom0-updates; make)
-(cd qrexec; make)
 (cd file-copy-vm; make)
 (cd doc; make manpages)
 
@@ -96,15 +95,6 @@ install -m 0644 -D dom0-updates/qubes.ReceiveUpdates $RPM_BUILD_ROOT/etc/qubes-r
 install -m 0664 -D dom0-updates/qubes.ReceiveUpdates.policy $RPM_BUILD_ROOT/etc/qubes-rpc/policy/qubes.ReceiveUpdates
 
 install -d $RPM_BUILD_ROOT/var/lib/qubes/updates
-
-# Qrexec
-mkdir -p $RPM_BUILD_ROOT/usr/bin $RPM_BUILD_ROOT/usr/sbin
-install qrexec/qrexec-daemon $RPM_BUILD_ROOT/usr/sbin/
-install qrexec/qrexec-client $RPM_BUILD_ROOT/usr/bin/
-# XXX: Backward compatibility
-ln -s ../../bin/qrexec-client $RPM_BUILD_ROOT/usr/lib/qubes/qrexec-client
-ln -s ../../sbin/qrexec-daemon $RPM_BUILD_ROOT/usr/lib/qubes/qrexec-daemon
-cp qrexec/qubes-rpc-multiplexer $RPM_BUILD_ROOT/usr/lib/qubes
 
 ### pm-utils
 mkdir -p $RPM_BUILD_ROOT/usr/lib64/pm-utils/sleep.d
@@ -213,13 +203,6 @@ chmod -x /etc/grub.d/10_linux
 %{_dracutmoddir}/90qubes-pciback/*
 %dir %{_dracutmoddir}/90extra-modules
 %{_dracutmoddir}/90extra-modules/*
-# Qrexec
-/usr/sbin/qrexec-daemon
-/usr/bin/qrexec-client
-/usr/lib/qubes/qubes-rpc-multiplexer
-# compat symlinks
-/usr/lib/qubes/qrexec-client
-/usr/lib/qubes/qrexec-daemon
 # file copy
 /usr/bin/qvm-copy-to-vm
 /usr/bin/qvm-move-to-vm
