@@ -96,6 +96,12 @@ install -m 0664 -D dom0-updates/qubes.ReceiveUpdates.policy $RPM_BUILD_ROOT/etc/
 
 install -d $RPM_BUILD_ROOT/var/lib/qubes/updates
 
+# Qrexec services
+mkdir -p $RPM_BUILD_ROOT/usr/lib/qubes/qubes-rpc $RPM_BUILD_ROOT/etc/qubes-rpc/policy
+cp qubes-rpc/* $RPM_BUILD_ROOT/usr/lib/qubes/qubes-rpc/
+for i in qubes-rpc/*; do ln -s ../../usr/lib/qubes/$i $RPM_BUILD_ROOT/etc/qubes-rpc/$(basename $i); done
+cp qubes-rpc-policy/* $RPM_BUILD_ROOT/etc/qubes-rpc/policy/
+
 ### pm-utils
 mkdir -p $RPM_BUILD_ROOT/usr/lib64/pm-utils/sleep.d
 cp pm-utils/52qubes-pause-vms $RPM_BUILD_ROOT/usr/lib64/pm-utils/sleep.d/
@@ -197,6 +203,12 @@ chmod -x /etc/grub.d/10_linux
 /etc/qubes-rpc/qubes.ReceiveUpdates
 %attr(0664,root,qubes) %config(noreplace) /etc/qubes-rpc/policy/qubes.ReceiveUpdates
 %attr(0770,root,qubes) %dir /var/lib/qubes/updates
+# Qrexec services
+/etc/qubes-rpc/qubes.repos.*
+/usr/lib/qubes/qubes-rpc/qubes.repos.*
+%attr(0664,root,qubes) %config(noreplace) /etc/qubes-rpc/policy/qubes.repos.List
+%attr(0664,root,qubes) %config(noreplace) /etc/qubes-rpc/policy/qubes.repos.Enable
+%attr(0664,root,qubes) %config(noreplace) /etc/qubes-rpc/policy/qubes.repos.Disable
 # Dracut module
 /etc/dracut.conf.d/*
 %dir %{_dracutmoddir}/90qubes-pciback

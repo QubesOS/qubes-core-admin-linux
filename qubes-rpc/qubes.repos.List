@@ -1,0 +1,17 @@
+#!/usr/bin/python3
+
+# Records in the output are separated by newlines; fields are separated by \0
+# Each record is unique_id:pretty_name:enabled
+
+import dnf
+
+base = dnf.Base()
+
+base.read_all_repos()
+
+first = True
+for repo in base.repos.all():
+    l = [repo.id, repo.name, 'enabled' if repo.enabled else 'disabled']
+    if not first: print()
+    first = False
+    print('\0'.join(l), end='')
