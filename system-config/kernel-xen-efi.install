@@ -24,7 +24,7 @@ else
     EFI_DIR="$ESP_MOUNTPOINT$EFI_DIR"
 fi
 
-if [ ! -d "$EFI_DIR" ]; then
+if [ ! -r "$EFI_DIR/xen.cfg" ]; then
     # non-EFI system
     exit 0;
 fi
