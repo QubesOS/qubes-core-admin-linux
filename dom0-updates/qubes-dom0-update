@@ -1,5 +1,28 @@
 #!/bin/bash
 
+quote_args() {
+    local quoted_args=""
+
+    for arg in "${@}"; do
+        quoted_args="${quoted_args} \"${arg}\""
+    done
+
+    echo "${quoted_args}"
+}
+
+find_regex_in_args() {
+    local regex="${1}"
+    shift 1
+
+    for arg in "${@}"; do
+        if echo "${arg}" | grep -q -e "${regex}"; then
+            return 0
+        fi
+    done
+
+    return 1
+}
+
 UPDATEVM=`qubes-prefs --force-root updatevm`
 UPDATES_STAT_FILE=/var/lib/qubes/updates/dom0-updates-available
 
@@ -22,11 +45,11 @@ if [ "$1" = "--help" ]; then
     exit
 fi
 
-PKGS=
-YUM_OPTS=
+PKGS=()
+YUM_OPTS=()
 GUI=
 CHECK_ONLY=
-ALL_OPTS="$*"
+ALL_OPTS=( "${@}" )
 YUM_ACTION=
 QVMRUN_OPTS=
 CLEAN=
@@ -51,10 +74,10 @@ while [ $# -gt 0 ]; do
             YUM_ACTION=${1#--action=}
             ;;
         -*)
-            YUM_OPTS="$YUM_OPTS $1"
+            YUM_OPTS+=( "${1}" )
             ;;
         *)
-            PKGS="$PKGS $1"
+            PKGS+=( "${1}" )
             if [ -z "$YUM_ACTION" ]; then
                 YUM_ACTION=install
             fi
@@ -66,13 +89,16 @@ done
 # Prevent implicit update of template - this would override user changes -
 # but do allow explicit template upgrade, downgrade, reinstall
 if [ "$YUM_ACTION" == "reinstall" ] || [ "$YUM_ACTION" == "upgrade" ] || [ "$YUM_ACTION" == "upgrade-to" ] \
-|| [ "$YUM_ACTION" == "downgrade" ] && [[ "$PKGS" == *"qubes-template-"* ]]; then
-    TEMPLATE_EXCLUDE_OPTS=""
+|| [ "$YUM_ACTION" == "downgrade" ] && find_regex_in_args '^qubes-template-' "${PKGS[@]}"; then
+    TEMPLATE_EXCLUDE_OPTS=()
     echo "WARNING: Replacing a template will erase all files in template's /home and /rw !"
 
-    ONEPKG=`cut -f 1 -d ' ' <<<$PKGS`
-    if [[ "$ONEPKG" == "qubes-template-"* ]] && [[ "$ONEPKG" == "${PKGS#\ }" ]]; then # test "$PKGS" minus space
-        ONEPKG=`sed -r 's/-[0-9]+(\.[0-9-]+)+(\.noarch)*$//' <<<$ONEPKG` # Remove version suffix
+    # At least one package name matches the regex '^qubes-template-',
+    # so if there is only one package name in the array, then the
+    # code can safely assume that the array includes only a template
+    # package name.
+    if [[ ${#PKGS[@]} -eq 1 ]]; then
+        ONEPKG="$(echo "${PKGS[0]}" | sed -r 's/-[0-9]+(\.[0-9-]+)+(\.noarch)*$//')" # Remove version suffix
         TEMPLATE=${ONEPKG#qubes-template-} # Remove prefix
 
         if qvm-shutdown --wait $TEMPLATE ; then
@@ -96,12 +122,13 @@ if [ "$YUM_ACTION" == "reinstall" ] || [ "$YUM_ACTION" == "upgrade" ] || [ "$YUM
         exit 1
     fi
 elif [ "$YUM_ACTION" == "search" ] || [ "$YUM_ACTION" == "info" ]; then # No need to shutdown for search/info
-    TEMPLATE_EXCLUDE_OPTS=""
+    TEMPLATE_EXCLUDE_OPTS=()
 else
-    TEMPLATE_EXCLUDE_OPTS="--exclude=`rpm -qa --qf '%{NAME},' qubes-template-\*|head -c -1`"
+    TEMPLATE_EXCLUDE_OPTS=( "--exclude=$(rpm -qa --qf '%{NAME},' qubes-template-\*|head -c -1)" )
 fi
-YUM_OPTS="$TEMPLATE_EXCLUDE_OPTS $YUM_OPTS"
-ALL_OPTS="$TEMPLATE_EXCLUDE_OPTS $ALL_OPTS"
+
+YUM_OPTS=( "${TEMPLATE_EXCLUDE_OPTS[@]}" "${YUM_OPTS[@]}" )
+ALL_OPTS=( "${TEMPLATE_EXCLUDE_OPTS[@]}" "${ALL_OPTS[@]}" )
 
 ID=$(id -ur)
 if [ $ID != 0 -a -z "$GUI" -a -z "$CHECK_ONLY" ] ; then
@@ -109,7 +136,7 @@ if [ $ID != 0 -a -z "$GUI" -a -z "$CHECK_ONLY" ] ; then
     exit 1
 fi
 
-if [ "$GUI" == "1" -a -n "$PKGS" ]; then
+if [ "$GUI" == "1" -a ${#PKGS[@]} -ne 0 ]; then
     echo "ERROR: GUI mode can be used only for updates" >&2
     exit 1
 fi
@@ -174,7 +201,7 @@ qvm-run --nogui -q $UPDATEVM 'rm -rf /var/lib/qubes/dom0-updates/etc' || exit 1
 tar c /var/lib/rpm /etc/yum.repos.d /etc/yum.conf 2>/dev/null | \
    qvm-run --nogui -q --pass-io "$UPDATEVM" 'LC_MESSAGES=C tar x -C /var/lib/qubes/dom0-updates 2>&1 | grep -v -E "s in the future"'
 
-qvm-run $QVMRUN_OPTS --pass-io $UPDATEVM "script --quiet --return --command '/usr/lib/qubes/qubes-download-dom0-updates.sh --doit --nogui $ALL_OPTS' /dev/null"
+qvm-run $QVMRUN_OPTS --pass-io $UPDATEVM "script --quiet --return --command '/usr/lib/qubes/qubes-download-dom0-updates.sh --doit --nogui $(quote_args "${ALL_OPTS[@]}")' /dev/null"
 RETCODE=$?
 if [ "$CHECK_ONLY" == "1" ]; then
     exit $RETCODE
@@ -195,12 +222,12 @@ if [ -z "$YUM_ACTION" ]; then
     YUM_ACTION=upgrade
 fi
 
-if [ -n "$PKGS" ]; then
+if [ ${#PKGS[@]} -gt 0 ]; then
     if [ -n "$TEMPLATE" ]; then
         TEMPLATE_NETVM=$(qvm-prefs --force-root $TEMPLATE netvm)
     fi
 
-    dnf $YUM_OPTS $YUM_ACTION $PKGS ; RETCODE=$?
+    dnf "${YUM_OPTS[@]}" $YUM_ACTION "${PKGS[@]}" ; RETCODE=$?
 
     if [ -n "$TEMPLATE_BACKUP" -a "$RETCODE" -eq 0 ]; then
         # Remove backup, if we made one. Better to do this only on success and
@@ -224,7 +251,7 @@ elif [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
     else
         dnf check-update
         if [ $? -eq 100 ]; then # Run dnf with options
-            dnf $YUM_OPTS $YUM_ACTION
+            dnf "${YUM_OPTS[@]}" $YUM_ACTION
         fi
     fi
     dnf -q check-update && qvm-features dom0 updates-available ''
