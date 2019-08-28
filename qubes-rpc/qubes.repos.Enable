@@ -4,7 +4,6 @@
 # (probably an exception)
 
 import dnf
-import iniparse
 import os
 import sys
 
@@ -17,16 +16,9 @@ base.read_all_repos()
 reponame = sys.argv[1]
 repo = base.repos[reponame]
 
-# Loosely based on write_raw_configfile() from DNF source code, because
-# that method was introduced in DNF 2.0 but Qubes dom0 has DNF 1.x.
-with open(repo.repofile) as fp:
-    ini = iniparse.INIConfig(fp)
-
-ini[reponame]['enabled'] = 1
-
-with open(repo.repofile + '.new', 'w') as fp:
-    fp.write(str(ini))
-
-os.rename(repo.repofile + '.new', repo.repofile)
+base.conf.write_raw_configfile(repo.repofile,
+                               repo.id,
+                               base.conf.substitutions, 
+                               {'enabled': '1'})
 
 print('ok')
