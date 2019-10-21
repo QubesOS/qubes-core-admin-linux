@@ -233,7 +233,7 @@ if [ ${#PKGS[@]} -gt 0 ]; then
         # Remove backup, if we made one. Better to do this only on success and
         # potentially leave extra backups around than do it on an exit trap and
         # clean up more reliably but potentially brick a system.
-        qvm-remove -- "$TEMPLATE_BACKUP"
+        qvm-remove -f -- "$TEMPLATE_BACKUP"
     fi
 
     if [ -n "$TEMPLATE" -a -n "$TEMPLATE_NETVM" -a x"$TEMPLATE_NETVM" != xNone ]; then
