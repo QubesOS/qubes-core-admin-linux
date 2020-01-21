@@ -708,6 +708,8 @@ int main(int argc, char **argv)
         usage(argv[0]);
     remote_cmdline = argv[optind];
 
+    signal(SIGPIPE, SIG_IGN);
+
     register_exec_func(&do_exec);
 
     if (just_exec + connect_existing + (local_cmdline != 0) > 1) {
