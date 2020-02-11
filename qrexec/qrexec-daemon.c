@@ -352,13 +352,39 @@ static int send_client_hello(int fd)
     return 0;
 }
 
-static int allocate_vchan_port(int new_state)
+static int allocate_vchan_port(int connect_domain)
 {
-    int i;
+    /*
+      Make sure the allocated ports numbers are unique for a given {domX, domY}
+      set.
 
-    for (i = 0; i < MAX_CLIENTS; i++) {
+      For domX-domY connections, both daemons can allocate ports. If they both
+      allocate the same port number, this can cause trouble:
+      - We might receive MSG_CONNECTION_TERMINATED for the wrong connection.
+      - Although vchan connections in both directions can exist independently,
+        the direction (client-server or server-client) is not always
+        the same, so collision is still possible.
+
+      To prevent that from happening, for X < Y allow the daemon for X to
+      allocate only odd port numbers, and the daemon for Y to allocate only
+      even port numbers.
+
+      (This does not apply if we are connecting to/from dom0, as there is no
+      separate daemon running for dom0).
+     */
+
+    int i, step;
+    if (connect_domain == 0) {
+        i = 0;
+        step = 1;
+    } else {
+        i = connect_domain > remote_domain_id ? 1 : 0;
+        step = 2;
+    }
+
+    for (; i < MAX_CLIENTS; i += step) {
         if (used_vchan_ports[i] == VCHAN_PORT_UNUSED) {
-            used_vchan_ports[i] = new_state;
+            used_vchan_ports[i] = connect_domain;
             return VCHAN_BASE_DATA_PORT+i;
         }
     }
