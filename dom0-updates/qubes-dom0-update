@@ -206,7 +206,15 @@ qvm-run --nogui -q $UPDATEVM 'rm -rf /var/lib/qubes/dom0-updates/etc' || exit 1
 tar c /var/lib/rpm /etc/yum.repos.d /etc/yum.conf 2>/dev/null | \
    qvm-run --nogui -q --pass-io "$UPDATEVM" 'LC_MESSAGES=C tar x -C /var/lib/qubes/dom0-updates 2>&1 | grep -v -E "s in the future"'
 
-qvm-run $QVMRUN_OPTS --pass-io $UPDATEVM "script --quiet --return --command '/usr/lib/qubes/qubes-download-dom0-updates.sh --doit --nogui $(escape_args "${ALL_OPTS[@]}")' /dev/null" < /dev/null
+CMD="/usr/lib/qubes/qubes-download-dom0-updates.sh --doit --nogui $(escape_args "${ALL_OPTS[@]}")"
+# Use 'script' to fake a terminal, so that we are shown sync and download
+# progress indicators. However, do it only if we are running in terminal
+# ourselves.
+if [ -t 1 ] && [ -t 2 ]; then
+    CMD="script --quiet --return --command '$CMD' /dev/null"
+fi
+
+qvm-run $QVMRUN_OPTS --pass-io $UPDATEVM "$CMD" < /dev/null
 RETCODE=$?
 if [ "$REMOTE_ONLY" == "1" ]; then
     exit $RETCODE
