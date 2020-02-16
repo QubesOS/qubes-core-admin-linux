@@ -140,7 +140,7 @@ install -m 644 -D system-config/99-qubes-default-disable.preset \
 install -d $RPM_BUILD_ROOT/etc/dnf/protected.d
 install -m 0644 system-config/dnf-protected-qubes-core-dom0.conf  \
         $RPM_BUILD_ROOT/etc/dnf/protected.d/qubes-core-dom0.conf
-
+install -m 755 -D system-config/qubes-sysinit.sh $RPM_BUILD_ROOT/etc/X11/xinit/xinitrc.d/qubes-sysinit.sh
 
 touch $RPM_BUILD_ROOT/var/lib/qubes/.qubes-exclude-block-devices
 
@@ -234,6 +234,7 @@ chmod -x /etc/grub.d/10_linux
 %config /etc/udev/rules.d/12-qubes-ignore-lvm-devices.rules
 %attr(0644,root,root) /etc/cron.d/qubes-sync-clock.cron
 /etc/cron.daily/lvm-cleanup
+/etc/X11/xinit/xinitrc.d/qubes-sysinit.sh
 %config(noreplace) /etc/profile.d/zz-disable-lesspipe.sh
 %config(noreplace) /etc/dnf/protected.d/qubes-core-dom0.conf
 /usr/lib/systemd/system-preset/75-qubes-dom0.preset
