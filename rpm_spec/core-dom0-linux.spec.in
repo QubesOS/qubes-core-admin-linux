@@ -91,7 +91,7 @@ install -D dom0-updates/qubes-receive-updates $RPM_BUILD_ROOT/usr/libexec/qubes/
 install -D dom0-updates/patch-dnf-yum-config $RPM_BUILD_ROOT/usr/lib/qubes/patch-dnf-yum-config
 install -m 0644 -D dom0-updates/qubes-cached.repo $RPM_BUILD_ROOT/etc/yum.real.repos.d/qubes-cached.repo
 install -D dom0-updates/qfile-dom0-unpacker $RPM_BUILD_ROOT/usr/libexec/qubes/qfile-dom0-unpacker
-install -m 0644 -D dom0-updates/qubes.ReceiveUpdates $RPM_BUILD_ROOT/etc/qubes-rpc/qubes.ReceiveUpdates
+ln -s ../../usr/libexec/qubes/qubes-receive-updates $RPM_BUILD_ROOT/etc/qubes-rpc/qubes.ReceiveUpdates
 install -m 0664 -D dom0-updates/qubes.ReceiveUpdates.policy $RPM_BUILD_ROOT/etc/qubes-rpc/policy/qubes.ReceiveUpdates
 
 install -d $RPM_BUILD_ROOT/var/lib/qubes/updates
