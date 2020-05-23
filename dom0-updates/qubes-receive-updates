@@ -97,7 +97,7 @@ def handle_dom0updates(updatevm):
             output = p.communicate()[0].decode('ascii')
             if p.returncode != 0:
                 raise Exception(
-                    'Error while verifing %s signature: %s' % (f, output))
+                    'Error while verifying %s signature: %s' % (f, output))
             if not gpg_ok_regex.search(output.strip()):
                 raise Exception(
                     'Domain ' + source + ' sent not signed rpm: ' + f)
