@@ -266,9 +266,15 @@ elif [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
             dnf "${YUM_OPTS[@]}" $YUM_ACTION
         fi
     fi
-    dnf -q check-update && qvm-features dom0 updates-available ''
+    if dnf -q check-update; then
+        if ! qvm-features dom0 updates-available ''; then
+            echo "*** WARNING: cannot set feature 'updates-available'" >&2
+        fi
+    fi
 else
-    qvm-features dom0 updates-available ''
+    if ! qvm-features dom0 updates-available ''; then
+        echo "*** WARNING: cannot set feature 'updates-available'" >&2
+    fi
     echo "No updates available" >&2
     if [ "$GUI" == "1" ]; then
         zenity --info --title='Dom0 updates' --text='No updates available'
