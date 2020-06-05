@@ -23,8 +23,7 @@ find_regex_in_args() {
     return 1
 }
 
-UPDATEVM=`qubes-prefs --force-root updatevm`
-UPDATES_STAT_FILE=/var/lib/qubes/updates/dom0-updates-available
+UPDATEVM="$(qubes-prefs --force-root updatevm)"
 
 if [ -z "$UPDATEVM" ]; then
     echo "UpdateVM not set, exiting"
@@ -87,7 +86,7 @@ while [ $# -gt 0 ]; do
 done
 
 REMOTE_ONLY=
-if [ "CHECK_ONLY" == "1" ] || [ "$YUM_ACTION" == "list" ] || [ "$YUM_ACTION" == "search" ]; then
+if [ "$CHECK_ONLY" == "1" ] || [ "$YUM_ACTION" == "list" ] || [ "$YUM_ACTION" == "search" ]; then
     REMOTE_ONLY=1
 fi
 
@@ -106,7 +105,7 @@ if [ "$YUM_ACTION" == "reinstall" ] || [ "$YUM_ACTION" == "upgrade" ] || [ "$YUM
         ONEPKG="$(echo "${PKGS[0]}" | sed -r 's/-[0-9]+(\.[0-9-]+)+(\.noarch)*$//')" # Remove version suffix
         TEMPLATE=${ONEPKG#qubes-template-} # Remove prefix
 
-        if qvm-shutdown --wait $TEMPLATE ; then
+        if qvm-shutdown --wait "$TEMPLATE" ; then
             echo "Template VM halted"
         fi
 
@@ -136,12 +135,12 @@ YUM_OPTS=( "${TEMPLATE_EXCLUDE_OPTS[@]}" "${YUM_OPTS[@]}" )
 ALL_OPTS=( "${TEMPLATE_EXCLUDE_OPTS[@]}" "${ALL_OPTS[@]}" )
 
 ID=$(id -ur)
-if [ $ID != 0 -a -z "$GUI" -a -z "$CHECK_ONLY" ] ; then
+if [ "$ID" != 0 ] && [ -z "$GUI" ] && [ -z "$CHECK_ONLY" ] ; then
     echo "This script should be run as root (when used in console mode), use sudo." >&2
     exit 1
 fi
 
-if [ "$GUI" == "1" -a ${#PKGS[@]} -ne 0 ]; then
+if [ "$GUI" == "1" ] && [ ${#PKGS[@]} -ne 0 ]; then
     echo "ERROR: GUI mode can be used only for updates" >&2
     exit 1
 fi
@@ -155,7 +154,7 @@ if [ "$GUI" == "1" ]; then
 
     guiapp=
     for app in $apps; do
-        if type $app &>/dev/null; then
+        if type "$app" &>/dev/null; then
             guiapp=$app
             case $guiapp in
                 apper) guiapp="apper --updates --nofork" ;;
@@ -186,7 +185,7 @@ if [ "$GUI" != "1" ]; then
 fi
 
 # Do not start VM automatically when running from cron (only checking for updates)
-if [ "$CHECK_ONLY" == "1" ] && ! qvm-check -q --running $UPDATEVM > /dev/null 2>&1; then
+if [ "$CHECK_ONLY" == "1" ] && ! qvm-check -q --running "$UPDATEVM" > /dev/null 2>&1; then
     echo "ERROR: UpdateVM not running, not starting it in non-interactive mode" >&2
     exit 1
 fi
@@ -200,9 +199,9 @@ rm -f /var/lib/qubes/updates/errors
 echo "Using $UPDATEVM as UpdateVM to download updates for Dom0; this may take some time..." >&2
 
 # qvm-run by default auto-starts the VM if not running
-qvm-run --nogui -q -u root $UPDATEVM 'mkdir -m 775 -p /var/lib/qubes/dom0-updates/' || exit 1
-qvm-run --nogui -q -u root $UPDATEVM 'chown user:user /var/lib/qubes/dom0-updates/' || exit 1
-qvm-run --nogui -q $UPDATEVM 'rm -rf /var/lib/qubes/dom0-updates/etc' || exit 1
+qvm-run --nogui -q -u root "$UPDATEVM" 'mkdir -m 775 -p /var/lib/qubes/dom0-updates/' || exit 1
+qvm-run --nogui -q -u root "$UPDATEVM" 'chown user:user /var/lib/qubes/dom0-updates/' || exit 1
+qvm-run --nogui -q "$UPDATEVM" 'rm -rf /var/lib/qubes/dom0-updates/etc' || exit 1
 tar c /var/lib/rpm /etc/yum.repos.d /etc/yum.conf 2>/dev/null | \
    qvm-run --nogui -q --pass-io "$UPDATEVM" 'LC_MESSAGES=C tar x -C /var/lib/qubes/dom0-updates 2>&1 | grep -v -E "s in the future"'
 
@@ -214,7 +213,7 @@ if [ -t 1 ] && [ -t 2 ]; then
     CMD="script --quiet --return --command '$CMD' /dev/null"
 fi
 
-qvm-run $QVMRUN_OPTS --pass-io $UPDATEVM "$CMD" < /dev/null
+qvm-run $QVMRUN_OPTS --pass-io "$UPDATEVM" "$CMD" < /dev/null
 RETCODE=$?
 if [ "$REMOTE_ONLY" == "1" ]; then
     exit $RETCODE
@@ -237,20 +236,20 @@ fi
 
 if [ ${#PKGS[@]} -gt 0 ]; then
     if [ -n "$TEMPLATE" ]; then
-        TEMPLATE_NETVM=$(qvm-prefs --force-root $TEMPLATE netvm)
+        TEMPLATE_NETVM=$(qvm-prefs --force-root "$TEMPLATE" netvm)
     fi
 
     dnf "${YUM_OPTS[@]}" $YUM_ACTION "${PKGS[@]}" ; RETCODE=$?
 
-    if [ -n "$TEMPLATE_BACKUP" -a "$RETCODE" -eq 0 ]; then
+    if [ -n "$TEMPLATE_BACKUP" ] && [ "$RETCODE" -eq 0 ]; then
         # Remove backup, if we made one. Better to do this only on success and
         # potentially leave extra backups around than do it on an exit trap and
         # clean up more reliably but potentially brick a system.
         qvm-remove -f -- "$TEMPLATE_BACKUP"
     fi
 
-    if [ -n "$TEMPLATE" -a -n "$TEMPLATE_NETVM" -a x"$TEMPLATE_NETVM" != xNone ]; then
-        if ! qvm-prefs --force-root -s $TEMPLATE netvm $TEMPLATE_NETVM; then
+    if [ -n "$TEMPLATE" ] && [ -n "$TEMPLATE_NETVM" ] [ x"$TEMPLATE_NETVM" != xNone ]; then
+        if ! qvm-prefs --force-root -s "$TEMPLATE" netvm "$TEMPLATE_NETVM"; then
             echo "ERROR: NetVM setting could not be restored!" >&2
             exit 1
         fi
