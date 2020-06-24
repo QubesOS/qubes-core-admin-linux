@@ -248,7 +248,7 @@ if [ ${#PKGS[@]} -gt 0 ]; then
         qvm-remove -f -- "$TEMPLATE_BACKUP"
     fi
 
-    if [ -n "$TEMPLATE" ] && [ -n "$TEMPLATE_NETVM" ] [ x"$TEMPLATE_NETVM" != xNone ]; then
+    if [ -n "$TEMPLATE" ] && [ -n "$TEMPLATE_NETVM" ] && [ x"$TEMPLATE_NETVM" != xNone ]; then
         if ! qvm-prefs --force-root -s "$TEMPLATE" netvm "$TEMPLATE_NETVM"; then
             echo "ERROR: NetVM setting could not be restored!" >&2
             exit 1
