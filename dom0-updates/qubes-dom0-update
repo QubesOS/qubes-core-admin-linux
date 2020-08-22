@@ -39,6 +39,7 @@ if [ "$1" = "--help" ]; then
     echo "    --check-only only check for updates (no install)"
     echo "    --gui        use gpk-update-viewer for update selection"
     echo "    --action=... use specific dnf action, instead of automatic install/update"
+    echo "    --force-xen-upgrade  force major Xen upgrade even if some qubes are running"
     echo "    <pkg list>   download (and install if run by root) new packages"
     echo "                 in dom0 instead of updating"
     exit
@@ -54,6 +55,8 @@ QVMRUN_OPTS=
 CLEAN=
 TEMPLATE=
 TEMPLATE_BACKUP=
+FORCE_XEN_UPGRADE=
+REBOOT_REQUIRED=
 # Filter out some dnf options and collect packages list
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -68,6 +71,9 @@ while [ $# -gt 0 ]; do
             ;;
         --check-only)
             CHECK_ONLY=1
+            ;;
+        --force-xen-upgrade)
+            FORCE_XEN_UPGRADE=1
             ;;
         --action=*)
             YUM_ACTION=${1#--action=}
@@ -234,6 +240,36 @@ if [ -z "$YUM_ACTION" ]; then
     YUM_ACTION=upgrade
 fi
 
+# Check for major xen upgrade and warn the user
+if [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
+    xen_in_update=$(ls /var/lib/qubes/updates/rpm/xen-libs-[1-9]* 2>/dev/null \
+        |sed -e 's/.*xen-libs-//' \
+        |cut -f 1,2 -d .)
+    xen_running=$(xl info xen_version|cut -f 1,2 -d .)
+    if [ -n "$xen_in_update" ] && [ "$xen_in_update" != "$xen_running" ]; then
+        # check if there are running VMs
+        if [ "$(xl list|wc -l)" -gt 2 ]; then
+            echo "WARNING: Attempting a major Xen upgrade ($xen_running -> $xen_in_update) while some qubes are running"
+            echo "WARNING: You will not be able to interact with them (not even cleanly shutdown) until you restart the system"
+            echo "List of running qubes:"
+            qvm-ls --running | grep -v dom0
+            if [ "$FORCE_XEN_UPGRADE" = 1 ]; then
+                echo "Continuing as requested"
+            else
+                echo -n "Do you want to shutdown all the qubes now? [y/N] "
+                read answer
+                if [ "$answer" = "y" ] || [ "$answer" = "Y" ]; then
+                    qvm-shutdown --all --wait
+                else
+                    echo "Please shutdown all the qubes, then resume the update with 'sudo dnf upgrade'"
+                    exit 1
+                fi
+            fi
+        fi
+        REBOOT_REQUIRED=1
+    fi
+fi
+
 if [ ${#PKGS[@]} -gt 0 ]; then
     if [ -n "$TEMPLATE" ]; then
         TEMPLATE_NETVM=$(qvm-prefs --force-root "$TEMPLATE" netvm)
@@ -263,16 +299,16 @@ elif [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
     else
         dnf check-update
         if [ $? -eq 100 ]; then # Run dnf with options
-            dnf "${YUM_OPTS[@]}" $YUM_ACTION
+            dnf "${YUM_OPTS[@]}" $YUM_ACTION; RETCODE=$?
         fi
     fi
     if dnf -q check-update; then
-        if ! qvm-features dom0 updates-available ''; then
+        if ! qvm-features dom0 updates-available '' 2>/dev/null; then
             echo "*** WARNING: cannot set feature 'updates-available'" >&2
         fi
     fi
 else
-    if ! qvm-features dom0 updates-available ''; then
+    if ! qvm-features dom0 updates-available '' 2>/dev/null; then
         echo "*** WARNING: cannot set feature 'updates-available'" >&2
     fi
     echo "No updates available" >&2
@@ -280,3 +316,13 @@ else
         zenity --info --title='Dom0 updates' --text='No updates available'
     fi
 fi
+
+if [ "$REBOOT_REQUIRED" = 1 ]; then
+    echo "This upgrade requires system restart before doing anything else."
+    echo -n "Do you want to restart now? [Y/n] "
+    read answer
+    if [ "$answer" != "n" ] && [ "$answer" != "N" ]; then
+        reboot
+    fi
+fi
+exit "$RETCODE"
