@@ -244,7 +244,8 @@ fi
 if [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
     xen_in_update=$(ls /var/lib/qubes/updates/rpm/xen-libs-[1-9]* 2>/dev/null \
         |sed -e 's/.*xen-libs-//' \
-        |cut -f 1,2 -d .)
+        |cut -f 1,2 -d . \
+        |uniq)
     xen_running=$(xl info xen_version|cut -f 1,2 -d .)
     if [ -n "$xen_in_update" ] && [ "$xen_in_update" != "$xen_running" ]; then
         # check if there are running VMs
