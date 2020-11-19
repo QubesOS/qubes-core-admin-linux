@@ -31,6 +31,13 @@ fi
 
 case "$COMMAND" in
     add)
+        cp "/boot/vmlinuz-$KVER" "$EFI_DIR/"
+        if [ -e "/boot/initramfs-${KVER}.img" ]; then
+            cp -f "/boot/initramfs-${KVER}.img" "$EFI_DIR/"
+        else
+            dracut -f "$EFI_DIR/initramfs-${KVER}.img" "$KVER"
+        fi
+
         if ! fgrep -q "[${KVER}]" $EFI_DIR/xen.cfg; then
             # take the default section and use it as a template for the new entry
             awk -F = --assign "kver=${KVER}" '
@@ -74,13 +81,6 @@ case "$COMMAND" in
             
             # then change the default
             sed -e "s/^default=.*/default=$KVER/" -i $EFI_DIR/xen.cfg
-        fi
-
-        cp "/boot/vmlinuz-$KVER" "$EFI_DIR/"
-        if [ -e "/boot/initramfs-${KVER}.img" ]; then
-            cp -f "/boot/initramfs-${KVER}.img" "$EFI_DIR/"
-        else
-            dracut -f "$EFI_DIR/initramfs-${KVER}.img" "$KVER"
         fi
         ;;
     remove)
