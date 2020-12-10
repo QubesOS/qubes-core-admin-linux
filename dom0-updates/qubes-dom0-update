@@ -1,15 +1,5 @@
 #!/bin/bash
 
-escape_args() {
-    local eargs=""
-
-    for arg in "$@"; do
-	printf -v eargs '%s%q ' "$eargs" "$arg"
-    done
-
-    echo "${eargs%?}"
-}
-
 find_regex_in_args() {
     local regex="${1}"
     shift 1
@@ -50,7 +40,6 @@ YUM_OPTS=()
 GUI=
 CHECK_ONLY=
 ALL_OPTS=( "${@}" )
-YUM_ACTION=
 QVMRUN_OPTS=
 CLEAN=
 TEMPLATE=
@@ -78,18 +67,24 @@ while [ $# -gt 0 ]; do
         --action=*)
             YUM_ACTION=${1#--action=}
             ;;
+        --)
+            shift
+            YUM_OPTS+=( "$@" )
+            : "${YUM_ACTION=install}"
+            break
+            ;;
         -*)
             YUM_OPTS+=( "${1}" )
             ;;
         *)
             PKGS+=( "${1}" )
-            if [ -z "$YUM_ACTION" ]; then
-                YUM_ACTION=install
-            fi
+            : "${YUM_ACTION=install}"
             ;;
     esac
     shift
 done
+
+: "${YUM_ACTION=upgrade}"
 
 REMOTE_ONLY=
 if [ "$CHECK_ONLY" == "1" ] || [ "$YUM_ACTION" == "list" ] || [ "$YUM_ACTION" == "search" ]; then
@@ -211,19 +206,21 @@ qvm-run --nogui -q "$UPDATEVM" 'rm -rf /var/lib/qubes/dom0-updates/etc' || exit 
 tar c /var/lib/rpm /etc/yum.repos.d /etc/yum.conf /etc/dnf/dnf.conf 2>/dev/null | \
    qvm-run --nogui -q --pass-io "$UPDATEVM" 'LC_MESSAGES=C tar x -C /var/lib/qubes/dom0-updates 2>&1 | grep -v -E "s in the future"'
 
-CMD="/usr/lib/qubes/qubes-download-dom0-updates.sh --doit --nogui $(escape_args "${ALL_OPTS[@]}")"
-# Use 'script' to fake a terminal, so that we are shown sync and download
-# progress indicators. However, do it only if we are running in terminal
-# ourselves.
-if [ -t 1 ] && [ -t 2 ]; then
-    CMD="script --quiet --return --command '$CMD' /dev/null"
+CMD="/usr/lib/qubes/qubes-download-dom0-updates.sh --doit --nogui"
+
+# If we are running in a terminal, run the command in its own terminal in the UpdateVM.
+if [ -t 1 ] || [ -t 2 ]; then
+    CMD="xterm -e $CMD"
 fi
 
-qvm-run $QVMRUN_OPTS --pass-io "$UPDATEVM" "$CMD" < /dev/null
+# We avoid using bash’s own facilities for this, as they produce $'\n'-style
+# strings in certain cases.  These are not portable, whereas the string produced
+# by the following is.
+for i in "${ALL_OPTS[@]}"; do CMD+=" '${i//\'/\'\\\'\'}'"; done
+qvm-run $QVMRUN_OPTS -- "$UPDATEVM" "$CMD" < /dev/null
+
 RETCODE=$?
-if [ "$REMOTE_ONLY" == "1" ]; then
-    exit $RETCODE
-elif [ "$RETCODE" -ne 0 ]; then
+if [ "$REMOTE_ONLY" == "1" ] || [ "$RETCODE" -ne 0 ]; then
     exit $RETCODE
 fi
 # Wait for download completed
@@ -234,10 +231,6 @@ if [ -r /var/lib/qubes/updates/errors ]; then
     cat /var/lib/qubes/updates/errors >&2
     echo "--> if you want to use packages that were downloaded correctly, use dnf directly now" >&2
     exit 1
-fi
-
-if [ -z "$YUM_ACTION" ]; then
-    YUM_ACTION=upgrade
 fi
 
 # Check for major xen upgrade and warn the user
