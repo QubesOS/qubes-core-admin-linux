@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <sys/fsuid.h>
 #include <errno.h>
+#include <limits.h>
 #include <libqubes-rpc-filecopy.h>
 
 #define DEFAULT_MAX_UPDATES_BYTES (4LL<<30)
@@ -49,6 +50,7 @@ int main(int argc, char ** argv)
 {
 	const char *incoming_dir;
 	int uid;
+    int i;
 	char *var;
 	long long files_limit = DEFAULT_MAX_UPDATES_FILES;
 	long long bytes_limit = DEFAULT_MAX_UPDATES_BYTES;
@@ -90,7 +92,29 @@ int main(int argc, char ** argv)
 		files_limit = atoll(var);
 
 	set_size_limit(bytes_limit, files_limit);
-	if (argc > 3 && strcmp(argv[3],"-v")==0)
-		set_verbose(1);
+    for (i = 3; i < argc; i++) {
+        if (strcmp(argv[i], "-v") == 0) {
+            set_verbose(1);
+        } else if (strcmp(argv[i], "-w") == 0) {
+            if (i+1 < argc && argv[i+1][0] != '-') {
+                unsigned long space_margin;
+
+                errno = 0;
+                space_margin = strtoul(argv[i+1], &var, 0);
+                if (*argv[i+1] < '0' || *argv[i+1] > '9' || *var != '\0' ||
+                        (space_margin == ULONG_MAX && errno == ERANGE)) {
+                    fprintf(stderr, "Invalid value for -w option: %s\n", argv[i+1]);
+                    exit(1);
+                }
+                set_wait_for_space(space_margin);
+                i++;
+            } else {
+                set_wait_for_space(1);
+            }
+        } else {
+            fprintf(stderr, "Invalid option %s", argv[i]);
+            exit(1);
+        }
+    }
 	return do_unpack();
 }
