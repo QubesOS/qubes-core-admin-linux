@@ -69,10 +69,11 @@ while [ $# -gt 0 ]; do
             YUM_ACTION=${1#--action=}
             ;;
         --)
-            shift
-            YUM_OPTS+=( "$@" )
-            : "${YUM_ACTION=install}"
-            break
+            if [[ "$#" -gt 1 ]]; then
+                YUM_OPTS+=( "${@:2}" )
+                shift "$(( $# - 1 ))"
+                : "${YUM_ACTION=install}"
+            fi
             ;;
         -*)
             YUM_OPTS+=( "${1}" )
