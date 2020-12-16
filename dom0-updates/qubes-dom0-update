@@ -73,10 +73,11 @@ while [ $# -gt 0 ]; do
             UPDATEVM_OPTS+=( "$1" )
             ;;
         --)
-            shift
-            YUM_OPTS+=( "$@" )
-            : "${YUM_ACTION=install}"
-            break
+            if [[ "$#" -gt 1 ]]; then
+                YUM_OPTS+=( "${@:2}" )
+                shift "$(( $# - 1 ))"
+                : "${YUM_ACTION=install}"
+            fi
             ;;
         -*)
             YUM_OPTS+=( "${1}" )
