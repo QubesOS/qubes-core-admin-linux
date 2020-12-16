@@ -32,6 +32,7 @@ if [ "$1" = "--help" ]; then
     echo "    --force-xen-upgrade  force major Xen upgrade even if some qubes are running"
     echo "    <pkg list>   download (and install if run by root) new packages"
     echo "                 in dom0 instead of updating"
+    echo "    --           mark end of options"
     exit
 fi
 
