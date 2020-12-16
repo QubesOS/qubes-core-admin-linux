@@ -214,9 +214,9 @@ tar c /var/lib/rpm /etc/yum.repos.d /etc/yum.conf /etc/dnf/dnf.conf 2>/dev/null 
 CMD="/usr/lib/qubes/qubes-download-dom0-updates.sh --doit --nogui"
 
 # If we are running in a terminal, run the command in its own terminal in the UpdateVM.
-if [ -t 1 ] || [ -t 2 ]; then
+if [ "$GUI" = 1 ] || [ -t 1 ] || [ -t 2 ]; then
     CMD="xterm -e $CMD"
-elif [ "$GUI" != "1" ]; then
+else
     QVMRUN_OPTS=--nogui
 fi
 
