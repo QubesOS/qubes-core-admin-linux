@@ -181,10 +181,6 @@ if [ "$GUI" == "1" ]; then
     fi
 fi
 
-if [ "$GUI" != "1" ]; then
-    QVMRUN_OPTS=--nogui
-fi
-
 # Do not start VM automatically when running from cron (only checking for updates)
 if [ "$CHECK_ONLY" == "1" ] && ! qvm-check -q --running "$UPDATEVM" > /dev/null 2>&1; then
     echo "ERROR: UpdateVM not running, not starting it in non-interactive mode" >&2
@@ -215,6 +211,8 @@ CMD="/usr/lib/qubes/qubes-download-dom0-updates.sh --doit --nogui"
 # If we are running in a terminal, run the command in its own terminal in the UpdateVM.
 if [ -t 1 ] || [ -t 2 ]; then
     CMD="xterm -e $CMD"
+elif [ "$GUI" != "1" ]; then
+    QVMRUN_OPTS=--nogui
 fi
 
 # We avoid using bash’s own facilities for this, as they produce $'\n'-style
