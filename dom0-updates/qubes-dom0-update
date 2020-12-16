@@ -27,9 +27,11 @@ if [ "$1" = "--help" ]; then
     echo "Usage: $0 [--clean] [--check-only] [--gui] [<pkg list>]"
     echo "    --clean      clean dnf cache before doing anything"
     echo "    --check-only only check for updates (no install)"
-    echo "    --gui        use gpk-update-viewer for update selection"
+    echo "    --gui        use gpk-update-viewer for update selection, conflicts with --console"
     echo "    --action=... use specific dnf action, instead of automatic install/update"
     echo "    --force-xen-upgrade  force major Xen upgrade even if some qubes are running"
+    echo "    --console    do not open an xterm in the UpdateVM; use this if"
+    echo "                 there are GUI problems"
     echo "    <pkg list>   download (and install if run by root) new packages"
     echo "                 in dom0 instead of updating"
     echo "    --           mark end of options"
@@ -44,7 +46,8 @@ YUM_OPTS=()
 GUI=
 CHECK_ONLY=
 ALL_OPTS=( "${@}" )
-QVMRUN_OPTS=
+QVMRUN_OPTS=()
+CONSOLE=0
 CLEAN=
 TEMPLATE=
 TEMPLATE_BACKUP=
@@ -64,6 +67,9 @@ while [ $# -gt 0 ]; do
             ;;
         --check-only)
             CHECK_ONLY=1
+            ;;
+        --console)
+            CONSOLE=1
             ;;
         --force-xen-upgrade)
             FORCE_XEN_UPGRADE=1
@@ -88,6 +94,11 @@ while [ $# -gt 0 ]; do
     esac
     shift
 done
+
+if [[ "$CONSOLE" = 1 ]] && [[ "$GUI" = 1 ]]; then
+    echo 'Cannot use --gui with --console'>&2
+    exit 1
+fi
 
 : "${YUM_ACTION=upgrade}"
 
@@ -213,18 +224,31 @@ tar c /var/lib/rpm /etc/yum.repos.d /etc/yum.conf /etc/dnf/dnf.conf 2>/dev/null 
 
 CMD="/usr/lib/qubes/qubes-download-dom0-updates.sh --doit --nogui"
 
-# If we are running in a terminal, run the command in its own terminal in the UpdateVM.
-if [ "$GUI" = 1 ] || [ -t 1 ] || [ -t 2 ]; then
-    CMD="xterm -e $CMD"
-else
-    QVMRUN_OPTS=--nogui
-fi
-
 # We avoid using bash’s own facilities for this, as they produce $'\n'-style
 # strings in certain cases.  These are not portable, whereas the string produced
 # by the following is.
 for i in "${ALL_OPTS[@]}"; do CMD+=" '${i//\'/\'\\\'\'}'"; done
-qvm-run $QVMRUN_OPTS -- "$UPDATEVM" "$CMD" < /dev/null
+
+# If we are running in a terminal, run the command in its own terminal in the UpdateVM.
+if [[ "$CONSOLE" = 1 ]]; then
+    QVMRUN_OPTS=(--nogui)
+    if [[ -t 1 ]] && [[ -t 2 ]]; then
+        # Use ‘script’ to emulate a TTY, so that we get status bars and other
+        # progress output.  Since stdout and stderr are both terminals, qvm-run
+        # will automatically sanitize them, but we explicitly tell it to anyway
+        # as a precaution.
+        CMD="exec script --quiet --return --command '${CMD//\'/\'\\\'\'}'"
+        QVMRUN_OPTS+=(--pass-io --filter-escape-chars --color-stdout=31 --color-stderr=31)
+    fi
+elif [[ "$GUI" = 1 ]] || [[ -t 1 ]] || [[ -t 2 ]]; then
+    # In GUI mode, or in a terminal without --console, spawn an xterm to display
+    # the output of the remote command.
+    CMD="xterm -e $CMD"
+else
+    QVMRUN_OPTS=(--nogui)
+fi
+
+qvm-run "${QVMRUN_OPTS[@]}" -- "$UPDATEVM" "$CMD" < /dev/null
 
 RETCODE=$?
 if [ "$REMOTE_ONLY" == "1" ] || [ "$RETCODE" -ne 0 ]; then
