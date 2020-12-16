@@ -33,6 +33,9 @@ if [ "$1" = "--help" ]; then
     echo "    <pkg list>   download (and install if run by root) new packages"
     echo "                 in dom0 instead of updating"
     echo "    --           mark end of options"
+    echo
+    echo "Options with arguments must be passed as -cfoo or --enablerepo=foo,"
+    echo "not -c foo or --enablerepo foo"
     exit
 fi
 
