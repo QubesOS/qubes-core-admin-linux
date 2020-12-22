@@ -105,6 +105,8 @@ if [[ "$GUI" = 1 ]]; then
         echo 'Cannot use --gui with --console or --show-output'>&2
         exit 1
     fi
+elif [[ -z "${DISPLAY-}" ]]; then
+    CONSOLE=1
 fi
 
 : "${YUM_ACTION=upgrade}"
