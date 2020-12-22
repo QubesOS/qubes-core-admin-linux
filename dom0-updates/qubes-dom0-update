@@ -208,11 +208,13 @@ rm -f /var/lib/qubes/updates/errors
 echo "Using $UPDATEVM as UpdateVM to download updates for Dom0; this may take some time..." >&2
 
 # qvm-run by default auto-starts the VM if not running
-qvm-run --nogui -q -u root "$UPDATEVM" 'mkdir -m 775 -p /var/lib/qubes/dom0-updates/' || exit 1
-qvm-run --nogui -q -u root "$UPDATEVM" 'chown user:user /var/lib/qubes/dom0-updates/' || exit 1
-qvm-run --nogui -q "$UPDATEVM" 'rm -rf /var/lib/qubes/dom0-updates/etc' || exit 1
-tar c /var/lib/rpm /etc/yum.repos.d /etc/yum.conf 2>/dev/null |
-   qvm-run --nogui -q --pass-io "$UPDATEVM" 'LC_MESSAGES=C tar x -C /var/lib/qubes/dom0-updates' >/dev/null 2>&1 || {
+readonly dom0_updates_dir=/var/lib/qubes/dom0-updates
+qvm-run --nogui -q -u root -- "$UPDATEVM" "mkdir -m 775 -p '$dom0_updates_dir'" || exit 1
+qvm-run --nogui -q -u root -- "$UPDATEVM" "chown user:user '$dom0_updates_dir'" || exit 1
+qvm-run --nogui -q -- "$UPDATEVM" "rm -rf '$dom0_updates_dir/etc'" || exit 1
+(cd / && exec tar -c -- var/lib/rpm etc/yum.repos.d etc/yum.conf etc/pki/rpm-gpg/RPM-GPG-KEY-* 2>/dev/null) |
+   qvm-run --nogui -q --pass-io -- "$UPDATEVM" "LC_MESSAGES=C tar -C '$dom0_updates_dir' -x &&
+   sed -Ei 's,^([[:space:]]*gpgkey[[:space:]]*=[[:space:]]*file://)(/etc/pki/rpm-gpg/RPM-GPG-KEY-),\\1$dom0_updates_dir\\2,' '$dom0_updates_dir/etc/yum.repos.d'/*.repo" >/dev/null 2>&1 || {
    status=$?
    echo "Sending repository information to UpdateVM failed: code $status">&2
    exit "$status"
@@ -272,7 +274,8 @@ elif [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
         pkcon refresh force
         $guiapp
     else
-        dnf check-update || if [ $? -eq 100 ]; then # Run dnf with options
+        dnf check-update ||
+        if [ $? -eq 100 ]; then # Run dnf with options
             dnf "${YUM_OPTS[@]}" $YUM_ACTION
         fi
     fi
