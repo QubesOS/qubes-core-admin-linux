@@ -32,6 +32,7 @@ if [ "$1" = "--help" ]; then
     echo "    --force-xen-upgrade  force major Xen upgrade even if some qubes are running"
     echo "    --console    do not open an xterm in the UpdateVM; use this if"
     echo "                 there are GUI problems"
+    echo "    --show-output  with --console, show the output of the UpdateVM"
     echo "    <pkg list>   download (and install if run by root) new packages"
     echo "                 in dom0 instead of updating"
     echo "    --           mark end of options"
@@ -47,6 +48,7 @@ GUI=
 CHECK_ONLY=
 ALL_OPTS=( "${@}" )
 QVMRUN_OPTS=()
+SHOW_OUTPUT=0
 CONSOLE=0
 CLEAN=
 TEMPLATE=
@@ -64,6 +66,9 @@ while [ $# -gt 0 ]; do
             ;;
         --gui)
             GUI=1
+            ;;
+        --show-output)
+            SHOW_OUTPUT=1
             ;;
         --check-only)
             CHECK_ONLY=1
@@ -95,9 +100,11 @@ while [ $# -gt 0 ]; do
     shift
 done
 
-if [[ "$CONSOLE" = 1 ]] && [[ "$GUI" = 1 ]]; then
-    echo 'Cannot use --gui with --console'>&2
-    exit 1
+if [[ "$GUI" = 1 ]]; then
+    if [[ "$CONSOLE" = 1 ]] || [[ "$SHOW_OUTPUT" = 1 ]]; then
+        echo 'Cannot use --gui with --console or --show-output'>&2
+        exit 1
+    fi
 fi
 
 : "${YUM_ACTION=upgrade}"
@@ -231,16 +238,19 @@ CMD="/usr/lib/qubes/qubes-download-dom0-updates.sh --doit --nogui"
 # by the following is.
 for i in "${ALL_OPTS[@]}"; do CMD+=" '${i//\'/\'\\\'\'}'"; done
 
+QVMRUN_OPTS=(--filter-escape-chars)
 # If we are running in a terminal, run the command in its own terminal in the UpdateVM.
 if [[ "$CONSOLE" = 1 ]]; then
-    QVMRUN_OPTS=(--nogui)
-    if [[ -t 1 ]] && [[ -t 2 ]]; then
-        # Use ‘script’ to emulate a TTY, so that we get status bars and other
-        # progress output.  Since stdout and stderr are both terminals, qvm-run
-        # will automatically sanitize them, but we explicitly tell it to anyway
-        # as a precaution.
-        CMD="exec script --quiet --return --command '${CMD//\'/\'\\\'\'}'"
-        QVMRUN_OPTS+=(--pass-io --filter-escape-chars --color-stdout=31 --color-stderr=31)
+    QVMRUN_OPTS+=(--nogui)
+    if [[ "$SHOW_OUTPUT" = 1 ]]; then
+        QVMRUN_OPTS+=(--pass-io)
+        if [[ -t 1 ]] && [[ -t 2 ]]; then
+            # Use ‘script’ to emulate a TTY, so that we get status bars and other
+            # progress output.  Since stdout and stderr are both terminals, qvm-run
+            # will automatically sanitize them, but we explicitly tell it to anyway
+            # as a precaution.
+            CMD="exec script --quiet --return --command '${CMD//\'/\'\\\'\'}'"
+        fi
     fi
 elif [[ "$GUI" = 1 ]] || [[ -t 1 ]] || [[ -t 2 ]]; then
     # In GUI mode, or in a terminal without --console, spawn an xterm to display
