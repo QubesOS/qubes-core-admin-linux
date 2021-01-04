@@ -109,17 +109,18 @@ elif [[ -z "${DISPLAY-}" ]]; then
     CONSOLE=1
 fi
 
-: "${YUM_ACTION=upgrade}"
-
-REMOTE_ONLY=
-if [ "$CHECK_ONLY" == "1" ] || [ "$YUM_ACTION" == "list" ] || [ "$YUM_ACTION" == "search" ]; then
-    REMOTE_ONLY=1
-fi
+REMOTE_ONLY=false may_clobber_template=false exit_cmd='&& exit'
+case ${YUM_ACTION=upgrade} in
+(reinstall|upgrade|upgrade-to|downgrade) may_clobber_template=true;;
+(list|search)
+    REMOTE_ONLY=true exit_cmd=
+    if [[ "$CONSOLE" = 1 ]]; then SHOW_OUTPUT=1; fi
+    ;;
+esac
 
 # Prevent implicit update of template - this would override user changes -
 # but do allow explicit template upgrade, downgrade, reinstall
-if [ "$YUM_ACTION" == "reinstall" ] || [ "$YUM_ACTION" == "upgrade" ] || [ "$YUM_ACTION" == "upgrade-to" ] \
-|| [ "$YUM_ACTION" == "downgrade" ] && find_regex_in_args '^qubes-template-' "${PKGS[@]}"; then
+if "$may_clobber_template" && find_regex_in_args '^qubes-template-' "${PKGS[@]}"; then
     TEMPLATE_EXCLUDE_OPTS=()
     echo "WARNING: Replacing a template will erase all files in template's /home and /rw !"
 
@@ -257,7 +258,13 @@ if [[ "$CONSOLE" = 1 ]]; then
 elif [[ "$GUI" = 1 ]] || [[ -t 1 ]] || [[ -t 2 ]]; then
     # In GUI mode, or in a terminal without --console, spawn an xterm to display
     # the output of the remote command.
-    CMD="xterm -e $CMD"
+    CMD="xterm -e /bin/sh -c '"'if "$@" '"$exit_cmd"'; then
+    status=0 prompt=succeeded
+else
+    status=$? prompt="failed with code $?"
+fi
+read -p "Fetching updates $prompt; press Enter to exit" q
+exit "$status"'"' sh $CMD"
 else
     QVMRUN_OPTS=(--nogui)
 fi
@@ -265,7 +272,7 @@ fi
 qvm-run "${QVMRUN_OPTS[@]}" -- "$UPDATEVM" "$CMD" < /dev/null
 
 RETCODE=$?
-if [ "$REMOTE_ONLY" == "1" ] || [ "$RETCODE" -ne 0 ]; then
+if "$REMOTE_ONLY" || [ "$RETCODE" -ne 0 ]; then
     exit $RETCODE
 fi
 # Wait for download completed
