@@ -88,15 +88,21 @@ while [ $# -gt 0 ]; do
     shift
 done
 
-REMOTE_ONLY=
-if [ "$CHECK_ONLY" == "1" ] || [ "$YUM_ACTION" == "list" ] || [ "$YUM_ACTION" == "search" ]; then
+REMOTE_ONLY= may_clobber_template=0
+case ${YUM_ACTION=upgrade} in
+(reinstall|erase|remove|upgrade|upgrade-to|downgrade) may_clobber_template=1;;
+(list|search)
+    REMOTE_ONLY=1
+    ;;
+esac
+
+if [ "$CHECK_ONLY" == "1" ]; then
     REMOTE_ONLY=1
 fi
 
 # Prevent implicit update of template - this would override user changes -
 # but do allow explicit template upgrade, downgrade, reinstall
-if [ "$YUM_ACTION" == "reinstall" ] || [ "$YUM_ACTION" == "upgrade" ] || [ "$YUM_ACTION" == "upgrade-to" ] \
-|| [ "$YUM_ACTION" == "downgrade" ] && find_regex_in_args '^qubes-template-' "${PKGS[@]}"; then
+if [[ "$may_clobber_template" = '1' ]] && find_regex_in_args '^qubes-template-' "${PKGS[@]}"; then
     TEMPLATE_EXCLUDE_OPTS=()
     echo "WARNING: Replacing a template will erase all files in template's /home and /rw !"
 
@@ -218,9 +224,7 @@ fi
 
 qvm-run $QVMRUN_OPTS --pass-io "$UPDATEVM" "$CMD" < /dev/null
 RETCODE=$?
-if [ "$REMOTE_ONLY" == "1" ]; then
-    exit $RETCODE
-elif [ "$RETCODE" -ne 0 ]; then
+if [[ "$REMOTE_ONLY" = '1' ]] || [ "$RETCODE" -ne 0 ]; then
     exit $RETCODE
 fi
 # Wait for download completed
