@@ -109,18 +109,18 @@ elif [[ -z "${DISPLAY-}" ]]; then
     CONSOLE=1
 fi
 
-REMOTE_ONLY=false may_clobber_template=false exit_cmd='&& exit'
+REMOTE_ONLY= may_clobber_template=0 exit_cmd='&& exit'
 case ${YUM_ACTION=upgrade} in
-(reinstall|upgrade|upgrade-to|downgrade) may_clobber_template=true;;
+(reinstall|erase|remove|upgrade|upgrade-to|downgrade) may_clobber_template=1;;
 (list|search)
-    REMOTE_ONLY=true exit_cmd=
+    REMOTE_ONLY=1 exit_cmd=
     if [[ "$CONSOLE" = 1 ]]; then SHOW_OUTPUT=1; fi
     ;;
 esac
 
 # Prevent implicit update of template - this would override user changes -
 # but do allow explicit template upgrade, downgrade, reinstall
-if "$may_clobber_template" && find_regex_in_args '^qubes-template-' "${PKGS[@]}"; then
+if [[ "$may_clobber_template" = '1' ]] && find_regex_in_args '^qubes-template-' "${PKGS[@]}"; then
     TEMPLATE_EXCLUDE_OPTS=()
     echo "WARNING: Replacing a template will erase all files in template's /home and /rw !"
 
@@ -272,7 +272,7 @@ fi
 qvm-run "${QVMRUN_OPTS[@]}" -- "$UPDATEVM" "$CMD" < /dev/null
 
 RETCODE=$?
-if "$REMOTE_ONLY" || [ "$RETCODE" -ne 0 ]; then
+if [[ "$REMOTE_ONLY" = '1' ]] || [ "$RETCODE" -ne 0 ]; then
     exit $RETCODE
 fi
 # Wait for download completed
