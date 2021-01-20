@@ -252,7 +252,11 @@ if [[ "$CONSOLE" = 1 ]]; then
             # progress output.  Since stdout and stderr are both terminals, qvm-run
             # will automatically sanitize them, but we explicitly tell it to anyway
             # as a precaution.
-            CMD="exec script --quiet --return --command '${CMD//\'/\'\\\'\'}'"
+            #
+            # We MUST NOT use ‘exec script’ here.  That causes ‘script’ to
+            # inherit the child processes of the shell.  ‘script’ mishandles
+            # this and enters an infinite loop.
+            CMD="script --quiet --return --command '${CMD//\'/\'\\\'\'}'"
         fi
     fi
 elif [[ "$GUI" = 1 ]] || [[ -t 1 ]] || [[ -t 2 ]]; then
