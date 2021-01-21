@@ -47,7 +47,6 @@ YUM_OPTS=()
 GUI=
 CHECK_ONLY=
 ALL_OPTS=( "${@}" )
-QVMRUN_OPTS=()
 SHOW_OUTPUT=0
 CONSOLE=0
 CLEAN=
@@ -241,7 +240,7 @@ CMD="/usr/lib/qubes/qubes-download-dom0-updates.sh --doit --nogui"
 # by the following is.
 for i in "${ALL_OPTS[@]}"; do CMD+=" '${i//\'/\'\\\'\'}'"; done
 
-QVMRUN_OPTS=(--filter-escape-chars)
+QVMRUN_OPTS=(--quiet --filter-escape-chars)
 # If we are running in a terminal, run the command in its own terminal in the UpdateVM.
 if [[ "$CONSOLE" = 1 ]]; then
     QVMRUN_OPTS+=(--nogui)
