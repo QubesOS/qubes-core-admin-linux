@@ -264,6 +264,8 @@ chmod -x /etc/grub.d/10_linux
 %{_dracutmoddir}/90qubes-pciback/*
 %dir %{_dracutmoddir}/90extra-modules
 %{_dracutmoddir}/90extra-modules/*
+%dir %{_dracutmoddir}/90qubes-udev
+%{_dracutmoddir}/90qubes-udev/*
 # file copy
 %_bindir/qvm-copy-to-vm
 %_bindir/qvm-move-to-vm
