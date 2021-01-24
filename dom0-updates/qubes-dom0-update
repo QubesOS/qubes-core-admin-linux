@@ -49,9 +49,9 @@ fi
 
 PKGS=()
 YUM_OPTS=()
+UPDATEVM_OPTS=()
 GUI=
 CHECK_ONLY=
-ALL_OPTS=( "${@}" )
 YUM_ACTION=
 QVMRUN_OPTS=
 CLEAN=
@@ -62,27 +62,31 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --enablerepo=*|\
         --disablerepo=*)
+            UPDATEVM_OPTS+=( "$1" )
             ;;
         --clean)
             CLEAN=1
+            UPDATEVM_OPTS+=( "$1" )
             ;;
         --gui)
             GUI=1
+            UPDATEVM_OPTS+=( "$1" )
             ;;
         --check-only)
             CHECK_ONLY=1
             ;;
         --action=*)
             YUM_ACTION=${1#--action=}
+            UPDATEVM_OPTS+=( "$1" )
             ;;
         -*)
             YUM_OPTS+=( "${1}" )
+            UPDATEVM_OPTS+=( "$1" )
             ;;
         *)
             PKGS+=( "${1}" )
-            if [ -z "$YUM_ACTION" ]; then
-                YUM_ACTION=install
-            fi
+            UPDATEVM_OPTS+=( "$1" )
+            : "${YUM_ACTION=install}"
             ;;
     esac
     shift
@@ -141,7 +145,7 @@ else
 fi
 
 YUM_OPTS=( "${TEMPLATE_EXCLUDE_OPTS[@]}" "${YUM_OPTS[@]}" )
-ALL_OPTS=( "${TEMPLATE_EXCLUDE_OPTS[@]}" "${ALL_OPTS[@]}" )
+UPDATEVM_OPTS=( "${TEMPLATE_EXCLUDE_OPTS[@]}" "${UPDATEVM_OPTS[@]}" )
 
 ID=$(id -ur)
 if [ "$ID" != 0 ] && [ -z "$GUI" ] && [ -z "$CHECK_ONLY" ] ; then
@@ -220,7 +224,7 @@ qvm-run --nogui -q -- "$UPDATEVM" "rm -rf -- '$dom0_updates_dir/etc' '$dom0_upda
    exit "$status"
 }
 
-CMD="/usr/lib/qubes/qubes-download-dom0-updates.sh --doit --nogui $(escape_args "${ALL_OPTS[@]}")"
+CMD="/usr/lib/qubes/qubes-download-dom0-updates.sh --doit --nogui $(escape_args "${UPDATEVM_OPTS[@]}")"
 # Use 'script' to fake a terminal, so that we are shown sync and download
 # progress indicators. However, do it only if we are running in terminal
 # ourselves.
