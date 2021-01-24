@@ -44,9 +44,9 @@ fi
 
 PKGS=()
 YUM_OPTS=()
+UPDATEVM_OPTS=()
 GUI=
 CHECK_ONLY=
-ALL_OPTS=( "${@}" )
 SHOW_OUTPUT=0
 CONSOLE=0
 CLEAN=
@@ -59,12 +59,15 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --enablerepo=*|\
         --disablerepo=*)
+            UPDATEVM_OPTS+=( "$1" )
             ;;
         --clean)
             CLEAN=1
+            UPDATEVM_OPTS+=( "$1" )
             ;;
         --gui)
             GUI=1
+            UPDATEVM_OPTS+=( "$1" )
             ;;
         --show-output)
             SHOW_OUTPUT=1
@@ -80,19 +83,23 @@ while [ $# -gt 0 ]; do
             ;;
         --action=*)
             YUM_ACTION=${1#--action=}
+            UPDATEVM_OPTS+=( "$1" )
             ;;
         --)
             if [[ "$#" -gt 1 ]]; then
                 YUM_OPTS+=( "${@:2}" )
+                UPDATEVM_OPTS+=( "${@:2}" )
                 shift "$(( $# - 1 ))"
                 : "${YUM_ACTION=install}"
             fi
             ;;
         -*)
             YUM_OPTS+=( "${1}" )
+            UPDATEVM_OPTS+=( "$1" )
             ;;
         *)
             PKGS+=( "${1}" )
+            UPDATEVM_OPTS+=( "$1" )
             : "${YUM_ACTION=install}"
             ;;
     esac
@@ -158,7 +165,7 @@ else
 fi
 
 YUM_OPTS=( "${TEMPLATE_EXCLUDE_OPTS[@]}" "${YUM_OPTS[@]}" )
-ALL_OPTS=( "${TEMPLATE_EXCLUDE_OPTS[@]}" "${ALL_OPTS[@]}" )
+UPDATEVM_OPTS=( "${TEMPLATE_EXCLUDE_OPTS[@]}" "${UPDATEVM_OPTS[@]}" )
 
 ID=$(id -ur)
 if [ "$ID" != 0 ] && [ -z "$GUI" ] && [ -z "$CHECK_ONLY" ] ; then
@@ -238,7 +245,7 @@ CMD="/usr/lib/qubes/qubes-download-dom0-updates.sh --doit --nogui"
 # We avoid using bash’s own facilities for this, as they produce $'\n'-style
 # strings in certain cases.  These are not portable, whereas the string produced
 # by the following is.
-for i in "${ALL_OPTS[@]}"; do CMD+=" '${i//\'/\'\\\'\'}'"; done
+for i in "${UPDATEVM_OPTS[@]}"; do CMD+=" '${i//\'/\'\\\'\'}'"; done
 
 QVMRUN_OPTS=(--quiet --filter-escape-chars)
 # If we are running in a terminal, run the command in its own terminal in the UpdateVM.
