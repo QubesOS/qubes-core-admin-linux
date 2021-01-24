@@ -50,6 +50,8 @@ Conflicts:	qubes-core-dom0 < 4.0.23
 Requires:	%{name}-kernel-install
 Requires:	xdotool
 Requires:	createrepo_c
+# salt needs to pass --console --show-output options now
+Conflicts:  qubes-mgmt-salt-dom0-update < 4.1.4
 
 Source0: %{name}-%{version}.tar.gz
 
