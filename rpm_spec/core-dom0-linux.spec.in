@@ -88,9 +88,9 @@ suspend/resume.
 
 %build
 export BACKEND_VMM=@BACKEND_VMM@
-(cd dom0-updates; make)
-(cd file-copy-vm; make)
-(cd doc; make manpages)
+make -C dom0-updates
+make -C file-copy-vm
+make -C doc manpages
 
 %install
 
