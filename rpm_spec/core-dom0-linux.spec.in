@@ -40,6 +40,7 @@ BuildRequires:  ImageMagick
 BuildRequires:  pandoc
 BuildRequires:  qubes-utils-devel >= 3.1.3
 BuildRequires:  gcc
+BuildRequires:  systemd-rpm-macros
 Requires:	qubes-core-dom0
 Requires:	python3-qubesadmin
 Requires:	qubes-core-qrexec-dom0
@@ -118,8 +119,8 @@ cp qubes-rpc-policy/* $RPM_BUILD_ROOT/etc/qubes-rpc/policy/
 ### pm-utils
 mkdir -p $RPM_BUILD_ROOT/usr/lib64/pm-utils/sleep.d
 cp pm-utils/52qubes-pause-vms $RPM_BUILD_ROOT/usr/lib64/pm-utils/sleep.d/
-mkdir -p $RPM_BUILD_ROOT/usr/lib/systemd/system
-cp pm-utils/qubes-suspend.service $RPM_BUILD_ROOT/usr/lib/systemd/system/
+mkdir -p $RPM_BUILD_ROOT%_unitdir
+cp pm-utils/qubes-suspend.service $RPM_BUILD_ROOT%_unitdir
 
 ### Dracut module
 mkdir -p $RPM_BUILD_ROOT/usr/lib/dracut/dracut.conf.d
@@ -145,11 +146,11 @@ install -m 755 -D system-config/kernel-grub2.install $RPM_BUILD_ROOT/usr/lib/ker
 install -m 755 -D system-config/kernel-xen-efi.install $RPM_BUILD_ROOT/usr/lib/kernel/install.d/90-xen-efi.install
 install -m 755 -D system-config/kernel-remove-bls.install $RPM_BUILD_ROOT/usr/lib/kernel/install.d/99-remove-bls.install
 install -m 644 -D system-config/75-qubes-dom0.preset \
-    $RPM_BUILD_ROOT/usr/lib/systemd/system-preset/75-qubes-dom0.preset
+    $RPM_BUILD_ROOT%_presetdir/75-qubes-dom0.preset
 install -m 644 -D system-config/75-qubes-dom0-user.preset \
-    $RPM_BUILD_ROOT/usr/lib/systemd/user-preset/75-qubes-dom0-user.preset
+    $RPM_BUILD_ROOT%_userpresetdir/75-qubes-dom0-user.preset
 install -m 644 -D system-config/99-qubes-default-disable.preset \
-    $RPM_BUILD_ROOT/usr/lib/systemd/system-preset/99-qubes-default-disable.preset
+    $RPM_BUILD_ROOT%_presetdir/99-qubes-default-disable.preset
 install -d $RPM_BUILD_ROOT/etc/dnf/protected.d
 install -m 0644 system-config/dnf-protected-qubes-core-dom0.conf  \
         $RPM_BUILD_ROOT/etc/dnf/protected.d/qubes-core-dom0.conf
@@ -241,7 +242,7 @@ chmod -x /etc/grub.d/10_linux
 # Dom0 updates
 /etc/cron.daily/qubes-dom0-updates.cron
 /etc/yum.real.repos.d/qubes-cached.repo
-/usr/bin/qubes-dom0-update
+%_bindir/qubes-dom0-update
 /usr/lib/qubes/patch-dnf-yum-config
 %attr(4750,root,qubes) /usr/libexec/qubes/qfile-dom0-unpacker
 /usr/libexec/qubes/qubes-receive-updates
@@ -263,14 +264,14 @@ chmod -x /etc/grub.d/10_linux
 %dir %{_dracutmoddir}/90extra-modules
 %{_dracutmoddir}/90extra-modules/*
 # file copy
-/usr/bin/qvm-copy-to-vm
-/usr/bin/qvm-move-to-vm
-/usr/bin/qvm-copy
-/usr/bin/qvm-move
+%_bindir/qvm-copy-to-vm
+%_bindir/qvm-move-to-vm
+%_bindir/qvm-copy
+%_bindir/qvm-move
 /usr/lib/qubes/qfile-dom0-agent
 # pm-utils
 /usr/lib64/pm-utils/sleep.d/52qubes-pause-vms
-/usr/lib/systemd/system/qubes-suspend.service
+%_unitdir/qubes-suspend.service
 # Others
 /etc/sysconfig/modules/qubes-dom0.modules
 /etc/sysconfig/modules/cpufreq-xen.modules
@@ -283,9 +284,9 @@ chmod -x /etc/grub.d/10_linux
 /etc/cron.daily/lvm-cleanup
 %config(noreplace) /etc/profile.d/zz-disable-lesspipe.sh
 %config(noreplace) /etc/dnf/protected.d/qubes-core-dom0.conf
-/usr/lib/systemd/system-preset/75-qubes-dom0.preset
-/usr/lib/systemd/system-preset/99-qubes-default-disable.preset
-/usr/lib/systemd/user-preset/75-qubes-dom0-user.preset
+%_presetdir/75-qubes-dom0.preset
+%_presetdir/99-qubes-default-disable.preset
+%_userpresetdir/75-qubes-dom0-user.preset
 /var/lib/qubes/.qubes-exclude-block-devices
 # Man
 %{_mandir}/man1/qvm-*.1*
