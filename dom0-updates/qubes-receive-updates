@@ -93,7 +93,8 @@ def handle_dom0updates(updatevm):
             if os.path.islink(full_path) or not os.path.isfile(full_path):
                 raise Exception(
                     'Domain ' + source + ' sent not regular file')
-            p = subprocess.Popen(["/bin/rpm", "-K", full_path],
+            p = subprocess.Popen(["/bin/rpm", "-K",
+                                  "--define=_pkgverify_level all", full_path],
                     stdout=subprocess.PIPE)
             output = p.communicate()[0].decode('ascii')
             if p.returncode != 0:
