@@ -20,6 +20,7 @@
 #
 import os
 import os.path
+import stat
 import re
 import sys
 import subprocess
@@ -46,7 +47,7 @@ package_regex = re.compile(r"^[A-Za-z0-9._+-]{1,128}\.rpm$")
 # example of valid outputs from old RPM (not supported anymore):
 #  .....rpm: rsa sha1 (md5) pgp md5 OK
 #  .....rpm: (sha1) dsa sha1 md5 gpg OK
-gpg_ok_regex = re.compile(r": digests signatures OK$")
+gpg_ok_suffix = b": digests signatures OK\n"
 
 
 def dom0updates_fatal(msg):
@@ -90,17 +91,26 @@ def handle_dom0updates(updatevm):
             assert '\x1b' not in f
 
             full_path = updates_rpm_dir + "/" + f
-            if os.path.islink(full_path) or not os.path.isfile(full_path):
+            # lstat does not dereference symbolic links
+            if not stat.S_ISREG(os.lstat(full_path).st_mode):
                 raise Exception(
                     'Domain ' + source + ' sent not regular file')
-            p = subprocess.Popen(["/bin/rpm", "-K",
-                                  "--define=_pkgverify_level all", full_path],
-                    stdout=subprocess.PIPE)
-            output = p.communicate()[0].decode('ascii')
+            # _pkgverify_level all: force digest + signature verification
+            # _pkgverify_flags 0x0: force all signatures and digests to be checked
+            rpm_argv = ("rpmkeys", "-K", "--define=_pkgverify_level all",
+                        "--define=_pkgverify_flags 0x0", "--", full_path)
+            # rpmkeys output is localized, sigh
+            p = subprocess.Popen(rpm_argv,
+                     executable='/usr/bin/rpmkeys',
+                     env={'LC_ALL': 'C'},
+                     cwd='/',
+                     stdin=subproces.DEVNULL,
+                     stdout=subprocess.PIPE)
+            output = p.communicate()[0]
             if p.returncode != 0:
                 raise Exception(
                     'Error while verifying %s signature: %s' % (f, output))
-            if not gpg_ok_regex.search(output.strip()):
+            if output != full_path.encode('ascii', 'strict') + gpg_ok_suffix:
                 raise Exception(
                     'Domain ' + source + ' sent not signed rpm: ' + f)
     except Exception as e:
