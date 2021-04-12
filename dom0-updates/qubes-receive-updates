@@ -83,7 +83,7 @@ def handle_dom0updates(updatevm):
                 prefix='qubes-updates-tmp',
                 suffix='.UNTRUSTED') as tmp_dir:
             subprocess.check_call(["/usr/libexec/qubes/qfile-dom0-unpacker",
-                str(os.getuid()), tmp_dir])
+                str(os.getuid()), tmp_dir, '--only-regular-files'])
             # Verify received files
             for untrusted_f in os.listdir(tmp_dir):
                 if not package_regex.match(untrusted_f):

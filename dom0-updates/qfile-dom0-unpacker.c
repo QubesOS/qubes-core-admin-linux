@@ -59,7 +59,7 @@ int main(int argc, char ** argv)
     long long root_free_space;
 
     if (argc < 3) {
-        fprintf(stderr, "Invalid parameters, usage: %s user dir [-v]\n", argv[0]);
+        fprintf(stderr, "Invalid parameters, usage: %s user dir [-v] [-w space] [--only-regular-files]\n", argv[0]);
         exit(1);
     }
 
@@ -94,6 +94,8 @@ int main(int argc, char ** argv)
         files_limit = atoll(var);
 
     set_size_limit(bytes_limit, files_limit);
+
+    int flags = COPY_ALLOW_SYMLINKS | COPY_ALLOW_DIRECTORIES;
     for (i = 3; i < argc; i++) {
         if (strcmp(argv[i], "-v") == 0) {
             set_verbose(1);
@@ -113,10 +115,12 @@ int main(int argc, char ** argv)
             } else {
                 set_wait_for_space(1);
             }
+        } else if (strcmp(argv[i], "--only-regular-files") == 0) {
+            flags = 0;
         } else {
             fprintf(stderr, "Invalid option %s", argv[i]);
             exit(1);
         }
     }
-    return do_unpack();
+    return do_unpack_ext(flags);
 }
