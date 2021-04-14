@@ -27,6 +27,7 @@ import subprocess
 import shutil
 import grp
 import qubesadmin
+import tempfile
 
 updates_dir = "/var/lib/qubes/updates"
 updates_rpm_dir = updates_dir + "/rpm"
@@ -71,48 +72,63 @@ def handle_dom0updates(updatevm):
         shutil.rmtree(updates_repodata_dir)
     if os.path.exists(updates_error_file):
         os.remove(updates_error_file)
-    os.environ['LC_ALL'] = 'C'
     qubes_gid = grp.getgrnam('qubes').gr_gid
     old_umask = os.umask(0o002)
     os.mkdir(updates_rpm_dir)
     os.chown(updates_rpm_dir, -1, qubes_gid)
     os.chmod(updates_rpm_dir, 0o0775)
+    rpmcanon_prog = 'rpmcanon'
+    # Check if we need to disable rpmcanon
+    if os.path.exists('/etc/qubes/disable-rpmcanon'):
+        rpmcanon_prog = 'cp'
     try:
-        subprocess.check_call(["/usr/libexec/qubes/qfile-dom0-unpacker",
-            str(os.getuid()), updates_rpm_dir])
-        # Verify received files
-        for untrusted_f in os.listdir(updates_rpm_dir):
-            if not package_regex.match(untrusted_f):
-                raise Exception(
-                    'Domain ' + source + ' sent unexpected file')
-            f = untrusted_f
-            assert '/' not in f
-            assert '\0' not in f
-            assert '\x1b' not in f
+        with tempfile.TemporaryDirectory(
+                dir='/var/tmp',
+                prefix='qubes-updates-tmp',
+                suffix='.UNTRUSTED') as tmp_dir:
+            subprocess.check_call(["/usr/libexec/qubes/qfile-dom0-unpacker",
+                str(os.getuid()), tmp_dir])
+            # Verify received files
+            for untrusted_f in os.listdir(tmp_dir):
+                if not package_regex.match(untrusted_f):
+                    raise Exception(
+                        'Domain ' + source + ' sent unexpected file')
+                f = untrusted_f
+                assert '/' not in f
+                assert '\0' not in f
+                assert '\x1b' not in f
 
-            full_path = updates_rpm_dir + "/" + f
-            # lstat does not dereference symbolic links
-            if not stat.S_ISREG(os.lstat(full_path).st_mode):
-                raise Exception(
-                    'Domain ' + source + ' sent not regular file')
-            # _pkgverify_level all: force digest + signature verification
-            # _pkgverify_flags 0x0: force all signatures and digests to be checked
-            rpm_argv = ("rpmkeys", "-K", "--define=_pkgverify_level all",
-                        "--define=_pkgverify_flags 0x0", "--", full_path)
-            # rpmkeys output is localized, sigh
-            p = subprocess.Popen(rpm_argv,
-                     executable='/usr/bin/rpmkeys',
-                     env={'LC_ALL': 'C'},
-                     cwd='/',
-                     stdin=subproces.DEVNULL,
-                     stdout=subprocess.PIPE)
-            output = p.communicate()[0]
-            if p.returncode != 0:
-                raise Exception(
-                    'Error while verifying %s signature: %s' % (f, output))
-            if output != full_path.encode('ascii', 'strict') + gpg_ok_suffix:
-                raise Exception(
-                    'Domain ' + source + ' sent not signed rpm: ' + f)
+                tmp_full_path = tmp_dir + "/" + f
+                full_path = updates_rpm_dir + "/" + f
+                # lstat does not dereference symbolic links
+                if not stat.S_ISREG(os.lstat(tmp_full_path).st_mode):
+                    raise Exception(
+                        'Domain ' + source + ' sent not regular file')
+                try:
+                    subprocess.check_call((
+                        rpmcanon_prog, '--allow-old-pkgs', '--',
+                        tmp_full_path, full_path))
+                except subprocess.CalledProcessError:
+                    raise Exception('Error canonicalizing ' + tmp_full_path)
+                os.unlink(tmp_full_path)
+                # _pkgverify_level all: force digest + signature verification
+                # _pkgverify_flags 0x0: force all signatures and digests to be checked
+                rpm_argv = ("rpmkeys", "-K", "--define=_pkgverify_level all",
+                            "--define=_pkgverify_flags 0x0", "--", full_path)
+                # rpmkeys output is localized, sigh
+                p = subprocess.Popen(rpm_argv,
+                         executable='/usr/bin/rpmkeys',
+                         env={'LC_ALL': 'C'},
+                         cwd='/',
+                         stdin=subprocess.DEVNULL,
+                         stdout=subprocess.PIPE)
+                output = p.communicate()[0]
+                if p.returncode != 0:
+                    raise Exception(
+                        'Error while verifying %s signature: %s' % (f, output))
+                if output != full_path.encode('ascii', 'strict') + gpg_ok_suffix:
+                    raise Exception(
+                        'Domain ' + source + ' sent not signed rpm: ' + f)
     except Exception as e:
         dom0updates_fatal(str(e))
     # After updates received - create repo metadata
@@ -123,10 +139,6 @@ def handle_dom0updates(updatevm):
     subprocess.check_call(createrepo_cmd)
     os.chown(updates_repodata_dir, -1, qubes_gid)
     os.chmod(updates_repodata_dir, 0o0775)
-    # Clean old cache
-    subprocess.call(["sudo", "/usr/bin/yum", "-q", "clean", "all"],
-        stdout=sys.stderr)
-    os.umask(old_umask)
     exit(0)
 
 

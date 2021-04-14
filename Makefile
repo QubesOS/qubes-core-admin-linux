@@ -3,7 +3,7 @@ RPMS_DIR=rpm/
 VERSION := $(shell cat version)
 VERSION_VAIO_FIXES := $(shell cat version_vaio_fixes)
 
-DIST_DOM0 ?= fc18
+DIST_DOM0 ?= fc32
 
 help:
 	@echo "make rpms                  -- generate binary rpm packages"
