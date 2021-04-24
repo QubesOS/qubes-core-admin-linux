@@ -179,6 +179,7 @@ if ! grep -q ^qubes: /etc/group ; then
 fi
 
 %post
+set -eo pipefail
 
 /usr/lib/qubes/patch-dnf-yum-config
 
@@ -189,6 +190,30 @@ if [ $1 -ge 2 ]; then
     if [ -e /var/lib/qubes/updates/disable-updates ]; then
         qvm-features dom0 service.qubes-update-check ''
         rm -f /var/lib/qubes/updates/disable-updates
+    fi
+fi
+
+# setup thinpool autoextend
+if [ -e /etc/lvm/lvm.conf ]; then
+    tpool_threshold_line_value=$(grep -n -Po '^[^#]thin_pool_autoextend_threshold[ \t]*=[ \t]*\K\d+' /etc/lvm/lvm.conf)
+    if [ -n "$tpool_threshold_line_value" ]; then
+        tpool_threshold_line="$(echo "$tpool_threshold_line_value" | cut -d':' -f1)"
+        tpool_threshold_value="$(echo "$tpool_threshold_line_value" | cut -d':' -f2)"
+
+        if [ -n "$tpool_threshold_line" ] && [ -n "$tpool_threshold_value" ]; then
+            prev_line="$(sed -n "$((tpool_threshold_line-1))p" /etc/lvm/lvm.conf)"
+            qubes_comment='# QUBES OS: Custom value detected, not enforcing default. Recommended value: 90'
+
+            if [ "$tpool_threshold_value" == 100 ]; then
+                sed -i 's|^\([^#]thin_pool_autoextend_threshold\)[ \t]*=.*|\1 = 90|' /etc/lvm/lvm.conf
+
+                systemctl restart lvm2-monitor
+            else
+                if [ "$tpool_threshold_value" != 90 ] && [ "$prev_line" != "$qubes_comment" ]; then
+                    sed -i "${tpool_threshold_line}i $qubes_comment" /etc/lvm/lvm.conf
+                fi
+            fi
+        fi
     fi
 fi
 
