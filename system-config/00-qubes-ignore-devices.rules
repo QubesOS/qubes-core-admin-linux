@@ -2,7 +2,7 @@
 
 ACTION=="remove", GOTO="qubes-ignore-devices-end"
 SUBSYSTEM!="block", GOTO="qubes-ignore-devices-end"
-KERNEL=="loop*", ENV{DM_UDEV_DISABLE_DISK_RULES_FLAG}="1", ENV{UDEV_DISABLE_PERSISTENT_STORAGE_RULES_FLAG}="1"
+KERNEL=="loop*", ENV{DM_UDEV_DISABLE_DISK_RULES_FLAG}="1", ENV{UDEV_DISABLE_PERSISTENT_STORAGE_RULES_FLAG}="1", GOTO="qubes-devices-check-export"
 KERNEL=="xvd*", ENV{DM_UDEV_DISABLE_DISK_RULES_FLAG}="1", ENV{UDEV_DISABLE_PERSISTENT_STORAGE_RULES_FLAG}="1"
 # ENV{DM_NAME} not available yet
 # Template VM disks
@@ -11,6 +11,11 @@ ATTR{dm/name}=="origin-*", ENV{DM_UDEV_DISABLE_DISK_RULES_FLAG}="1"
 # kpartx used for creating empty volatile.img, udevd tries to access the device
 # and prevent kpartx from removing them
 ATTR{dm/name}=="loop*p*", ENV{DM_UDEV_DISABLE_DISK_RULES_FLAG}="1"
+
+GOTO="qubes-ignore-devices-end"
+
+LABEL="qubes-devices-check-export"
+ATTR{loop/backing_file}!="*/appvms/*/*.img*|*/vm-templates/*/*.img*", ENV{QUBES_EXPORT_BLOCK_DEVICE}="1"
 
 LABEL="qubes-ignore-devices-end"
 
