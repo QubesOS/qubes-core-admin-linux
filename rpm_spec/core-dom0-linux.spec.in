@@ -122,8 +122,8 @@ mkdir -p $RPM_BUILD_ROOT/usr/lib/systemd/system
 cp pm-utils/qubes-suspend.service $RPM_BUILD_ROOT/usr/lib/systemd/system/
 
 ### Dracut module
-mkdir -p $RPM_BUILD_ROOT/etc/dracut.conf.d
-cp dracut/dracut.conf.d/* $RPM_BUILD_ROOT/etc/dracut.conf.d/
+mkdir -p $RPM_BUILD_ROOT/usr/lib/dracut/dracut.conf.d
+cp dracut/dracut.conf.d/* $RPM_BUILD_ROOT/usr/lib/dracut/dracut.conf.d/
 
 mkdir -p $RPM_BUILD_ROOT%{_dracutmoddir}
 cp -r dracut/modules.d/* $RPM_BUILD_ROOT%{_dracutmoddir}/
@@ -255,7 +255,7 @@ chmod -x /etc/grub.d/10_linux
 %attr(0664,root,qubes) %config(noreplace) /etc/qubes-rpc/policy/qubes.repos.Enable
 %attr(0664,root,qubes) %config(noreplace) /etc/qubes-rpc/policy/qubes.repos.Disable
 # Dracut module
-/etc/dracut.conf.d/*
+/usr/lib/dracut/dracut.conf.d/*
 %dir %{_dracutmoddir}/90macbook12-spi-driver
 %{_dracutmoddir}/90macbook12-spi-driver/*
 %dir %{_dracutmoddir}/90qubes-pciback
