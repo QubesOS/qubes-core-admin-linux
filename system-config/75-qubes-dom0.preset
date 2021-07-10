@@ -19,7 +19,7 @@ enable dmraid-activation.service
 enable fstrim.timer
 
 enable dbus.socket
-enable dbus-daemon.service
+enable dbus-broker.service
 
 enable abrtd.service
 enable abrt-ccpp.service
