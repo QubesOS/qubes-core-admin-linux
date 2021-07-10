@@ -38,6 +38,7 @@ enable virlockd.socket
 
 enable upower.service
 enable crond.service
+enable logrotate.timer
 
 
 # Qubes services
