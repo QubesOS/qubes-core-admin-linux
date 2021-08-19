@@ -8,6 +8,9 @@ KERNEL=="xvd*", ENV{DM_UDEV_DISABLE_DISK_RULES_FLAG}="1", ENV{UDEV_DISABLE_PERSI
 # Template VM disks
 ATTR{dm/name}=="snapshot-*", ENV{DM_UDEV_DISABLE_DISK_RULES_FLAG}="1"
 ATTR{dm/name}=="origin-*", ENV{DM_UDEV_DISABLE_DISK_RULES_FLAG}="1"
+# Encrypted volatile volumes
+ATTR{dm/name}=="*@crypt", ENV{DM_UDEV_DISABLE_DISK_RULES_FLAG}="1"
+ATTR{dm/name}=="vm-volatile-*", ENV{DM_UDEV_DISABLE_DISK_RULES_FLAG}="1"
 # kpartx used for creating empty volatile.img, udevd tries to access the device
 # and prevent kpartx from removing them
 ATTR{dm/name}=="loop*p*", ENV{DM_UDEV_DISABLE_DISK_RULES_FLAG}="1"
