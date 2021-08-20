@@ -77,10 +77,6 @@ def handle_dom0updates(updatevm):
     os.mkdir(updates_rpm_dir)
     os.chown(updates_rpm_dir, -1, qubes_gid)
     os.chmod(updates_rpm_dir, 0o0775)
-    rpmcanon_prog = 'rpmcanon'
-    # Check if we need to disable rpmcanon
-    if os.path.exists('/etc/qubes/disable-rpmcanon'):
-        rpmcanon_prog = 'cp'
     try:
         with tempfile.TemporaryDirectory(
                 dir='/var/tmp',
@@ -106,7 +102,7 @@ def handle_dom0updates(updatevm):
                         'Domain ' + source + ' sent not regular file')
                 try:
                     subprocess.check_call((
-                        rpmcanon_prog, '--allow-old-pkgs', '--',
+                        'rpmcanon', '--allow-old-pkgs', '--',
                         tmp_full_path, full_path))
                 except subprocess.CalledProcessError:
                     raise Exception('Error canonicalizing ' + tmp_full_path)
