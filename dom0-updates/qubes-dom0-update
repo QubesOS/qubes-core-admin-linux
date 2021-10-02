@@ -45,6 +45,7 @@ fi
 PKGS=()
 YUM_OPTS=()
 UPDATEVM_OPTS=()
+QVMTEMPLATE_OPTS=()
 GUI=
 CHECK_ONLY=
 SHOW_OUTPUT=0
@@ -60,6 +61,7 @@ while [ $# -gt 0 ]; do
         --enablerepo=*|\
         --disablerepo=*)
             UPDATEVM_OPTS+=( "$1" )
+            QVMTEMPLATE_OPTS+=( "$1" )
             ;;
         --clean)
             CLEAN=1
@@ -96,6 +98,7 @@ while [ $# -gt 0 ]; do
         -*)
             YUM_OPTS+=( "${1}" )
             UPDATEVM_OPTS+=( "$1" )
+            QVMTEMPLATE_OPTS+=( "$1" )
             ;;
         *)
             PKGS+=( "${1}" )
@@ -124,45 +127,20 @@ case ${YUM_ACTION=upgrade} in
     ;;
 esac
 
-# Prevent implicit update of template - this would override user changes -
-# but do allow explicit template upgrade, downgrade, reinstall
-if [[ "$may_clobber_template" = '1' ]] && find_regex_in_args '^qubes-template-' "${PKGS[@]}"; then
-    TEMPLATE_EXCLUDE_OPTS=()
-    echo "WARNING: Replacing a template will erase all files in template's /home and /rw !"
-
-    # At least one package name matches the regex '^qubes-template-',
-    # so if there is only one package name in the array, then the
-    # code can safely assume that the array includes only a template
-    # package name.
-    if [[ ${#PKGS[@]} -eq 1 ]]; then
-        ONEPKG="$(echo "${PKGS[0]}" | sed -r 's/-[0-9]+(\.[0-9-]+)+(\.noarch)*$//')" # Remove version suffix
-        TEMPLATE=${ONEPKG#qubes-template-} # Remove prefix
-
-        if qvm-shutdown --wait "$TEMPLATE" ; then
-            echo "Template VM halted"
-        fi
-
-        # Try to avoid unrecoverable failures when operating on the template of
-        # the UpdateVM by making a backup first.
-        UPDATEVM_TEMPLATE=$(qvm-prefs -- "$UPDATEVM" template 2>/dev/null)
-        if [ X"$UPDATEVM_TEMPLATE" = X"$TEMPLATE" ]; then
-            TEMPLATE_BACKUP="${TEMPLATE}-backup-$(date +%Y%m%d)-$(mktemp -u XXXX)"
-            TEMPLATE_BACKUP=${TEMPLATE_BACKUP:0:31}
-            echo "Attempting to operate on template of UpdateVM... backing up $TEMPLATE to $TEMPLATE_BACKUP"
-            if ! qvm-clone -- "$TEMPLATE" "$TEMPLATE_BACKUP"; then
-                echo "ERROR: Unable to make backup of UpdateVM template!" >&2
-                exit 1
-            fi
-        fi
-    else
+# Redirect operations on templates to qvm-template command
+if find_regex_in_args '^qubes-template-' "${PKGS[@]}"; then
+    if [[ ${#PKGS[@]} -ne 1 ]]; then
         echo "ERROR: Specify only one package to reinstall template"
-        exit 1
+        exit 2
     fi
-elif [ "$YUM_ACTION" == "search" ] || [ "$YUM_ACTION" == "info" ]; then # No need to shutdown for search/info
-    TEMPLATE_EXCLUDE_OPTS=()
-else
-    TEMPLATE_EXCLUDE_OPTS=( "--exclude=$(rpm -qa --qf '%{NAME},' qubes-template-\*|head -c -1)" )
+    ONEPKG="$(echo "${PKGS[0]}" | sed -r 's/-[0-9]+(\.[0-9-]+)+(\.noarch)*$//')" # Remove version suffix
+    TEMPLATE=${ONEPKG#qubes-template-} # Remove prefix
+    echo "Redirecting to 'qvm-template ${YUM_ACTION=install} ${QVMTEMPLATE_OPTS[*]} $TEMPLATE'"
+    exec qvm-template "${YUM_ACTION=install}" "${QVMTEMPLATE_OPTS[@]}" "$TEMPLATE"
 fi
+
+# since all the template handling is via qvm-template now, exclude all the templates
+TEMPLATE_EXCLUDE_OPTS=( "--exclude=qubes-template-*" )
 
 YUM_OPTS=( "${TEMPLATE_EXCLUDE_OPTS[@]}" "${YUM_OPTS[@]}" )
 UPDATEVM_OPTS=( "${TEMPLATE_EXCLUDE_OPTS[@]}" "${UPDATEVM_OPTS[@]}" )
@@ -327,25 +305,9 @@ if [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
 fi
 
 if [ ${#PKGS[@]} -gt 0 ]; then
-    if [ -n "$TEMPLATE" ]; then
-        TEMPLATE_NETVM=$(qvm-prefs --force-root "$TEMPLATE" netvm)
-    fi
 
     dnf "${YUM_OPTS[@]}" $YUM_ACTION "${PKGS[@]}" ; RETCODE=$?
 
-    if [ -n "$TEMPLATE_BACKUP" ] && [ "$RETCODE" -eq 0 ]; then
-        # Remove backup, if we made one. Better to do this only on success and
-        # potentially leave extra backups around than do it on an exit trap and
-        # clean up more reliably but potentially brick a system.
-        qvm-remove -f -- "$TEMPLATE_BACKUP"
-    fi
-
-    if [ -n "$TEMPLATE" ] && [ -n "$TEMPLATE_NETVM" ] && [ x"$TEMPLATE_NETVM" != xNone ]; then
-        if ! qvm-prefs --force-root -s "$TEMPLATE" netvm "$TEMPLATE_NETVM"; then
-            echo "ERROR: NetVM setting could not be restored!" >&2
-            exit 1
-        fi
-    fi
 elif [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
     # Above file exists only when at least one package was downloaded
     if [ "$GUI" == "1" ]; then
