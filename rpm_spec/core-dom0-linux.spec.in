@@ -36,6 +36,7 @@ Vendor:		Invisible Things Lab
 License:	GPL
 URL:		http://www.qubes-os.org
 
+BuildRequires:  make
 BuildRequires:  ImageMagick
 BuildRequires:  pandoc
 BuildRequires:  qubes-utils-devel >= 3.1.3
