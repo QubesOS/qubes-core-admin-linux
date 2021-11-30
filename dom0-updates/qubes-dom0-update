@@ -64,6 +64,10 @@ while [ $# -gt 0 ]; do
         --disablerepo=*)
             UPDATEVM_OPTS+=( "$1" )
             ;;
+        --downloadonly)
+            YUM_OPTS+=( "${1}" )
+            QVMTEMPLATE_OPTS+=( "$1" )
+            ;;
         --clean)
             CLEAN=1
             UPDATEVM_OPTS+=( "$1" )
