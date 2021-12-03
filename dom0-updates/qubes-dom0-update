@@ -33,6 +33,7 @@ if [ "$1" = "--help" ]; then
     echo "    --console    do not open an xterm in the UpdateVM; use this if"
     echo "                 there are GUI problems"
     echo "    --show-output  with --console, show the output of the UpdateVM"
+    echo "    --preserve-terminal  keep the UpdateVM's terminal running until closed manually"
     echo "    <pkg list>   download (and install if run by root) new packages"
     echo "                 in dom0 instead of updating"
     echo "    --           mark end of options"
@@ -42,6 +43,7 @@ if [ "$1" = "--help" ]; then
     exit
 fi
 
+exit_cmd='&& exit'
 PKGS=()
 YUM_OPTS=()
 UPDATEVM_OPTS=()
@@ -80,6 +82,9 @@ while [ $# -gt 0 ]; do
             ;;
         --check-only)
             CHECK_ONLY=1
+            ;;
+        --preserve-terminal)
+            exit_cmd=
             ;;
         --console)
             CONSOLE=1
@@ -122,7 +127,7 @@ elif [[ -z "${DISPLAY-}" ]]; then
     CONSOLE=1
 fi
 
-REMOTE_ONLY= may_clobber_template=0 exit_cmd='&& exit'
+REMOTE_ONLY= may_clobber_template=0
 case ${YUM_ACTION=upgrade} in
 (reinstall|erase|remove|upgrade|upgrade-to|downgrade) may_clobber_template=1;;
 (list|search)
