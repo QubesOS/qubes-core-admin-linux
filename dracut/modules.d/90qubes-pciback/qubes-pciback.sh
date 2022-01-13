@@ -1,7 +1,7 @@
 #!/bin/bash --
 
 type getarg >/dev/null 2>&1 || . /lib/dracut-lib.sh
-unset re HIDE_PCI usb_in_dom0 dev
+unset re HIDE_PCI usb_in_dom0 dev skip exposed
 
 usb_in_dom0=false
 
@@ -31,11 +31,21 @@ ws=$' \n'
 [[ $HIDE_PCI =~ ^[0-9a-f.:$ws]+$ ]] ||
     die 'Bogus PCI device list - fix your kernel command line!'
 modprobe xen-pciback 2>/dev/null || :
+dom0_usb=$(getarg rd.qubes.dom0_usb)
+case $dom0_usb in
+(*[!0-9a-f.:,]*) warn 'Bogus rd.qubes.dom0_usb option - fix your kernel command line'; dom0_usb=;;
+(*) dom0_usb=${dom0_usb//,/ } usb_in_dom0=true;;
+esac
 
 (
 set -e
 # ... and hide them so that Dom0 doesn't load drivers for them
 for dev in $HIDE_PCI; do
+    skip=false
+    for exposed in $dom0_usb; do
+        if [ "$dev" = "$exposed" ]; then skip=true; fi
+    done
+    if [ "$skip" = true ]; then continue; fi
     BDF=0000:$dev
     if [ -e "/sys/bus/pci/devices/$BDF/driver" ]; then
         echo -n "$BDF" > "/sys/bus/pci/devices/$BDF/driver/unbind"

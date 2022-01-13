@@ -4,6 +4,7 @@ ConditionKernelCommandLine=|!rd.qubes.hide_all_usb
 ConditionKernelCommandLine=|rd.qubes.hide_all_usb=0
 ConditionKernelCommandLine=|rd.qubes.hide_all_usb=no
 ConditionKernelCommandLine=|rd.qubes.hide_all_usb=off
+ConditionKernelCommandLine=|rd.qubes.dom0_usb
 ConditionKernelCommandLine=usbcore.authorized_default=0
 ConditionKernelCommandLine=!usbcore.nousb
 Before=systemd-ask-password-plymouth.path systemd-ask-password-wall.path
