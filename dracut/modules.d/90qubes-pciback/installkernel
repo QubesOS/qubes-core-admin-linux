@@ -1,6 +1,6 @@
 #!/bin/bash
 
-for mod in pciback xen-pciback; do
+for mod in pciback xen-pciback usbcore; do
     if modinfo -k "${kernel}" "${mod}" >/dev/null 2>&1; then
         instmods "${mod}"
     fi

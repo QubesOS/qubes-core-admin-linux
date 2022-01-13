@@ -1,25 +1,49 @@
-#!/bin/sh
+#!/bin/bash --
 
 type getarg >/dev/null 2>&1 || . /lib/dracut-lib.sh
+unset re HIDE_PCI usb_in_dom0 dev
 
-# Find all networking devices currenly installed...
-HIDE_PCI="`lspci -mm -n | grep '^[^ ]* "02'|awk '{print $1}'`"
+usb_in_dom0=false
 
-# ... and optionally all USB controllers...
 if getargbool 0 rd.qubes.hide_all_usb; then
-    HIDE_PCI="$HIDE_PCI `lspci -mm -n | grep '^[^ ]* "0c03'|awk '{print $1}'`"
+    # Select all networking and USB devices
+    re='0(2|c03)'
+elif ! getargbool 1 usbcore.authorized_default; then
+    # Select only networking devices, but enable USBguard
+    re='02'
+    usb_in_dom0=true
+else
+    re='02'
+    warn 'USB in dom0 is not restricted'
 fi
 
-HIDE_PCI="$HIDE_PCI `getarg rd.qubes.hide_pci | tr ',' ' '`"
+HIDE_PCI=$(set -o pipefail; { lspci -mm -n | awk "/^[^ ]* \"$re/ {print \$1}";}) ||
+    die 'Cannot obtain list of PCI devices to unbind'
 
+manual_pcidevs=$(getarg rd.qubes.hide_pci)
+case $manual_pcidevs in
+(*[!0-9a-f.:,]*) warn 'Bogus rd.qubes.hide_pci option - fix your kernel command line';;
+esac
+HIDE_PCI="$HIDE_PCI ${manual_pcidevs//,/ }"
+
+# XXX should this be fatal?
+ws=$' \n'
+[[ $HIDE_PCI =~ ^[0-9a-f.:$ws]+$ ]] ||
+    die 'Bogus PCI device list - fix your kernel command line!'
 modprobe xen-pciback 2>/dev/null || :
 
+(
+set -e
 # ... and hide them so that Dom0 doesn't load drivers for them
 for dev in $HIDE_PCI; do
     BDF=0000:$dev
-    if [ -e /sys/bus/pci/devices/$BDF/driver ]; then
-        echo -n $BDF > /sys/bus/pci/devices/$BDF/driver/unbind
+    if [ -e "/sys/bus/pci/devices/$BDF/driver" ]; then
+        echo -n "$BDF" > "/sys/bus/pci/devices/$BDF/driver/unbind"
     fi
-    echo -n $BDF > /sys/bus/pci/drivers/pciback/new_slot
-    echo -n $BDF > /sys/bus/pci/drivers/pciback/bind
+    echo -n "$BDF" > /sys/bus/pci/drivers/pciback/new_slot
+    echo -n "$BDF" > /sys/bus/pci/drivers/pciback/bind
 done
+) || die 'Cannot unbind PCI devices'
+if [ "$usb_in_dom0" = true ]; then
+    systemctl --no-block start usbguard.service
+fi

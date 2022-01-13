@@ -35,11 +35,11 @@ enable xen-init-dom0.service
 enable libvirtd.service
 enable virlockd.socket
 
-
 enable upower.service
 enable crond.service
 enable logrotate.timer
 
+enable usbguard.service
 
 # Qubes services
 enable qubes-core.service

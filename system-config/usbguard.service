@@ -1,0 +1,16 @@
+[Unit]
+DefaultDependencies=no
+ConditionKernelCommandLine=|!rd.qubes.hide_all_usb
+ConditionKernelCommandLine=|rd.qubes.hide_all_usb=0
+ConditionKernelCommandLine=|rd.qubes.hide_all_usb=no
+ConditionKernelCommandLine=|rd.qubes.hide_all_usb=off
+ConditionKernelCommandLine=usbcore.authorized_default=0
+ConditionKernelCommandLine=!usbcore.nousb
+Before=systemd-ask-password-plymouth.path systemd-ask-password-wall.path
+
+[Service]
+ExecStart=
+ExecStart=/usr/sbin/usbguard-daemon -f -s -c /etc/usbguard/qubes-usbguard.conf
+
+[Install]
+WantedBy=debug-shell.service rescue.target sysinit.target emergency.target
