@@ -14,4 +14,4 @@ ExecStart=
 ExecStart=/usr/sbin/usbguard-daemon -f -s -c /etc/usbguard/qubes-usbguard.conf
 
 [Install]
-WantedBy=debug-shell.service rescue.target sysinit.target emergency.target
+WantedBy=sysinit.target emergency.target
