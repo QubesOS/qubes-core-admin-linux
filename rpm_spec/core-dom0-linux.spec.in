@@ -197,8 +197,8 @@ set -eo pipefail
 
 /usr/lib/qubes/patch-dnf-yum-config
 
-systemctl enable qubes-suspend.service >/dev/null 2>&1
-systemctl preset usbguard.service
+systemctl --quiet enable qubes-suspend.service
+systemctl --quiet preset usbguard.service
 
 # migrate dom0-updates check disable flag
 if [ $1 -ge 2 ]; then
