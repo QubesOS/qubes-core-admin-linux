@@ -55,7 +55,7 @@ Requires:	xdotool
 Requires:	createrepo_c
 Requires:	rpm >= 4.14
 # Needed for USB in dom0
-Recommends: usbguard
+Requires: usbguard
 # salt needs to pass --console --show-output options now
 Conflicts:  qubes-mgmt-salt-dom0-update < 4.1.4
 
