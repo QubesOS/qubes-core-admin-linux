@@ -217,7 +217,7 @@ readonly dom0_updates_dir=/var/lib/qubes/dom0-updates
 qvm-run --nogui -q -u root -- "$UPDATEVM" "mkdir -m 775 -p -- '$dom0_updates_dir'" || exit 1
 qvm-run --nogui -q -u root -- "$UPDATEVM" "chown -- user:user '$dom0_updates_dir'" || exit 1
 qvm-run --nogui -q -- "$UPDATEVM" "rm -rf -- '$dom0_updates_dir/etc' '$dom0_updates_dir/var/lib/rpm'" || exit 1
-(cd / && exec tar -c -- var/lib/rpm etc/yum.repos.d etc/yum.conf etc/pki/rpm-gpg/RPM-GPG-KEY-* 2>/dev/null) |
+(cd / && exec tar -c -- var/lib/rpm etc/yum/vars etc/yum.repos.d etc/yum.conf etc/pki/rpm-gpg/RPM-GPG-KEY-* 2>/dev/null) |
    qvm-run --nogui -q --pass-io -- "$UPDATEVM" "LC_MESSAGES=C tar -C '$dom0_updates_dir' -x &&
    sed -Ei 's,^([[:space:]]*gpgkey[[:space:]]*=[[:space:]]*file://)(/etc/pki/rpm-gpg/RPM-GPG-KEY-),\\1$dom0_updates_dir\\2,' '$dom0_updates_dir/etc/yum.repos.d'/*.repo" >/dev/null 2>&1 || {
    status=$?
