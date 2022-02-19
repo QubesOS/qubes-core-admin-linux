@@ -11,6 +11,8 @@ os.umask(0o022)
 
 base = dnf.Base()
 
+base.conf.reposdir.append('/etc/qubes/repo-templates')
+
 base.read_all_repos()
 
 reponame = sys.argv[1]

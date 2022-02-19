@@ -7,6 +7,8 @@ import dnf
 
 base = dnf.Base()
 
+base.conf.reposdir.append('/etc/qubes/repo-templates')
+
 base.read_all_repos()
 
 first = True
