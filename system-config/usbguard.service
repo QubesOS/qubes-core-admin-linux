@@ -10,6 +10,7 @@ ConditionKernelCommandLine=!usbcore.nousb
 Before=systemd-ask-password-plymouth.path systemd-ask-password-wall.path
 
 [Service]
+CapabilityBoundingSet=CAP_CHOWN CAP_FOWNER CAP_AUDIT_WRITE
 ExecStart=
 ExecStart=/usr/sbin/usbguard-daemon -f -s -c /etc/usbguard/qubes-usbguard.conf
 
