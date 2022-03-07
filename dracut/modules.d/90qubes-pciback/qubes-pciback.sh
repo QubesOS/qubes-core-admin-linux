@@ -32,10 +32,13 @@ ws=$' \n'
     die 'Bogus PCI device list - fix your kernel command line!'
 modprobe xen-pciback 2>/dev/null || :
 dom0_usb=$(getarg rd.qubes.dom0_usb)
-case $dom0_usb in
-(*[!0-9a-f.:,]*) warn 'Bogus rd.qubes.dom0_usb option - fix your kernel command line'; dom0_usb=;;
-(*) dom0_usb=${dom0_usb//,/ } usb_in_dom0=true;;
-esac
+if [[ "$dom0_usb" == *[!0-9a-f.:,]* ]] ; then
+    warn 'Bogus rd.qubes.dom0_usb option - fix your kernel command line'
+    dom0_usb=""
+elif [ -n "$dom0_usb" ] ; then
+    dom0_usb="${dom0_usb//,/ }"
+    usb_in_dom0=true
+fi
 
 (
 set -e
