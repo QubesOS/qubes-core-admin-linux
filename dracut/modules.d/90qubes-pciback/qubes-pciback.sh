@@ -55,5 +55,6 @@ for dev in $HIDE_PCI; do
 done
 ) || die 'Cannot unbind PCI devices'
 if [ "$usb_in_dom0" = true ]; then
+    systemctl --quiet "--root=$initdir" -- enable usbguard.service
     systemctl --no-block start usbguard.service
 fi
