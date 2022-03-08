@@ -14,15 +14,15 @@ elif ! getargbool 1 usbcore.authorized_default; then
     usb_in_dom0=true
 else
     re='02'
-    warn 'USB in dom0 is not restricted'
+    warn 'USB in dom0 is not restricted. Consider rd.qubes.hide_all_usb or usbcore.authorized_default=0.'
 fi
 
 HIDE_PCI=$(set -o pipefail; { lspci -mm -n | awk "/^[^ ]* \"$re/ {print \$1}";}) ||
-    die 'Cannot obtain list of PCI devices to unbind'
+    die 'Cannot obtain list of PCI devices to unbind.'
 
 manual_pcidevs=$(getarg rd.qubes.hide_pci)
 case $manual_pcidevs in
-(*[!0-9a-f.:,]*) warn 'Bogus rd.qubes.hide_pci option - fix your kernel command line';;
+(*[!0-9a-f.:,]*) warn 'Bogus rd.qubes.hide_pci option - fix your kernel command line!';;
 esac
 HIDE_PCI="$HIDE_PCI ${manual_pcidevs//,/ }"
 
@@ -33,7 +33,7 @@ ws=$' \n'
 modprobe xen-pciback 2>/dev/null || :
 dom0_usb=$(getarg rd.qubes.dom0_usb)
 if [[ "$dom0_usb" == *[!0-9a-f.:,]* ]] ; then
-    warn 'Bogus rd.qubes.dom0_usb option - fix your kernel command line'
+    warn 'Bogus rd.qubes.dom0_usb option - fix your kernel command line!'
     dom0_usb=""
 elif [ -n "$dom0_usb" ] ; then
     dom0_usb="${dom0_usb//,/ }"
@@ -56,7 +56,7 @@ for dev in $HIDE_PCI; do
     echo -n "$BDF" > /sys/bus/pci/drivers/pciback/new_slot
     echo -n "$BDF" > /sys/bus/pci/drivers/pciback/bind
 done
-) || die 'Cannot unbind PCI devices'
+) || die 'Cannot unbind PCI devices.'
 if [ "$usb_in_dom0" = true ]; then
     info "Restricting USB in dom0 via usbguard."
     systemctl --quiet "--root=$initdir" -- enable usbguard.service
