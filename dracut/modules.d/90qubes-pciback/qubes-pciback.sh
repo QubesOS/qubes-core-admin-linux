@@ -59,6 +59,6 @@ done
 ) || die 'Cannot unbind PCI devices.'
 if [ "$usb_in_dom0" = true ]; then
     info "Restricting USB in dom0 via usbguard."
-    systemctl --quiet "--root=$initdir" -- enable usbguard.service
+    systemctl --quiet -- enable usbguard.service
     systemctl --no-block start usbguard.service
 fi
