@@ -1,13 +1,12 @@
-#!/bin/bash
+#!/bin/bash --
+set -euo pipefail
+shopt -s assoc_expand_once
+unset YUM_ACTION UPDATEVM shift_amount
 
-find_regex_in_args() {
-    local regex="${1}"
-    shift 1
-
-    for arg in "${@}"; do
-        if echo "${arg}" | grep -q -e "${regex}"; then
-            return 0
-        fi
+check_template_in_args () {
+    local pkg
+    for pkg; do
+        if [[ "$pkg" =~ ^qubes-template- ]]; then return 0; fi
     done
 
     return 1
@@ -57,9 +56,60 @@ TEMPLATE=
 TEMPLATE_BACKUP=
 FORCE_XEN_UPGRADE=
 REBOOT_REQUIRED=
+declare -A options_with_args
+options_with_args=(
+    [--action]=
+    [--advisory]=
+    [--advisories]=
+    [--bz]=
+    [--bzs]=
+    [--color]=
+    [--comment]=
+    [--cve]=
+    [--cves]=
+    [--debuglevel]=
+    [--disableexcludes]=
+    [--disableexcludepkgs]=
+    [--disableplugin]=
+    [--disablerepo]=
+    [--downloaddir]=
+    [--destdir]=
+    [--errorlevel]=
+    [--enableplugin]=
+    [--enablerepo]=
+    [--exclude]=
+    [--excludepkgs]=
+    [--forcearch]=
+    [--installroot]=
+    [--releasever]=
+    [--repofrompath]=
+    [--repo]=
+    [--repoid]=
+    [--rpmverbosity]=
+    [--sec-severity]=
+    [--secseverity]=
+    [--setopt]=
+)
+
+option_takes_arg () {
+    [[ "$1" =~ ^-[^dexR]*[dexR]$ ]] || [[ -v options_with_args["$1"] ]]
+}
+
 # Filter out some dnf options and collect packages list
 while [ $# -gt 0 ]; do
+    shift_amount=1
+    if option_takes_arg "$1"; then
+        if [[ "$#" -lt 2 ]]; then
+            printf 'Missing argument to %s\n' "$1" >&2
+            exit 1
+        fi
+        shift_amount=2
+    fi
     case "$1" in
+        --enablerepo|--disablerepo)
+            UPDATEVM_OPTS+=("$1=$2")
+            QVMTEMPLATE_OPTS+=("$1=$2")
+            ;;
         --enablerepo=*|\
         --disablerepo=*)
             UPDATEVM_OPTS+=( "$1" )
@@ -92,6 +142,10 @@ while [ $# -gt 0 ]; do
         --force-xen-upgrade)
             FORCE_XEN_UPGRADE=1
             ;;
+        --action=)
+            YUM_ACTION=$1
+            UPDATEVM_OPTS+=( "$1=$2" )
+            ;;
         --action=*)
             YUM_ACTION=${1#--action=}
             UPDATEVM_OPTS+=( "$1" )
@@ -105,9 +159,9 @@ while [ $# -gt 0 ]; do
             fi
             ;;
         -*)
-            YUM_OPTS+=( "${1}" )
-            UPDATEVM_OPTS+=( "$1" )
-            QVMTEMPLATE_OPTS+=( "$1" )
+            YUM_OPTS+=( "${@:1:shift_amount}" )
+            UPDATEVM_OPTS+=( "${@:1:shift_amount}" )
+            QVMTEMPLATE_OPTS+=( "${@:1:shift_amount}" )
             ;;
         *)
             PKGS+=( "${1}" )
@@ -115,7 +169,7 @@ while [ $# -gt 0 ]; do
             : "${YUM_ACTION=install}"
             ;;
     esac
-    shift
+    shift "$shift_amount"
 done
 
 if [[ "$GUI" = 1 ]]; then
@@ -137,7 +191,7 @@ case ${YUM_ACTION=upgrade} in
 esac
 
 # Redirect operations on templates to qvm-template command
-if find_regex_in_args '^qubes-template-' "${PKGS[@]}"; then
+if check_template_in_args "${PKGS[@]}"; then
     if [[ ${#PKGS[@]} -ne 1 ]]; then
         echo "ERROR: Specify only one package to reinstall template"
         exit 2
@@ -201,7 +255,7 @@ if [ "$GUI" == "1" ]; then
 fi
 
 # Do not start VM automatically when running from cron (only checking for updates)
-if [ "$CHECK_ONLY" == "1" ] && ! qvm-check -q --running "$UPDATEVM" > /dev/null 2>&1; then
+if [ "$CHECK_ONLY" = "1" ] && ! qvm-check -q --running -- "$UPDATEVM" > /dev/null 2>&1; then
     echo "ERROR: UpdateVM not running, not starting it in non-interactive mode" >&2
     exit 1
 fi
