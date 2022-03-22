@@ -14,7 +14,6 @@ install () {
     inst -l /usr/sbin/usbguard-daemon
     inst /usr/lib/systemd/system/usbguard.service.d/30_qubes.conf
     inst /usr/lib/systemd/system/usbguard.service
-    systemctl --quiet "--root=$initdir" -- enable usbguard.service
 }
 
 installkernel() {
