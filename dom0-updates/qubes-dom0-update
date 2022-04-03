@@ -58,56 +58,68 @@ FORCE_XEN_UPGRADE=
 REBOOT_REQUIRED=
 declare -A options_with_args
 options_with_args=(
-    [--action]=
-    [--advisory]=
-    [--advisories]=
-    [--bz]=
-    [--bzs]=
-    [--color]=
-    [--comment]=
-    [--cve]=
-    [--cves]=
-    [--debuglevel]=
-    [--disableexcludes]=
-    [--disableexcludepkgs]=
-    [--disableplugin]=
-    [--disablerepo]=
-    [--downloaddir]=
-    [--destdir]=
-    [--errorlevel]=
-    [--enableplugin]=
-    [--enablerepo]=
-    [--exclude]=
-    [--excludepkgs]=
-    [--forcearch]=
-    [--installroot]=
-    [--releasever]=
-    [--repofrompath]=
-    [--repo]=
-    [--repoid]=
-    [--rpmverbosity]=
-    [--sec-severity]=
-    [--secseverity]=
-    [--setopt]=
+    [action]=
+    [advisory]=
+    [advisories]=
+    [bz]=
+    [bzs]=
+    [color]=
+    [comment]=
+    [cve]=
+    [cves]=
+    [debuglevel]=
+    [disableexcludes]=
+    [disableexcludepkgs]=
+    [disableplugin]=
+    [disablerepo]=
+    [downloaddir]=
+    [destdir]=
+    [errorlevel]=
+    [enableplugin]=
+    [enablerepo]=
+    [exclude]=
+    [excludepkgs]=
+    [forcearch]=
+    [installroot]=
+    [releasever]=
+    [repofrompath]=
+    [repo]=
+    [repoid]=
+    [rpmverbosity]=
+    [sec-severity]=
+    [secseverity]=
+    [setopt]=
 )
 
 # Filter out some dnf options and collect packages list
 while [ $# -gt 0 ]; do
-    if [[ -v options_with_args["$1"] ]]; then
-        if [[ "$#" -lt 2 ]]; then
-            printf 'Missing argument to %s\n' "$1"
-        else
-            printf '%s %q must be passed as %s=%q\n' "$1" "$2" "$1" "$2"
-        fi >&2
-        exit 1
-    elif [[ "$1" =~ ^-[^dexR]*[dexR]$ ]]; then
-        if [[ "$#" -lt 2 ]]; then
-            printf 'Missing argument to %q\n' "$1"
-        else
-            printf '%q %q must be written as %q%q\n' "$1" "$2" "$1" "$2"
-        fi >&2
-        exit 1
-    fi
+    case $1 in
+    (--*)
+        if [[ -v options_with_args["${1:2}"] ]]; then
+            if [[ "$#" -lt 2 ]]; then
+                printf 'Missing argument to %s\n' "$1"
+                exit 1
+            else
+                printf 'WARNING: %s %q must be passed as %s=%q\n' "$1" "$2" "$1" "$2"
+                printf 'This will be an error in a future version!\n'
+            fi >&2
+            set -- "$1=$2" "${@:3:$# - 2}"
+        fi
+        ;;
+    (-[!-]*)
+        if [[ "$1" =~ ^-[^dexR]*[dexR]$ ]]; then
+            if [[ "$#" -lt 2 ]]; then
+                printf 'Missing argument to %q\n' "$1"
+                exit 1
+            else
+                printf 'WARNING: %q %q must be written as %q%q\n' "$1" "$2" "$1" "$2"
+                printf 'This will be an error in a future version!\n'
+            fi >&2
+            set -- "$1$2" "${@:3:$# - 2}"
+        fi
+        ;;
+    esac
+    printf %q\\n "$1"
     case "$1" in
         --enablerepo=*|\
         --disablerepo=*)
