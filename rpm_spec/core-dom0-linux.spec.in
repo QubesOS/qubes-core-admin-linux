@@ -102,7 +102,7 @@ install -d $RPM_BUILD_ROOT/etc/qubes-rpc/policy
 cp qubesappmenus/qubes.SyncAppMenus.policy $RPM_BUILD_ROOT/etc/qubes-rpc/policy/qubes.SyncAppMenus
 
 ### Dom0 updates
-install -m 0644 -D -- dom0-updates/qubes-dom0-updates.cron "$RPM_BUILD_ROOT/etc/cron.daily/qubes-dom0-updates.cron"
+install -m 0755 -D -- dom0-updates/qubes-dom0-updates.cron "$RPM_BUILD_ROOT/etc/cron.daily/qubes-dom0-updates.cron"
 install -D dom0-updates/qubes-dom0-update $RPM_BUILD_ROOT/usr/bin/qubes-dom0-update
 install -D dom0-updates/qubes-receive-updates $RPM_BUILD_ROOT/usr/libexec/qubes/qubes-receive-updates
 install -D dom0-updates/patch-dnf-yum-config $RPM_BUILD_ROOT/usr/lib/qubes/patch-dnf-yum-config
