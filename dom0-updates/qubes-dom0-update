@@ -82,6 +82,7 @@ while [ $# -gt 0 ]; do
             ;;
         --check-only)
             CHECK_ONLY=1
+            UPDATEVM_OPTS+=( "$1" )
             ;;
         --preserve-terminal)
             exit_cmd=
