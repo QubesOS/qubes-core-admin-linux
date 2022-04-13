@@ -137,6 +137,10 @@ case ${YUM_ACTION=upgrade} in
     ;;
 esac
 
+if [ "$CHECK_ONLY" == "1" ]; then
+    REMOTE_ONLY=1
+fi
+
 # Redirect operations on templates to qvm-template command
 if find_regex_in_args '^qubes-template-' "${PKGS[@]}"; then
     if [[ ${#PKGS[@]} -ne 1 ]]; then
