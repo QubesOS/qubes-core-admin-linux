@@ -68,6 +68,7 @@ while [ $# -gt 0 ]; do
             ;;
         --check-only)
             CHECK_ONLY=1
+            UPDATEVM_OPTS+=( "$1" )
             ;;
         --action=*)
             YUM_ACTION=${1#--action=}
