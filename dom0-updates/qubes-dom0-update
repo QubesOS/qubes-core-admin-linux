@@ -82,6 +82,7 @@ while [ $# -gt 0 ]; do
             ;;
         --check-only)
             CHECK_ONLY=1
+            UPDATEVM_OPTS+=( "$1" )
             ;;
         --preserve-terminal)
             exit_cmd=
@@ -135,6 +136,10 @@ case ${YUM_ACTION=upgrade} in
     if [[ "$CONSOLE" = 1 ]]; then SHOW_OUTPUT=1; fi
     ;;
 esac
+
+if [ "$CHECK_ONLY" == "1" ]; then
+    REMOTE_ONLY=1
+fi
 
 # Redirect operations on templates to qvm-template command
 if find_regex_in_args '^qubes-template-' "${PKGS[@]}"; then
@@ -270,6 +275,15 @@ qvm-run "${QVMRUN_OPTS[@]}" -- "$UPDATEVM" "$CMD" < /dev/null
 
 RETCODE=$?
 if [[ "$REMOTE_ONLY" = '1' ]] || [ "$RETCODE" -ne 0 ]; then
+    if [ "$CHECK_ONLY" = '1' ]; then
+        if [ "$RETCODE" -eq 100 ]; then
+            echo "There are dom0 updates available" >&2
+        elif [ "$RETCODE" -eq 0 ]; then
+            echo "No dom0 updates available" >&2
+        else
+            echo "Failed to check for dom0 updates" >&2
+        fi
+    fi
     exit $RETCODE
 fi
 # Wait for download completed
