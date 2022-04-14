@@ -26,7 +26,7 @@ if [ "$1" = "--help" ]; then
     echo ""
     echo "Usage: $0 [--clean] [--check-only] [--gui] [<pkg list>]"
     echo "    --clean      clean dnf cache before doing anything"
-    echo "    --check-only only check for updates (no install)"
+    echo "    --check-only only check for updates (no install); implies --console"
     echo "    --gui        use gpk-update-viewer for update selection, conflicts with --console"
     echo "    --action=... use specific dnf action, instead of automatic install/update"
     echo "    --force-xen-upgrade  force major Xen upgrade even if some qubes are running"
@@ -139,6 +139,7 @@ esac
 
 if [ "$CHECK_ONLY" == "1" ]; then
     REMOTE_ONLY=1
+    CONSOLE=1
 fi
 
 # Redirect operations on templates to qvm-template command
