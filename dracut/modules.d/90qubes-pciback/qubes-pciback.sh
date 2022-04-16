@@ -30,7 +30,6 @@ HIDE_PCI="$HIDE_PCI ${manual_pcidevs//,/ }"
 ws=$' \n'
 [[ $HIDE_PCI =~ ^[0-9a-f.:$ws]+$ ]] ||
     die 'Bogus PCI device list - fix your kernel command line!'
-modprobe xen-pciback 2>/dev/null || :
 dom0_usb=$(getarg rd.qubes.dom0_usb)
 if [[ "$dom0_usb" == *[!0-9a-f.:,]* ]] ; then
     warn 'Bogus rd.qubes.dom0_usb option - fix your kernel command line!'
@@ -39,7 +38,14 @@ elif [ -n "$dom0_usb" ] ; then
     dom0_usb="${dom0_usb//,/ }"
     usb_in_dom0=true
 fi
-
+quarantine_driver=vfio-pci quarantine_module=vfio-pci
+if [[ -f /sys/hypervisor/type ]]; then
+    read -r hypervisor_type < /sys/hypervisor/type
+    if [[ "$hypervisor_type" = 'xen' ]]; then
+        quarantine_driver=pciback quarantine_module=xen-pciback
+    fi
+fi
+modprobe "$quarantine_module" >/dev/null 2>&1 || :
 (
 set -e
 # ... and hide them so that Dom0 doesn't load drivers for them
@@ -53,10 +59,10 @@ for dev in $HIDE_PCI; do
     if [ -e "/sys/bus/pci/devices/$BDF/driver" ]; then
         echo -n "$BDF" > "/sys/bus/pci/devices/$BDF/driver/unbind"
     fi
-    echo -n "$BDF" > /sys/bus/pci/drivers/pciback/new_slot
-    echo -n "$BDF" > /sys/bus/pci/drivers/pciback/bind
+    echo -n "$BDF" > "/sys/bus/pci/drivers/$quarantine_driver/new_slot"
+    echo -n "$BDF" > "/sys/bus/pci/drivers/$quarantine_driver/bind"
 done
-) || die 'Cannot unbind PCI devices.'
+) || die 'Cannot quarantine PCI devices'
 if [ "$usb_in_dom0" = true ]; then
     info "Restricting USB in dom0 via usbguard."
     systemctl --quiet -- enable usbguard.service
