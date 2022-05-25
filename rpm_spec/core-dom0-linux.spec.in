@@ -94,12 +94,14 @@ export BACKEND_VMM=@BACKEND_VMM@
 make -C dom0-updates
 make -C file-copy-vm
 make -C doc manpages
+make all
 
 %install
 
 ## Appmenus
 install -d $RPM_BUILD_ROOT/etc/qubes-rpc/policy
 cp qubesappmenus/qubes.SyncAppMenus.policy $RPM_BUILD_ROOT/etc/qubes-rpc/policy/qubes.SyncAppMenus
+make install DESTDIR=$RPM_BUILD_ROOT
 
 ### Dom0 updates
 install -m 0755 -D -- dom0-updates/qubes-dom0-updates.cron "$RPM_BUILD_ROOT/etc/cron.daily/qubes-dom0-updates.cron"
@@ -253,7 +255,7 @@ rm -f /lib/udev/rules.d/69-xorg-vmmouse.rules
 %triggerin -- grub2-tools
 chmod -x /etc/grub.d/10_linux
 
-%files
+%files -f INSTALLED_FILES
 /etc/qubes-rpc/policy/qubes.SyncAppMenus
 # Dom0 updates
 /etc/cron.daily/qubes-dom0-updates.cron
