@@ -56,7 +56,18 @@ for dev in $HIDE_PCI; do
     echo -n "$BDF" > /sys/bus/pci/drivers/pciback/new_slot
     echo -n "$BDF" > /sys/bus/pci/drivers/pciback/bind
 done
-) || die 'Cannot unbind PCI devices.'
+) || {
+    hypervisor_type=
+    if [ -r /sys/hypervisor/type ]; then
+        read -r hypervisor_type < /sys/hypervisor/type || \
+            die 'Cannot determine hypervisor type'
+    fi
+    if [ "$hypervisor_type" = "xen" ]; then
+        die 'Cannot unbind PCI devices.'
+    else
+        warn 'Cannot unbind PCI devices - not running under Xen'
+    fi
+}
 if [ "$usb_in_dom0" = true ]; then
     info "Restricting USB in dom0 via usbguard."
     systemctl --quiet -- enable usbguard.service
