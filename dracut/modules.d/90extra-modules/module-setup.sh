@@ -14,9 +14,9 @@ installkernel() {
             hostonly='' instmods cirrus
         fi
         if [ "$(cat /sys/bus/pci/devices/0000:00:02.0/vendor 2>/dev/null || :)" = "0x1234" ]; then
-            hostonly='' instmods bochs_drm
+            hostonly='' instmods bochs_drm bochs
         fi
     else
-        instmods cirrus bochs_drm
+        instmods cirrus bochs_drm bochs
     fi
 }
