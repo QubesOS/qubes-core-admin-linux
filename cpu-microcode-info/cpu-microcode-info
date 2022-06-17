@@ -1,0 +1,187 @@
+#!/usr/bin/python3
+
+import re
+import os
+import sys
+import struct
+
+def ee(msg):
+    print(msg)
+    sys.exit(1)
+
+def open_checked(*args):
+    try:
+        return (None, open(*args))
+    except OSError as exc:
+        return (str(exc), None)
+
+def platform_id_to_str(pi):
+    if pi is None:
+        return '?'
+    return '{:02x}'.format(pi)
+
+# Remember to update the version below when this needs fixes.
+v20220510_list_raw = '''
+06-37-09/0f 0000090d
+06-4e-03/c0 000000f0
+06-55-03/97 0100015d
+06-55-04/b7 02006d05
+06-55-06/bf 04003302
+06-55-07/bf 05003302
+06-55-0b/bf 07002501
+06-5c-09/03 00000048
+06-5e-03/36 000000f0
+06-5f-01/01 00000038
+06-6a-06/87 0d000363
+06-7a-01/01 0000003a
+06-7a-08/01 0000001e
+06-7e-05/80 000000b0
+06-8a-01/10 00000031
+06-8c-01/80 000000a4
+06-8c-02/c2 00000026
+06-8d-01/c2 0000003e
+06-8e-09/10 000000f0
+06-8e-09/c0 000000f0
+06-8e-0a/c0 000000f0
+06-8e-0b/d0 000000f0
+06-8e-0c/94 000000f0
+06-96-01/01 00000016
+06-97-02/03 0000001f
+06-97-05/03 0000001f
+06-9a-03/80 0000041c
+06-9a-04/80 0000041c
+06-9c-00/01 24000023
+06-9e-09/2a 000000f0
+06-9e-0a/22 000000f0
+06-9e-0b/02 000000f0
+06-9e-0c/22 000000f0
+06-9e-0d/22 000000f0
+06-a5-02/20 000000f0
+06-a5-03/22 000000f0
+06-a5-05/22 000000f0
+06-a6-00/80 000000f0
+06-a6-01/80 000000f0
+06-a7-01/02 00000053
+06-bf-02/03 0000001f
+06-bf-05/03 0000001f
+'''
+
+v20220510_versions = []
+for line in v20220510_list_raw.split("\n"):
+    line = line.strip()
+    if line == '':
+        continue
+    values = [int(i, 16) for i in re.split('[-/ ]', line)]
+    v20220510_versions.append({
+        'family': values[0],
+        'model': values[1],
+        'stepping': values[2],
+        'platform_id': values[3],
+        'rev': values[4],
+    })
+
+def find_update_rev(cpu):
+    for update in v20220510_versions:
+        # https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/arch/x86/include/asm/cpu.h?h=v5.19-rc2#n89
+        equal = True
+        for i in ['family', 'model', 'stepping']:
+            if cpu[i] != update[i]:
+                equal = False
+                break
+        if not equal:
+            continue
+
+        if (cpu['platform_id'] == 0 and update['platform_id'] == 0) or \
+           (cpu['platform_id'] & update['platform_id']) != 0:
+               return update['rev']
+
+    return None
+
+print("cpu-microcode-info version 2022-06-17-1")
+print()
+
+err, cpuinfo = open_checked('/proc/cpuinfo')
+if err:
+    ee('Failed to open cpuinfo: {}'.format(err))
+
+cpus = {}
+num = None
+while True:
+    line = cpuinfo.readline()
+    if not line:
+        break
+
+    if line == '\n':
+        num = None
+        continue
+
+    name, value = [i.strip() for i in line.split(':', 2)]
+
+    if name == 'processor':
+        num = int(value)
+        cpus[num] = {}
+        continue
+
+    if num is None:
+        ee('Failed to parse cpuinfo: missing processor number')
+
+    if name in ['model', 'stepping']:
+        cpus[num][name] = int(value)
+    elif name == 'cpu family':
+        cpus[num]['family'] = int(value)
+    elif name == 'microcode':
+        cpus[num]['rev_installed'] = int(value, 16)
+
+cpuinfo.close()
+
+for num in cpus:
+    # https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/arch/x86/kernel/cpu/microcode/intel.c?h=v5.19-rc2#n691
+    platform_id = 0
+    if cpus[num]['model'] >= 5 or cpus[num]['cpu family'] > 6:
+        err, msr = open_checked('/dev/cpu/{}/msr'.format(num), 'rb')
+        if err:
+            print('Warning failed to open msr: {}'.format(err))
+            print('Will continue without platform id')
+            print()
+            platform_id = None
+        else:
+            msr.seek(0x17)
+            msr_0x17 = msr.read(8)
+            if len(msr_0x17) != 8:
+                ee('Failed to read MSR 0x17: Incomplete read')
+            msr_0x17 = struct.unpack('<Q', msr_0x17)[0]
+            platform_id = 1 << ((msr_0x17 >> 50) & 0b111)
+            msr.close()
+
+    cpus[num]['platform_id'] = platform_id
+
+    if platform_id is None:
+        cpus[num]['v20220510_update_available'] = '?'
+        cpus[num]['v20220510_update_installed'] = '?'
+    else:
+        update_rev = find_update_rev(cpus[num])
+        if update_rev:
+            cpus[num]['v20220510_update_available'] = 'yes'
+            if cpus[num]['rev_installed'] >= update_rev:
+                cpus[num]['v20220510_update_installed'] = 'yes'
+            else:
+                cpus[num]['v20220510_update_installed'] = 'no'
+        else:
+            cpus[num]['v20220510_update_available'] = 'no'
+            cpus[num]['v20220510_update_installed'] = 'no'
+
+print('CPU  F-M-S/PI     Loaded microcode  20220510 update  20220510 update')
+print('                  version           available        installed')
+#        1  aa-bb-cc/dd  00112233          yes             no
+for num in cpus:
+    cpu = cpus[num]
+    line = '{:3}  {:02x}-{:02x}-{:02x}/{}  {:08x}          {:<15}  {}'.format(
+        num,
+        cpu['family'],
+        cpu['model'],
+        cpu['stepping'],
+        platform_id_to_str(cpu['platform_id']),
+        cpu['rev_installed'],
+        cpu['v20220510_update_available'],
+        cpu['v20220510_update_installed'])
+    print(line)
