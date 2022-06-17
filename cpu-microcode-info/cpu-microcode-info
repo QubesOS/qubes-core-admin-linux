@@ -172,10 +172,10 @@ for num in cpus:
 
 print('CPU  F-M-S/PI     Loaded microcode  20220510 update  20220510 update')
 print('                  version           available        installed')
-#        1  aa-bb-cc/dd  00112233          yes             no
+#        1  aa-bb-cc/dd  00112233          yes              no
 for num in cpus:
     cpu = cpus[num]
-    line = '{:3}  {:02x}-{:02x}-{:02x}/{}  {:08x}          {:<15}  {}'.format(
+    line = '{:3}  {:02x}-{:02x}-{:02x}/{:2}  {:08x}          {:15}  {}'.format(
         num,
         cpu['family'],
         cpu['model'],
