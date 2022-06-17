@@ -158,6 +158,9 @@ ln -s qvm-copy $RPM_BUILD_ROOT/usr/bin/qvm-move
 ### Documentation
 (cd doc; make DESTDIR=$RPM_BUILD_ROOT install)
 
+# cpu-microcode-info
+install -m 755 cpu-microcode-info/cpu-microcode-info $RPM_BUILD_ROOT/usr/bin/
+
 %pre
 if ! grep -q ^qubes: /etc/group ; then
 		groupadd qubes
@@ -247,6 +250,8 @@ chmod -x /etc/grub.d/10_linux
 # Man
 %{_mandir}/man1/qvm-*.1*
 %{_mandir}/man1/qubes-*.1*
+# cpu-microcode-info
+%_bindir/cpu-microcode-info
 
 %files kernel-install
 /usr/lib/kernel/install.d/80-grub2.install
