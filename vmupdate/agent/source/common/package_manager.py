@@ -89,8 +89,8 @@ class PackageManager:
         stdout = ""
         stderr = ""
         if refresh:
-            ret_code, stdout_, stderr_ = self.refresh()
-            self.log_output("refresh", stdout_, stderr_, bool(ret_code))
+            ret_code, stdout_, stderr_ = self.refresh(hard_fail)
+            self._log_output("refresh", stdout_, stderr_, bool(ret_code))
             stdout += stdout_
             stderr += stderr_
             if ret_code != 0:
@@ -105,7 +105,7 @@ class PackageManager:
         if requirements:
             ret_code, stdout_, stderr_ = self.install_requirements(
                 requirements, curr_pkg)
-            self.log_output(
+            self._log_output(
                 "install requirements", stdout_, stderr_, bool(ret_code))
             stdout += stdout_
             stderr += stderr_
@@ -117,18 +117,18 @@ class PackageManager:
                     return ret_code, stdout, stderr
 
         ret_code, stdout_, stderr_ = self.upgrade_internal(remove_obsolete)
-        self.log_output("upgrade", stdout_, stderr_, bool(ret_code))
+        self._log_output("upgrade", stdout_, stderr_, bool(ret_code))
         stdout += stdout_
         stderr += stderr_
 
         new_pkg = self.get_packages()
 
         changes = PackageManager.compare_packages(old=curr_pkg, new=new_pkg)
-        self.log_changes(changes)
+        self._log_changes(changes)
 
         return ret_code, stdout, stderr
 
-    def log_output(self, title, stdout, stderr, log_as_error=False):
+    def _log_output(self, title, stdout, stderr, log_as_error=False):
         if stdout:
             out_lines = stdout.split("\n")
             log = self.log.error if log_as_error else self.log.debug
@@ -145,6 +145,9 @@ class PackageManager:
             requirements: Optional[Dict[str, str]],
             curr_pkg: Dict[str, List[str]]
     ) -> Tuple[int, str, str]:
+        """
+        Make sure if required packages is installed before upgrading.
+        """
         if requirements is None:
             requirements = {}
 
@@ -157,8 +160,8 @@ class PackageManager:
             if pkg not in curr_pkg:
                 to_install.append(pkg)
             else:
-                for v in curr_pkg[pkg]:
-                    if version < v:
+                for ver in curr_pkg[pkg]:
+                    if version < ver:
                         break
                 else:
                     to_upgrade[pkg] = version
@@ -197,11 +200,11 @@ class PackageManager:
         with subprocess.Popen(command,
                               stdin=subprocess.PIPE,
                               stdout=subprocess.PIPE,
-                              stderr=subprocess.PIPE) as p:
-            stdout, stderr = p.communicate()
-        self.log.debug("command exit code: %i", p.returncode)
+                              stderr=subprocess.PIPE) as proc:
+            stdout, stderr = proc.communicate()
+        self.log.debug("command exit code: %i", proc.returncode)
 
-        return p.returncode, stdout.decode(), stderr.decode()
+        return proc.returncode, stdout.decode(), stderr.decode()
 
     @staticmethod
     def compare_packages(old, new):
@@ -218,7 +221,7 @@ class PackageManager:
                             },
                 "removed": {pkg: old[pkg] for pkg in old if pkg not in new}}
 
-    def log_changes(self, changes):
+    def _log_changes(self, changes):
         self.log.info("Installed packages:")
         if changes["installed"]:
             for pkg in changes["installed"]:
@@ -244,10 +247,11 @@ class PackageManager:
         else:
             self.log.info("None")
 
-    def refresh(self) -> Tuple[int, str, str]:
+    def refresh(self, hard_fail: bool) -> Tuple[int, str, str]:
         """
         Refresh available packages for upgrade.
 
+        :param hard_fail: raise error if some repo is unavailable
         :return: (exit_code, stdout, stderr)
         """
         raise NotImplementedError()

@@ -13,7 +13,9 @@ class AgentArgs:
                                   'encountered (like a refresh error)'},
         "leave-obsolete": {"action": 'store_true',
                            "help": 'Do not remove obsolete packages during '
-                                   'upgrading'}
+                                   'upgrading'},
+        "no-progress": {"action": "store_true",
+                        "help": "Do not show upgrading progress."}
     }
     EXCLUSIVE_OPTIONS = {
         "show-output": {"action": 'store_true',
@@ -25,6 +27,9 @@ class AgentArgs:
 
     @staticmethod
     def add_arguments(parser):
+        """
+        Add common arguments to the parser.
+        """
         for arg, properties in AgentArgs.OPTIONS.items():
             parser.add_argument('--' + arg, **properties)
         verbosity = parser.add_mutually_exclusive_group()
@@ -33,13 +38,17 @@ class AgentArgs:
 
     @staticmethod
     def to_cli_args(args):
+        """
+        Parse selected args values to flags ready to pass
+        to an agent entrypoint.
+        """
         args_dict = vars(args)
 
         cli_args = []
-        for k in AgentArgs.ALL_OPTIONS.keys():
-            if AgentArgs.ALL_OPTIONS[k]["action"] == "store_true":
-                if args_dict[k.replace("-", "_")]:
-                    cli_args.append("--" + k)
+        for key, value in AgentArgs.ALL_OPTIONS.items():
+            if value["action"] == "store_true":
+                if args_dict[key.replace("-", "_")]:
+                    cli_args.append("--" + key)
             else:
-                cli_args.extend(("--" + k, args_dict[k.replace("-", "_")]))
+                cli_args.extend(("--" + key, args_dict[key.replace("-", "_")]))
         return cli_args

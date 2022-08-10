@@ -82,12 +82,7 @@ def get_targets(args, app):
 
 def run_update(qube_predicator, targets, args):
     qubes_to_go = [vm for vm in targets if qube_predicator(vm.klass)]
-    runner = update_manager.UpdateManager(qubes_to_go,
-                                          show_output=args.show_output,
-                                          max_concurrency=args.max_concurrency,
-                                          quiet=args.quiet,
-                                          cleanup=not args.no_cleanup,
-                                          )
+    runner = update_manager.UpdateManager(qubes_to_go, args)
     return runner.run(agent_args=args)
 
 

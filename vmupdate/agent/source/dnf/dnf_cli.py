@@ -39,10 +39,11 @@ class DNFCLI(PackageManager):
                 raise RuntimeError("Package manager not found!")
         self.package_manager: str = pck_mngr
 
-    def refresh(self) -> Tuple[int, str, str]:
+    def refresh(self, hard_fail: bool) -> Tuple[int, str, str]:
         """
         Use package manager to refresh available packages.
 
+        :param hard_fail: raise error if some repo is unavailable
         :return: (exit_code, stdout, stderr)
         """
         out = ""
@@ -59,7 +60,8 @@ class DNFCLI(PackageManager):
 
         cmd = [self.package_manager,
                "-q",
-               "check-update"]
+               "check-update",
+               f"--setopt=skip_if_unavailable={int(not hard_fail)}"]
         ret_code, stdout, stderr = self.run_cmd(cmd)
         # ret_code == 100 is not an error
         # It means there are packages to be updated
@@ -103,6 +105,5 @@ class DNFCLI(PackageManager):
         """
         if remove_obsolete:
             return ["--obsoletes", "upgrade"]
-        else:
-            return ["--setopt=obsoletes=0",
-                    "upgrade" if self.package_manager == "dnf" else "update"]
+        return ["--setopt=obsoletes=0",
+                "upgrade" if self.package_manager == "dnf" else "update"]

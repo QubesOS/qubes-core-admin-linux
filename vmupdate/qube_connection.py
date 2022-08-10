@@ -23,10 +23,12 @@ import os
 import shutil
 import tempfile
 from os.path import join
+from subprocess import Popen
 from subprocess import CalledProcessError
-from .agent.source.common import package_manager
 
+import qubesadmin
 from vmupdate.agent.source.args import AgentArgs
+from .agent.source.common import package_manager
 
 
 class QubeConnection:
@@ -85,28 +87,44 @@ class QubeConnection:
                             format='gztar', root_dir=root_dir,
                             base_dir=base_dir)
 
-        run_cmd = f"qvm-run --user=root --pass-io {self.qube.name} "
-
         command = ['mkdir', '-p', self.dest_dir]
         exit_code, output = self._run_shell_command_in_qube(
             self.qube, command)
+        if exit_code:
+            return exit_code, output
 
-        command = f"cat {src_arch} | " + \
-                  run_cmd + f"'cat > {dest_arch}'"
-        self._run_shell_command_in_dom0(command)
+        exit_code_, output_ = self._copy_file_from_dom0(src_arch, dest_arch)
+        exit_code = max(exit_code, exit_code_)
+        output += output_
+        if exit_code:
+            return exit_code, output
 
         command = ["tar", "-xzf", dest_arch, "-C", self.dest_dir]
         exit_code_, output_ = self._run_shell_command_in_qube(
             self.qube, command)
-
         exit_code = max(exit_code, exit_code_)
         output += output_
 
         return exit_code, output
 
-    def _run_shell_command_in_dom0(self, command: str):
-        self.logger.debug("run command: %s", command)
-        os.system(command)
+    def _copy_file_from_dom0(self, src, dest):
+        qvm_run = ["qvm-run", "--user=root", "--pass-io", self.qube.name]
+        write_dest = ["cat", ">", dest]
+        command = [*qvm_run, " ".join(write_dest)]
+        self.logger.debug("run command: %s < %s", " ".join(command), src)
+        try:
+            with open(src, 'rb') as file:
+                proc = Popen(command, stdin=file)
+                proc.communicate()
+                ret_code = proc.returncode
+            if ret_code:
+                raise OSError(f"Command returns code: {ret_code}")
+            output = ""
+        except OSError as exc:
+            ret_code = 1
+            output = str(exc)
+
+        return ret_code, output
 
     def run_entrypoint(self, entrypoint_path, agent_args):
         """
@@ -146,20 +164,20 @@ class QubeConnection:
             try:
                 untrusted_stdout_and_stderr = target.run_with_args(*command,
                                                                    user='root')
-                returncode = 0
-            except CalledProcessError as e:
-                self.logger.error(str(e))
-                returncode = e.returncode
+                ret_code = 0
+            except CalledProcessError as err:
+                self.logger.error(str(err))
+                ret_code = err.returncode
                 untrusted_stdout_and_stderr = (b"", b"")
         else:
-            p = target.run_service('qubes.VMRootShell', user='root')
-            p.stdin.write((" ".join(command) + "\n").encode())
-            p.stdin.close()
+            proc = target.run_service(
+                'qubes.VMExec+' + qubesadmin.utils.encode_for_vmexec(command),
+                user='root')
             stdout = b""
             stderr = b""
 
             progress_finished = False
-            for untrusted_line in iter(p.stdout.readline, ''):
+            for untrusted_line in iter(proc.stdout.readline, ''):
                 if untrusted_line:
                     if not progress_finished:
                         line = QubeConnection._string_sanitization(
@@ -173,20 +191,20 @@ class QubeConnection:
                     # erase previous output
                     print(self.qube.name + ":..." + 8 * " ", end="\r")
                     break
-            p.stdout.close()
+            proc.stdout.close()
 
-            for untrusted_line in iter(p.stderr.readline, ''):
+            for untrusted_line in iter(proc.stderr.readline, ''):
                 if untrusted_line:
                     stderr += untrusted_line
                 else:
                     break
-            p.stderr.close()
+            proc.stderr.close()
 
-            p.wait()
+            proc.wait()
             untrusted_stdout_and_stderr = (stdout, stderr)
-            returncode = p.returncode
+            ret_code = proc.returncode
 
-        return returncode, QubeConnection._collect_output(
+        return ret_code, QubeConnection._collect_output(
             *untrusted_stdout_and_stderr)
 
     @staticmethod

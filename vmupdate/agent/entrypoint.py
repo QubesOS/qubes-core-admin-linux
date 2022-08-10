@@ -25,9 +25,11 @@ def main(args=None):
     requirements = {}
 
     if os_data["os_family"] == "Debian":
-        pkg_mng = get_configured_apt(os_data, requirements, args.log)
+        pkg_mng = get_configured_apt(
+            os_data, requirements, args.log, args.no_progress)
     elif os_data["os_family"] == "RedHat":
-        pkg_mng = get_configured_dnf(os_data, requirements, args.log)
+        pkg_mng = get_configured_dnf(
+            os_data, requirements, args.log, args.no_progress)
     else:
         raise NotImplementedError(
             "Only Debian and RedHat based OS is supported.")

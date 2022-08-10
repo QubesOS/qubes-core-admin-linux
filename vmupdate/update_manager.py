@@ -37,40 +37,41 @@ class UpdateManager:
     Update multiple qubes simultaneously.
     """
 
-    def __init__(self, qubes, max_concurrency, show_output, quiet, cleanup):
+    def __init__(self, qubes, args):
         self.qubes = qubes
-        self.max_concurrency = max_concurrency
-        self.show_output = show_output
-        self.quiet = quiet
-        self.cleanup = cleanup
-        self.exit_code = 0
+        self.max_concurrency = args.max_concurrency
+        self.show_output = args.show_output
+        self.quiet = args.quiet
+        self.no_progress = args.no_progress
+        self.cleanup = not args.no_cleanup
+        self.ret_code = 0
 
     def run(self, agent_args):
         """
         Run simultaneously `update_qube` for all qubes as separate processes.
         """
+        show_progress = (not self.quiet
+                         and len(self.qubes) == 1 or self.max_concurrency == 1
+                         and not self.no_progress)
         pool = multiprocessing.Pool(self.max_concurrency)
-        show_progress = not self.quiet and (len(self.qubes) == 1
-                                            or self.max_concurrency == 1)
         for qube in self.qubes:
             pool.apply_async(
                 update_qube,
-                (qube.name, self.show_output, self.cleanup, self.quiet,
-                 agent_args, show_progress),
+                (qube.name, agent_args, show_progress),
                 callback=self.collect_result
             )
         pool.close()
         pool.join()
-        return self.exit_code
+        return self.ret_code
 
     def collect_result(self, result_tuple):
         """
         Callback method to process `update_qube` output.
 
-        :param result_tuple: tuple(qube_name, exit_code, result)
+        :param result_tuple: tuple(qube_name, ret_code, result)
         """
-        qube_name, exit_code, result = result_tuple
-        self.exit_code = max(self.exit_code, exit_code)
+        qube_name, ret_code, result = result_tuple
+        self.ret_code = max(self.ret_code, ret_code)
         if self.show_output and isinstance(result, list):
             sys.stdout.write(qube_name + ":\n")
             sys.stdout.write('\n'.join(['  ' + line for line in result]))
@@ -79,14 +80,11 @@ class UpdateManager:
             print(qube_name + ": " + result)
 
 
-def update_qube(qname, show_output, quiet, cleanup, agent_args, show_progress):
+def update_qube(qname, agent_args, show_progress):
     """
     Create and run `UpdateAgentManager` for qube.
 
     :param qname: name of qube
-    :param show_output: flag, if true print full output
-    :param quiet: flag, if true no output will be produced
-    :param cleanup: flag, if true updater files will be removed from the qube
     :param agent_args: args for agent entrypoint
     :param show_progress: if progress should be printed in real time
     :return:
@@ -100,16 +98,13 @@ def update_qube(qname, show_output, quiet, cleanup, agent_args, show_progress):
         runner = UpdateAgentManager(
             app,
             qube,
-            quiet=quiet,
-            cleanup=cleanup,
-            loglevel=agent_args.log,
+            agent_args=agent_args,
             show_progress=show_progress
         )
-        exit_code, result = runner.run_agent(
-            return_output=show_output, agent_args=agent_args)
-    except Exception as e:  # pylint: disable=broad-except
-        return qname, 1, "ERROR (exception {})".format(str(e))
-    return qube.name, exit_code, result
+        ret_code, result = runner.run_agent(agent_args=agent_args)
+    except Exception as exc:  # pylint: disable=broad-except
+        return qname, 1, f"ERROR (exception {str(exc)})"
+    return qube.name, ret_code, result
 
 
 class UpdateAgentManager:
@@ -123,7 +118,7 @@ class UpdateAgentManager:
     WORKDIR = "/run/qubes-update/"
 
     def __init__(
-            self, app, qube, quiet, cleanup, loglevel, show_progress):
+            self, app, qube, agent_args, show_progress):
         self.qube = qube
         self.app = app
         self.log = logging.getLogger('vm-update.qube.' + qube.name)
@@ -135,14 +130,28 @@ class UpdateAgentManager:
         self.log_formatter = logging.Formatter(UpdateAgentManager.FORMAT_LOG)
         self.logfile_handler.setFormatter(self.log_formatter)
         self.log.addHandler(self.logfile_handler)
-        self.log.setLevel(loglevel)
+        self.log.setLevel(agent_args.log)
         self.log.propagate = False
-        self.quiet = quiet
-        self.cleanup = cleanup
+        self.cleanup = not agent_args.no_cleanup
         self.show_progress = show_progress
 
-    def run_agent(self, return_output, agent_args):
-        self.log.info('Running update agent for {}'.format(self.qube.name))
+    def run_agent(self, agent_args):
+        """
+        Copy agent file to dest vm, run entrypoint, collect output and logs.
+        """
+        ret_code, output = self._run_agent(agent_args)
+        for line in output:
+            self.log.debug('agent output: %s', line)
+        self.log.info('agent exit code: %d', ret_code)
+        if agent_args.show_output and output:
+            return_data = output
+        else:
+            return_data = "OK" if ret_code == 0 else \
+                f"ERROR (exit code {ret_code}, details in {self.log_path})"
+        return ret_code, return_data
+
+    def _run_agent(self, agent_args):
+        self.log.info('Running update agent for %s', self.qube.name)
         dest_dir = UpdateAgentManager.WORKDIR
         dest_agent = os.path.join(dest_dir, UpdateAgentManager.ENTRYPOINT)
         this_dir = os.path.dirname(os.path.realpath(__file__))
@@ -150,35 +159,29 @@ class UpdateAgentManager:
 
         with QubeConnection(
                 self.qube, dest_dir, self.cleanup, self.log, self.show_progress
-        ) as qc:
-            self.log.info("Transferring files to destination qube: {}".format(
-                self.qube.name))
-            exit_code, output = qc.transfer_agent(src_dir)
-            for line in output:
-                self.log.debug('connection output: %s', line)
-            if exit_code:
-                self.log.error('Qube communication error code:', exit_code)
+        ) as qconn:
+            self.log.info(
+                "Transferring files to destination qube: %s", self.qube.name)
+            ret_code, output = qconn.transfer_agent(src_dir)
+            if ret_code:
+                self.log.error('Qube communication error code: %i', ret_code)
+                return ret_code, output
 
-            self.log.info("The agent is starting the task in qube: {}".format(
-                self.qube.name))
-            exit_code_, output = qc.run_entrypoint(dest_agent, agent_args)
-            exit_code = max(exit_code, exit_code_)
+            self.log.info(
+                "The agent is starting the task in qube: %s", self.qube.name)
+            ret_code_, output = qconn.run_entrypoint(dest_agent, agent_args)
+            ret_code = max(ret_code, ret_code_)
 
-            exit_code_logs, logs = qc.read_logs()
+            ret_code_logs, logs = qconn.read_logs()
+            if ret_code_logs:
+                self.log.error(
+                    "Problem with collecting logs from %s, return code: %i",
+                    self.qube.name, ret_code_logs)
+            # agent logs already have timestamp
             self.logfile_handler.setFormatter(logging.Formatter('%(message)s'))
             # critical -> always write agent logs
-            self.log.critical('\n'.join(logs))
+            for log_line in logs:
+                self.log.critical("%s", log_line)
             self.logfile_handler.setFormatter(self.log_formatter)
 
-            for line in output:
-                self.log.debug('agent output: %s', line)
-            self.log.info('agent exit code: %d', exit_code)
-
-            if return_output and output:
-                return_data = output
-            else:
-                return_data = "OK" if exit_code == 0 else \
-                    "ERROR (exit code {}, details in {})".format(
-                        exit_code, self.log_path)
-
-        return exit_code, return_data
+        return ret_code, output

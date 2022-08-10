@@ -22,14 +22,16 @@
 import io
 import os
 import sys
-import apt
-import apt_pkg
-import apt.progress.base
 from pathlib import Path
 from typing import Tuple, Callable, Optional
 
-from .apt_cli import APTCLI
+import apt
+import apt.progress.base
+import apt_pkg
+
 from source.common.stream_redirector import StreamRedirector
+
+from .apt_cli import APTCLI
 
 
 class APT(APTCLI):
@@ -44,12 +46,15 @@ class APT(APTCLI):
         # to prevent a warning: `debconf: unable to initialize frontend: Dialog`
         os.environ['DEBIAN_FRONTEND'] = 'noninteractive'
 
-    def refresh(self) -> Tuple[int, str, str]:
+    def refresh(self, hard_fail: bool) -> Tuple[int, str, str]:
         """
-        Use apt-get update to refresh available packages.
+        Use package manager to refresh available packages.
 
+        :param hard_fail: raise error if some repo is unavailable
         :return: (exit_code, stdout, stderr)
         """
+        stdout = ""
+        stderr = ""
         captured_stdout = io.BytesIO()
         captured_stderr = io.BytesIO()
         try:
@@ -62,22 +67,23 @@ class APT(APTCLI):
                 )
                 self.apt_cache.open()
             ret_code = 0 if success else 1
-            captured_stdout.flush()
-            captured_stdout.seek(0, io.SEEK_SET)
-            stdout = captured_stdout.read().decode()
-            captured_stderr.flush()
-            captured_stderr.seek(0, io.SEEK_SET)
-            stderr = captured_stderr.read().decode()
         except Exception as exc:
             ret_code = 2
-            stdout = ""
-            stderr = str(exc)
+            stderr += str(exc)
+        captured_stdout.flush()
+        captured_stdout.seek(0, io.SEEK_SET)
+        stdout += captured_stdout.read().decode()
+        captured_stderr.flush()
+        captured_stderr.seek(0, io.SEEK_SET)
+        stderr += captured_stderr.read().decode()
         return ret_code, stdout, stderr
 
     def upgrade_internal(self, remove_obsolete: bool) -> Tuple[int, str, str]:
         """
         Use `apt` package to upgrade and track progress.
         """
+        stdout = ""
+        stderr = ""
         captured_stdout = io.BytesIO()
         captured_stderr = io.BytesIO()
         try:
@@ -86,25 +92,20 @@ class APT(APTCLI):
                 apt_pkg.config.find_dir("Dir::Cache::Archives"), "partial")
             ).mkdir(parents=True, exist_ok=True)
             with StreamRedirector(captured_stdout, captured_stderr):
-                self.apt_cache.upgrade(dist_upgrade=remove_obsolete)
-                Path(os.path.join(
-                    apt_pkg.config.find_dir("Dir::Cache::Archives"), "partial")
-                ).mkdir(parents=True, exist_ok=True)
                 self.apt_cache.commit(
                     self.progress.fetch_progress,
                     self.progress.upgrade_progress
                 )
             ret_code = 0
-            captured_stdout.flush()
-            captured_stdout.seek(0, io.SEEK_SET)
-            stdout = captured_stdout.read().decode()
-            captured_stderr.flush()
-            captured_stderr.seek(0, io.SEEK_SET)
-            stderr = captured_stderr.read().decode()
         except Exception as exc:
             ret_code = 1
-            stdout = ""
-            stderr = str(exc)
+            stderr += str(exc)
+        captured_stdout.flush()
+        captured_stdout.seek(0, io.SEEK_SET)
+        stdout += captured_stdout.read().decode()
+        captured_stderr.flush()
+        captured_stderr.seek(0, io.SEEK_SET)
+        stderr += captured_stderr.read().decode()
         return ret_code, stdout, stderr
 
 
@@ -134,9 +135,7 @@ class APTProgressReporter:
         self.upgrade_progress = APTProgressReporter.UpgradeProgress(
             self.callback, 51, 100, self.stdout, self.stderr)
 
-    # updating (OpProgress)
-
-    class FetchProgress(apt.progress.base.AcquireProgress):
+    class _Progress:
         def __init__(
                 self,
                 callback: Callable[[float], None],
@@ -150,17 +149,32 @@ class APTProgressReporter:
             self.stdout = stdout
             self.stderr = stderr
 
+        def notify_callback(self, percent):
+            """
+            Report ongoing progress.
+            """
+            _percent = self.start_percent + percent * (
+                    self.stop_percent - self.start_percent) / 100
+            _percent = round(_percent, 2)
+            if self.last_percent < _percent:
+                self.callback(_percent)
+                self.last_percent = _percent
+
+    class FetchProgress(apt.progress.base.AcquireProgress, _Progress):
+        def __init__(
+                self,
+                callback: Callable[[float], None],
+                start, stop,
+                stdout: io.TextIOWrapper, stderr: io.TextIOWrapper
+        ):
+            APTProgressReporter._Progress.__init__(
+                self, callback, start, stop, stdout, stderr)
+
         def fail(self, item):
             """
             Write an error message to the fake stderr.
             """
             print(str(item), flush=True, file=self.stderr)
-
-        def notify_callback(self, percent):
-            self.last_percent = update(
-                self.callback, percent, self.last_percent,
-                self.start_percent, self.stop_percent
-            )
 
         def pulse(self, _owner):
             """
@@ -174,14 +188,16 @@ class APTProgressReporter:
             return True
 
         def start(self):
+            """Invoked when the Acquire process starts running."""
             super().start()
             self.notify_callback(0)
 
         def stop(self):
+            """Invoked when the Acquire process stops running."""
             super().stop()
             self.notify_callback(100)
 
-    class UpgradeProgress(apt.progress.base.InstallProgress):
+    class UpgradeProgress(apt.progress.base.InstallProgress, _Progress):
         def __init__(
                 self,
                 callback: Callable[[float], None],
@@ -189,18 +205,8 @@ class APTProgressReporter:
                 stdout: io.TextIOWrapper, stderr: io.TextIOWrapper
         ):
             apt.progress.base.InstallProgress.__init__(self)
-            self.callback = callback
-            self.start_percent = start
-            self.stop_percent = stop
-            self.last_percent = start
-            self.stdout = stdout
-            self.stderr = stderr
-
-        def notify_callback(self, percent):
-            self.last_percent = update(
-                self.callback, percent, self.last_percent,
-                self.start_percent, self.stop_percent
-            )
+            APTProgressReporter._Progress.__init__(
+                self, callback, start, stop, stdout, stderr)
 
         def status_change(self, _pkg, percent, _status):
             """
@@ -222,15 +228,3 @@ class APTProgressReporter:
         def finish_update(self):
             super().finish_update()
             self.notify_callback(100)
-
-
-def update(callback, percent, last_percent, start, stop):
-    """
-    Report ongoing progress.
-    """
-    _percent = start + percent * (stop - start) / 100
-    _percent = round(_percent, 2)
-    if last_percent < _percent:
-        callback(_percent)
-        return _percent
-    return last_percent

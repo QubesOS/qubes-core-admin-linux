@@ -20,12 +20,14 @@
 # USA.
 
 import io
-import dnf
-from dnf.yum.rpmtrans import TransactionDisplay
 from typing import Tuple, Callable, Optional
 
-from .dnf_cli import DNFCLI
+import dnf
+from dnf.yum.rpmtrans import TransactionDisplay
+
 from source.common.stream_redirector import StreamRedirector
+
+from .dnf_cli import DNFCLI
 
 
 class DNF(DNFCLI):
@@ -33,21 +35,33 @@ class DNF(DNFCLI):
         super().__init__(loglevel)
         self.progress = DNFProgressReporter()
         self.base = dnf.Base()
+        self.base.conf.read()  # load dnf.conf
 
-    def refresh(self) -> Tuple[int, str, str]:
+    def refresh(self, hard_fail: bool) -> Tuple[int, str, str]:
+        """
+        Use package manager to refresh available packages.
+
+        :param hard_fail: raise error if some repo is unavailable
+        :return: (exit_code, stdout, stderr)
+        """
+        self.base.conf.skip_if_unavailable = int(not hard_fail)
+
         captured_stdout = io.BytesIO()
         captured_stderr = io.BytesIO()
         try:
             with StreamRedirector(captured_stdout, captured_stderr):
-                self.base.update_cache()
                 # Repositories serve as sources of information about packages.
                 self.base.read_all_repos()
+                updated = self.base.update_cache()
                 # A sack is needed for querying.
                 self.base.fill_sack()
-            ret_code = 0
+            if updated:
+                ret_code = 0
+            else:
+                ret_code = 2
             errors = ""
         except Exception as exc:
-            ret_code = 1
+            ret_code = 2
             errors = str(exc)
 
         captured_stdout.flush()
@@ -62,6 +76,8 @@ class DNF(DNFCLI):
         """
         Use `dnf` package to upgrade and track progress.
         """
+        self.base.conf.obsolete = int(remove_obsolete)
+
         try:
             exit_code = 0
             self.base.upgrade_all()
@@ -89,6 +105,9 @@ class DNF(DNFCLI):
 
 
 def sign_check(base, packages, output):
+    """
+    Check signature of packages.
+    """
     exit_code = 0
     for package in packages:
         ret_code, message = base.package_signature_check(package)
@@ -137,12 +156,12 @@ class DNFProgressReporter(TransactionDisplay):
             self.callback(percent)
             self.last_percent = round(percent)
 
-    def scriptout(self, messages):
+    def scriptout(self, msgs):
         """
         Write an output message to the fake stdout.
         """
-        if messages:
-            for msg in messages:
+        if msgs:
+            for msg in msgs:
                 self.stdout += msg + "\n"
 
     def error(self, message):

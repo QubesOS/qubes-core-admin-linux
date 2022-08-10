@@ -93,9 +93,9 @@ def _load_os_release(*os_release_files, logger: Optional):
                             logger.error("%s:%i: error in parsing: %s",
                                          filename, line_number, line)
             break
-        except OSError as e:
+        except OSError as exc:
             if logger:
-                logger.info("Could not read file %s: %s", filename, str(e))
+                logger.info("Could not read file %s: %s", filename, str(exc))
 
     if not result:
         raise IOError("Failed to read os-release file")

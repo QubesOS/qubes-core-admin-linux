@@ -19,6 +19,8 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
 # USA.
 
+# pylint: disable=unused-argument
+
 import os
 from typing import List, Tuple
 
@@ -33,10 +35,11 @@ class APTCLI(PackageManager):
         # to prevent a warning: `debconf: unable to initialize frontend: Dialog`
         os.environ['DEBIAN_FRONTEND'] = 'noninteractive'
 
-    def refresh(self) -> Tuple[int, str, str]:
+    def refresh(self, hard_fail: bool) -> Tuple[int, str, str]:
         """
-        Use apt-get update to refresh available packages.
+        Use package manager to refresh available packages.
 
+        :param hard_fail: raise error if some repo is unavailable
         :return: (exit_code, stdout, stderr)
         """
         cmd = [self.package_manager, "-q", "update"]
@@ -63,7 +66,7 @@ class APTCLI(PackageManager):
         packages = {}
         for line in stdout.splitlines():
             cols = line.split()
-            selection, flag, status, package, version = cols
+            selection, _flag, status, package, version = cols
             if selection in ("install", "hold") and status == "installed":
                 packages.setdefault(package, []).append(version)
 
