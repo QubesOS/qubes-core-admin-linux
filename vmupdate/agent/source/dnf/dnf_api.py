@@ -132,7 +132,7 @@ class DNFProgressReporter(TransactionDisplay):
         self.stdout = ""
         self.stderr = ""
         if callback is None:
-            self.callback = lambda p: print(f"{p:.2f}%", flush=True)
+            self.callback = lambda p: print(f"{p:.2f}", flush=True)
         else:
             self.callback = callback
 

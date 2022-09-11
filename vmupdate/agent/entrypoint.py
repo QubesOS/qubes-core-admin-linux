@@ -34,14 +34,12 @@ def main(args=None):
         raise NotImplementedError(
             "Only Debian and RedHat based OS is supported.")
 
-    # TODO config here
     return_code = pkg_mng.upgrade(refresh=not args.no_refresh,
                                   hard_fail=not args.force_upgrade,
                                   remove_obsolete=not args.leave_obsolete,
                                   requirements=requirements,
                                   print_streams=args.show_output
                                   )
-    # TODO clean config
 
     os.system("/usr/lib/qubes/upgrades-status-notify")
 

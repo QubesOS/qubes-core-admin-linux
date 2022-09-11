@@ -24,7 +24,6 @@ def disable_deltarpm(dnf_conf="/etc/dnf/dnf.conf"):
     """
     Modify dnf.conf file to disable `deltarpm`.
     """
-    # TODO dnf makecache
     with open(dnf_conf, "r") as file:
         lines = file.readlines()
         start = lines.index("### QUBES BEGIN ###\n")

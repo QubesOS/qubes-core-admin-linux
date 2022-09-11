@@ -21,7 +21,7 @@
 
 # pylint: disable=import-outside-toplevel,unused-argument
 
-from .allow_release_info_change import allow_release_info_change
+from .allow_release_info_change import buster_workaround
 
 
 def get_configured_apt(os_data, requirements, loglevel, no_progress):
@@ -40,5 +40,6 @@ def get_configured_apt(os_data, requirements, loglevel, no_progress):
     if no_progress:
         from .apt_cli import APTCLI as APT
 
-    allow_release_info_change(os_data)
+    buster_workaround(os_data)
+
     return APT(loglevel)

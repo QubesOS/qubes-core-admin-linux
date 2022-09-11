@@ -61,9 +61,7 @@ class APT(APTCLI):
             with StreamRedirector(captured_stdout, captured_stderr):
                 success = self.apt_cache.update(
                     self.progress.update_progress,
-                    pulse_interval=1  # microseconds
-                    # FIXME update reporting:
-                    #  it seems that there is no pulse at all
+                    pulse_interval=1000  # microseconds
                 )
                 self.apt_cache.open()
             ret_code = 0 if success else 1
@@ -125,7 +123,7 @@ class APTProgressReporter:
         self.last_percent = 0.0
         if callback is None:
             self.callback = lambda p: \
-                print(f"{p:.2f}%", flush=True, file=self.stdout)
+                print(f"{p:.2f}", flush=True, file=self.stdout)
         else:
             self.callback = callback
         self.update_progress = APTProgressReporter.FetchProgress(

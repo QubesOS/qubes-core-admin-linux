@@ -43,4 +43,5 @@ def get_configured_dnf(os_data, requirements, loglevel, no_progress):
 
     manage_rpm_macro(os_data, requirements)
     disable_deltarpm()
+
     return DNF(loglevel)

@@ -22,7 +22,7 @@
 APT_CONF = "/etc/apt/apt.conf.d/01qubes-update"
 
 
-def allow_release_info_change(os_data):
+def buster_workaround(os_data):
     """
     Add apt conf file to disable `AllowReleaseInfoChange` for `buster`.
 

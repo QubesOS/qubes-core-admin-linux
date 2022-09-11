@@ -23,9 +23,11 @@
 
 import os
 import sys
+import queue
 import logging
 import multiprocessing
 from os.path import join
+from tqdm import tqdm
 
 import qubesadmin.vm
 import qubesadmin.exc
@@ -50,18 +52,29 @@ class UpdateManager:
         """
         Run simultaneously `update_qube` for all qubes as separate processes.
         """
-        show_progress = (not self.quiet
-                         and len(self.qubes) == 1 or self.max_concurrency == 1
-                         and not self.no_progress)
+        if not self.qubes:
+            return 0
+
         pool = multiprocessing.Pool(self.max_concurrency)
+        show_progress = not self.quiet and not self.no_progress
+        progress_bar = MultipleUpdateMultipleProgressBar(
+            dummy=not show_progress)
+
         for qube in self.qubes:
+            progress_bar.add_bar(qube.name)
+            interprocess_queue = progress_bar.queues[qube.name]
+
             pool.apply_async(
                 update_qube,
-                (qube.name, agent_args, show_progress),
-                callback=self.collect_result
+                (qube.name, agent_args, show_progress, interprocess_queue),
+                callback=self.collect_result, error_callback=print
             )
+
         pool.close()
+        progress_bar.feeding()
         pool.join()
+        progress_bar.close()
+
         return self.ret_code
 
     def collect_result(self, result_tuple):
@@ -76,17 +89,84 @@ class UpdateManager:
             sys.stdout.write(qube_name + ":\n")
             sys.stdout.write('\n'.join(['  ' + line for line in result]))
             sys.stdout.write('\n')
-        elif not self.quiet:
+        elif not self.quiet and self.no_progress:
             print(qube_name + ": " + result)
 
 
-def update_qube(qname, agent_args, show_progress):
+class MultipleUpdateMultipleProgressBar:
+    """
+    Show update info for each qube in the terminal.
+    """
+
+    def __init__(self, dummy):
+        self.dummy = dummy
+        self.manager = multiprocessing.Manager()
+        self.queues = {}
+        self.progresses = {}
+        self.progress_bars = {}
+
+    def add_bar(self, qname: str):
+        """
+        Add progress bar for a qube given by the name.
+        """
+        if self.dummy:
+            self.queues[qname] = None
+            return
+
+        self.queues[qname] = self.manager.Queue()
+        self.progresses[qname] = 0
+        self.progress_bars[qname] = tqdm(
+            total=100, position=len(self.progress_bars), desc=qname
+        )
+
+    def feeding(self):
+        """
+        Consume info from queues and update progress bars.
+
+        The loop is terminated when `QubeConnection.TERMINATOR` for all queues
+        is consumed.
+        """
+        if self.dummy:
+            return
+
+        left_to_finish = len(self.queues)
+        while left_to_finish:
+            for qname, ip_queue in self.queues.items():
+                try:
+                    value = ip_queue.get(block=False)
+                    if value == QubeConnection.TERMINATOR:
+                        left_to_finish -= 1
+                    else:
+                        self._update(qname, value)
+                except queue.Empty:
+                    pass
+
+    def _update(self, qname, value):
+        if value != QubeConnection.TERMINATOR:
+            current = float(value)
+            progress = current - self.progresses[qname]
+            self.progress_bars[qname].update(progress)
+            self.progresses[qname] += progress
+
+    def close(self):
+        """
+        This method should be called after `multiprocessing.Pool.join`
+        """
+        if self.dummy:
+            return
+
+        for pbar in self.progress_bars.values():
+            pbar.close()
+
+
+def update_qube(qname, agent_args, show_progress, progress_collector):
     """
     Create and run `UpdateAgentManager` for qube.
 
     :param qname: name of qube
     :param agent_args: args for agent entrypoint
     :param show_progress: if progress should be printed in real time
+    :param progress_collector: object to be fed with the progress data
     :return:
     """
     app = qubesadmin.Qubes()
@@ -101,7 +181,10 @@ def update_qube(qname, agent_args, show_progress):
             agent_args=agent_args,
             show_progress=show_progress
         )
-        ret_code, result = runner.run_agent(agent_args=agent_args)
+        ret_code, result = runner.run_agent(
+            agent_args=agent_args,
+            progress_collector=progress_collector
+        )
     except Exception as exc:  # pylint: disable=broad-except
         return qname, 1, f"ERROR (exception {str(exc)})"
     return qube.name, ret_code, result
@@ -135,11 +218,11 @@ class UpdateAgentManager:
         self.cleanup = not agent_args.no_cleanup
         self.show_progress = show_progress
 
-    def run_agent(self, agent_args):
+    def run_agent(self, agent_args, progress_collector):
         """
         Copy agent file to dest vm, run entrypoint, collect output and logs.
         """
-        ret_code, output = self._run_agent(agent_args)
+        ret_code, output = self._run_agent(agent_args, progress_collector)
         for line in output:
             self.log.debug('agent output: %s', line)
         self.log.info('agent exit code: %d', ret_code)
@@ -150,7 +233,7 @@ class UpdateAgentManager:
                 f"ERROR (exit code {ret_code}, details in {self.log_path})"
         return ret_code, return_data
 
-    def _run_agent(self, agent_args):
+    def _run_agent(self, agent_args, progress_collector):
         self.log.info('Running update agent for %s', self.qube.name)
         dest_dir = UpdateAgentManager.WORKDIR
         dest_agent = os.path.join(dest_dir, UpdateAgentManager.ENTRYPOINT)
@@ -169,7 +252,8 @@ class UpdateAgentManager:
 
             self.log.info(
                 "The agent is starting the task in qube: %s", self.qube.name)
-            ret_code_, output = qconn.run_entrypoint(dest_agent, agent_args)
+            ret_code_, output = qconn.run_entrypoint(
+                dest_agent, agent_args, progress_collector)
             ret_code = max(ret_code, ret_code_)
 
             ret_code_logs, logs = qconn.read_logs()
