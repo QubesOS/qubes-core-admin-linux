@@ -62,11 +62,9 @@ class UpdateManager:
 
         for qube in self.qubes:
             progress_bar.add_bar(qube.name)
-            interprocess_queue = progress_bar.queues[qube.name]
-
             pool.apply_async(
                 update_qube,
-                (qube.name, agent_args, show_progress, interprocess_queue),
+                (qube.name, agent_args, show_progress, progress_bar.queue),
                 callback=self.collect_result, error_callback=print
             )
 
@@ -100,8 +98,12 @@ class MultipleUpdateMultipleProgressBar:
 
     def __init__(self, dummy):
         self.dummy = dummy
-        self.manager = multiprocessing.Manager()
-        self.queues = {}
+        if self.dummy:
+            self.manager = None
+            self.queue = None
+        else:
+            self.manager = multiprocessing.Manager()
+            self.queue = self.manager.Queue()
         self.progresses = {}
         self.progress_bars = {}
 
@@ -110,10 +112,8 @@ class MultipleUpdateMultipleProgressBar:
         Add progress bar for a qube given by the name.
         """
         if self.dummy:
-            self.queues[qname] = None
             return
 
-        self.queues[qname] = self.manager.Queue()
         self.progresses[qname] = 0
         self.progress_bars[qname] = tqdm(
             total=100, position=len(self.progress_bars), desc=qname
@@ -129,24 +129,26 @@ class MultipleUpdateMultipleProgressBar:
         if self.dummy:
             return
 
-        left_to_finish = len(self.queues)
+        left_to_finish = len(self.progresses)
         while left_to_finish:
-            for qname, ip_queue in self.queues.items():
-                try:
-                    value = ip_queue.get(block=False)
-                    if value == QubeConnection.TERMINATOR:
-                        left_to_finish -= 1
-                    else:
-                        self._update(qname, value)
-                except queue.Empty:
-                    pass
+            try:
+                feed = self.queue.get(block=True)
+                if len(feed) == 1:
+                    left_to_finish -= 1
+                    self._update(feed[0], 100.)
+                elif len(feed) == 2:
+                    self._update(*feed)
+                else:
+                    raise RuntimeError(
+                        f"Unexpected number of elements in queue item: {feed}")
+            except queue.Empty:
+                pass
 
-    def _update(self, qname, value):
-        if value != QubeConnection.TERMINATOR:
-            current = float(value)
-            progress = current - self.progresses[qname]
-            self.progress_bars[qname].update(progress)
-            self.progresses[qname] += progress
+    def _update(self, qname: str, value: float):
+        current = value
+        progress = current - self.progresses[qname]
+        self.progress_bars[qname].update(progress)
+        self.progresses[qname] += progress
 
     def close(self):
         """

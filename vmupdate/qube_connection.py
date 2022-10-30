@@ -42,8 +42,6 @@ class QubeConnection:
        stop the qube if it was started by this connection.
     """
 
-    TERMINATOR = "DONE"
-
     def __init__(self, qube, dest_dir, cleanup, logger, show_progress):
         self.qube = qube
         self.dest_dir = dest_dir
@@ -189,13 +187,18 @@ class QubeConnection:
                     if not progress_finished:
                         line = QubeConnection._string_sanitization(
                             untrusted_line.decode().rstrip())
-                        if line.strip() == "100.00":
+                        try:
+                            progress = float(line)
+                        except ValueError:
+                            continue
+
+                        if progress == 100.:
                             progress_finished = True
-                        progress_collector.put(line)
+                        progress_collector.put((self.qube, progress))
                     else:
                         stdout += untrusted_line
                 else:
-                    progress_collector.put(QubeConnection.TERMINATOR)
+                    progress_collector.put((self.qube,))
                     break
             proc.stdout.close()
 
