@@ -32,7 +32,7 @@ def get_configured_dnf(os_data, requirements, loglevel, no_progress):
     If `dnf` python package is not installed or `no_progress` is `True`
     cli based version is returned.
     """
-    try:
+    try:  # TODO logs
         from .dnf_api import DNF
     except ImportError:
         # no progress reporting

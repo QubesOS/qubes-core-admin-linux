@@ -22,9 +22,10 @@
 # pylint: disable=unused-argument
 
 import os
-from typing import List, Tuple
+from typing import List
 
 from source.common.package_manager import PackageManager
+from source.common.process_result import ProcessResult
 
 
 class APTCLI(PackageManager):
@@ -35,7 +36,7 @@ class APTCLI(PackageManager):
         # to prevent a warning: `debconf: unable to initialize frontend: Dialog`
         os.environ['DEBIAN_FRONTEND'] = 'noninteractive'
 
-    def refresh(self, hard_fail: bool) -> Tuple[int, str, str]:
+    def refresh(self, hard_fail: bool) -> ProcessResult:
         """
         Use package manager to refresh available packages.
 
@@ -43,11 +44,9 @@ class APTCLI(PackageManager):
         :return: (exit_code, stdout, stderr)
         """
         cmd = [self.package_manager, "-q", "update"]
-        ret_code, stdout, stderr = self.run_cmd(cmd)
-        out_lines = stdout.splitlines()
-        if any(line.startswith("Err:") for line in out_lines):
-            ret_code = 1
-        return ret_code, stdout, stderr
+        result = self.run_cmd(cmd)
+        result.error_from_messages()
+        return result
 
     def get_packages(self):
         """
@@ -61,10 +60,10 @@ class APTCLI(PackageManager):
         ]
         # EXAMPLE OUTPUT:
         # install ok installed qubes-core-agent 4.1.35-1+deb11u1
-        ret_code, stdout, stderr = self.run_cmd(cmd)
+        result = self.run_cmd(cmd)
 
         packages = {}
-        for line in stdout.splitlines():
+        for line in result.out.splitlines():
             cols = line.split()
             selection, _flag, status, package, version = cols
             if selection in ("install", "hold") and status == "installed":

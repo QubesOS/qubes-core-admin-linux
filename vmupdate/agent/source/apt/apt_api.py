@@ -23,13 +23,14 @@ import io
 import os
 import sys
 from pathlib import Path
-from typing import Tuple, Callable, Optional
+from typing import Callable, Optional
 
 import apt
 import apt.progress.base
 import apt_pkg
 
 from source.common.stream_redirector import StreamRedirector
+from source.common.process_result import ProcessResult
 
 from .apt_cli import APTCLI
 
@@ -37,74 +38,54 @@ from .apt_cli import APTCLI
 class APT(APTCLI):
     def __init__(self, loglevel):
         super().__init__(loglevel)
-        self.package_manager: str = "apt-get"
         self.apt_cache = apt.Cache()
         self.progress = APTProgressReporter()
-        self.captured_stdout = io.BytesIO()
-        self.captured_stderr = io.BytesIO()
 
         # to prevent a warning: `debconf: unable to initialize frontend: Dialog`
         os.environ['DEBIAN_FRONTEND'] = 'noninteractive'
 
-    def refresh(self, hard_fail: bool) -> Tuple[int, str, str]:
+    def refresh(self, hard_fail: bool) -> ProcessResult:
         """
         Use package manager to refresh available packages.
 
         :param hard_fail: raise error if some repo is unavailable
         :return: (exit_code, stdout, stderr)
         """
-        stdout = ""
-        stderr = ""
-        captured_stdout = io.BytesIO()
-        captured_stderr = io.BytesIO()
+        result = ProcessResult()
         try:
-            with StreamRedirector(captured_stdout, captured_stderr):
+            with StreamRedirector(result):
                 success = self.apt_cache.update(
                     self.progress.update_progress,
                     pulse_interval=1000  # microseconds
                 )
                 self.apt_cache.open()
-            ret_code = 0 if success else 1
+            if not success:
+                result += ProcessResult(1)
         except Exception as exc:
-            ret_code = 2
-            stderr += str(exc)
-        captured_stdout.flush()
-        captured_stdout.seek(0, io.SEEK_SET)
-        stdout += captured_stdout.read().decode()
-        captured_stderr.flush()
-        captured_stderr.seek(0, io.SEEK_SET)
-        stderr += captured_stderr.read().decode()
-        return ret_code, stdout, stderr
+            result += ProcessResult(2, out="", err=str(exc))
 
-    def upgrade_internal(self, remove_obsolete: bool) -> Tuple[int, str, str]:
+        return result
+
+    def upgrade_internal(self, remove_obsolete: bool) -> ProcessResult:
         """
         Use `apt` package to upgrade and track progress.
         """
-        stdout = ""
-        stderr = ""
-        captured_stdout = io.BytesIO()
-        captured_stderr = io.BytesIO()
+
+        result = ProcessResult()
         try:
             self.apt_cache.upgrade(dist_upgrade=remove_obsolete)
             Path(os.path.join(
                 apt_pkg.config.find_dir("Dir::Cache::Archives"), "partial")
             ).mkdir(parents=True, exist_ok=True)
-            with StreamRedirector(captured_stdout, captured_stderr):
+            with StreamRedirector(result):
                 self.apt_cache.commit(
                     self.progress.fetch_progress,
                     self.progress.upgrade_progress
                 )
-            ret_code = 0
         except Exception as exc:
-            ret_code = 1
-            stderr += str(exc)
-        captured_stdout.flush()
-        captured_stdout.seek(0, io.SEEK_SET)
-        stdout += captured_stdout.read().decode()
-        captured_stderr.flush()
-        captured_stderr.seek(0, io.SEEK_SET)
-        stderr += captured_stderr.read().decode()
-        return ret_code, stdout, stderr
+            result += ProcessResult(3, out="", err=str(exc))
+
+        return result
 
 
 class APTProgressReporter:

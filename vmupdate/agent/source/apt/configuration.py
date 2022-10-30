@@ -31,7 +31,7 @@ def get_configured_apt(os_data, requirements, loglevel, no_progress):
     If `apt` python package is not installed or `no_progress` is `True`
     cli based version is returned.
     """
-    try:
+    try:  # TODO logs
         from .apt_api import APT
     except ImportError:
         # no progress reporting
