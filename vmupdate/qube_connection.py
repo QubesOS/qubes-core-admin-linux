@@ -190,6 +190,7 @@ class QubeConnection:
                         try:
                             progress = float(line)
                         except ValueError:
+                            stdout += untrusted_line
                             continue
 
                         if progress == 100.:
