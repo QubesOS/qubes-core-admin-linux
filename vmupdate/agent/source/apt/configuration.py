@@ -24,7 +24,8 @@
 from .allow_release_info_change import buster_workaround
 
 
-def get_configured_apt(os_data, requirements, loglevel, no_progress):
+def get_configured_apt(
+        os_data, requirements, log_handler, log_level, no_progress):
     """
     Returns instance of `PackageManager` for apt.
 
@@ -42,4 +43,4 @@ def get_configured_apt(os_data, requirements, loglevel, no_progress):
 
     buster_workaround(os_data)
 
-    return APT(loglevel)
+    return APT(log_handler, log_level)

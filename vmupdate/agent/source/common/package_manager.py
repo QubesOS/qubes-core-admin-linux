@@ -28,30 +28,12 @@ from typing import Optional, Dict, List
 from .process_result import ProcessResult
 
 
-LOGPATH = '/var/log/qubes/qubes-update'
-FORMAT_LOG = '%(asctime)s [Agent] %(message)s'
-LOG_FILE = 'update-agent.log'
-Path(LOGPATH).mkdir(parents=True, exist_ok=True)
-formatter_log = logging.Formatter(FORMAT_LOG)
-
-
 class PackageManager:
-    def __init__(self, loglevel):
+    def __init__(self, log_handler, log_level):
         self.package_manager: Optional[str] = None
-        self.log = logging.getLogger('vm-update.agent.PackageManager')
-        try:
-            # if loglevel is unknown just use `DEBUG`
-            self.log.setLevel(loglevel)
-        except ValueError:
-            self.log.setLevel("DEBUG")
-        self.log_path = os.path.join(LOGPATH, LOG_FILE)
-        with open(self.log_path, "w"):
-            # We want temporary logs here, so we truncate log file
-            # persistent logs are at dom0
-            pass
-        handler_log = logging.FileHandler(self.log_path, encoding='utf-8')
-        handler_log.setFormatter(formatter_log)
-        self.log.addHandler(handler_log)
+        self.log = logging.getLogger(f'vm-update.agent.{self.__class__.__name__}')
+        self.log.setLevel(log_level)
+        self.log.addHandler(log_handler)
         self.log.propagate = False
 
     def upgrade(

@@ -25,7 +25,8 @@ from .manage_rpm_macro import manage_rpm_macro
 from .disable_deltarpm import disable_deltarpm
 
 
-def get_configured_dnf(os_data, requirements, loglevel, no_progress):
+def get_configured_dnf(
+        os_data, requirements, log_handler, log_level, no_progress):
     """
     Returns instance of `PackageManager` for dnf.
 
@@ -44,4 +45,4 @@ def get_configured_dnf(os_data, requirements, loglevel, no_progress):
     manage_rpm_macro(os_data, requirements)
     disable_deltarpm()
 
-    return DNF(loglevel)
+    return DNF(log_handler, log_level)

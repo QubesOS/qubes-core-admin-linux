@@ -27,8 +27,8 @@ from source.common.process_result import ProcessResult
 
 
 class DNFCLI(PackageManager):
-    def __init__(self, loglevel):
-        super().__init__(loglevel)
+    def __init__(self, log_handler, log_level):
+        super().__init__(log_handler, log_level)
         pck_mng_path = shutil.which('dnf')
         if pck_mng_path is not None:
             pck_mngr = 'dnf'

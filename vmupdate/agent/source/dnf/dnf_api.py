@@ -36,8 +36,8 @@ from .dnf_cli import DNFCLI
 
 
 class DNF(DNFCLI):
-    def __init__(self, loglevel):
-        super().__init__(loglevel)
+    def __init__(self, log_handler, log_level):
+        super().__init__(log_handler, log_level)
         self.base = dnf.Base()
         self.base.conf.read()  # load dnf.conf
         self.progress = DNFProgressReporter()

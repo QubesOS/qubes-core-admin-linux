@@ -135,7 +135,6 @@ class MultipleUpdateMultipleProgressBar:
                 feed = self.queue.get(block=True)
                 if len(feed) == 1:
                     left_to_finish -= 1
-                    self._update(feed[0], 100.)
                 elif len(feed) == 2:
                     self._update(*feed)
                 else:

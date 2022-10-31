@@ -28,7 +28,7 @@ from subprocess import CalledProcessError
 
 import qubesadmin
 from vmupdate.agent.source.args import AgentArgs
-from .agent.source.common import package_manager
+from vmupdate.agent.source.log_congfig import LOGPATH, LOG_FILE
 
 
 class QubeConnection:
@@ -155,7 +155,7 @@ class QubeConnection:
         Read vm logs file.
         """
         command = ['cat',
-                   str(join(package_manager.LOGPATH, package_manager.LOG_FILE))]
+                   str(join(LOGPATH, LOG_FILE))]
         exit_code, output = self._run_shell_command_in_qube(self.qube, command)
         return exit_code, output
 

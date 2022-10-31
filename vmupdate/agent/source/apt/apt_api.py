@@ -36,8 +36,8 @@ from .apt_cli import APTCLI
 
 
 class APT(APTCLI):
-    def __init__(self, loglevel):
-        super().__init__(loglevel)
+    def __init__(self, log_handler, log_level):
+        super().__init__(log_handler, log_level)
         self.apt_cache = apt.Cache()
         self.progress = APTProgressReporter()
 
