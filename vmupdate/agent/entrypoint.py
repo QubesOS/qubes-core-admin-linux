@@ -15,6 +15,29 @@ Path(LOGPATH).mkdir(parents=True, exist_ok=True)
 formatter_log = logging.Formatter(FORMAT_LOG)
 
 
+def main(args=None):
+    """
+    Run the appropriate package manager.
+    """
+    args = parse_args(args)
+    log, log_handler, log_level = init_logs(args.log)
+    log.debug("Run entrypoint with args: %s", str(args))
+    os_data = get_os_data()
+
+    pkg_mng = get_package_manager(
+        os_data, log, log_handler, log_level, args.no_progress)
+
+    return_code = pkg_mng.upgrade(refresh=not args.no_refresh,
+                                  hard_fail=not args.force_upgrade,
+                                  remove_obsolete=not args.leave_obsolete,
+                                  print_streams=args.show_output
+                                  )
+
+    os.system("/usr/lib/qubes/upgrades-status-notify")
+
+    return return_code
+
+
 def parse_args(args):
     parser = argparse.ArgumentParser()
     AgentArgs.add_arguments(parser)
@@ -45,36 +68,16 @@ def init_logs(arg_log_level):
     return log, log_handler, log_level
 
 
-def main(args=None):
-    """
-    Run the appropriate package manager.
-    """
-    args = parse_args(args)
-    log, log_handler, log_level = init_logs(args.log)
-    log.debug("Run entrypoint with args: %s", str(args))
-    os_data = get_os_data()
-    requirements = {}
-
+def get_package_manager(os_data, log, log_handler, log_level, no_progress):
     if os_data["os_family"] == "Debian":
-        pkg_mng = get_configured_apt(
-            os_data, requirements, log_handler, log_level, args.no_progress)
+        return get_configured_apt(
+            os_data, log, log_handler, log_level, no_progress)
     elif os_data["os_family"] == "RedHat":
-        pkg_mng = get_configured_dnf(
-            os_data, requirements, log_handler, log_level, args.no_progress)
+        return get_configured_dnf(
+            os_data, log, log_handler, log_level, no_progress)
     else:
         raise NotImplementedError(
             "Only Debian and RedHat based OS is supported.")
-
-    return_code = pkg_mng.upgrade(refresh=not args.no_refresh,
-                                  hard_fail=not args.force_upgrade,
-                                  remove_obsolete=not args.leave_obsolete,
-                                  requirements=requirements,
-                                  print_streams=args.show_output
-                                  )
-
-    os.system("/usr/lib/qubes/upgrades-status-notify")
-
-    return return_code
 
 
 if __name__ == '__main__':

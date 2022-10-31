@@ -74,7 +74,6 @@ class StreamRedirector:
             os.close(self._stdout_file_descriptor_copy)
             os.close(self._stderr_file_descriptor_copy)
 
-        # TODO
         self.dest_out.flush()
         self.dest_out.seek(0, io.SEEK_SET)
         out = self.dest_out.read().decode()

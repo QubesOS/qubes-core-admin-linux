@@ -19,18 +19,13 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
 # USA.
 
-import io
-import os
-import sys
-import time
-from typing import Callable, Optional
-
 import dnf
 from dnf.yum.rpmtrans import TransactionDisplay
 from dnf.callback import DownloadProgress
 
 from source.common.stream_redirector import StreamRedirector
 from source.common.process_result import ProcessResult
+from source.common.progress_reporter import ProgressReporter, Progress
 
 from .dnf_cli import DNFCLI
 
@@ -40,7 +35,10 @@ class DNF(DNFCLI):
         super().__init__(log_handler, log_level)
         self.base = dnf.Base()
         self.base.conf.read()  # load dnf.conf
-        self.progress = DNFProgressReporter()
+        update = FetchProgress(weight=0)  # % of total time
+        fetch = FetchProgress(weight=50)  # % of total time
+        upgrade = UpgradeProgress(weight=50)  # % of total time
+        self.progress = ProgressReporter(update, fetch, upgrade)
 
     def refresh(self, hard_fail: bool) -> ProcessResult:
         """
@@ -79,7 +77,8 @@ class DNF(DNFCLI):
             self.base.resolve()
             trans = self.base.transaction
             if not trans:
-                return ProcessResult(0, out="100.00", err="Nothing to upgrade")
+                print(100, flush=True)
+                return ProcessResult(0, out="", err="Nothing to upgrade")
 
             with StreamRedirector(result):
                 self.base.download_packages(
@@ -113,144 +112,84 @@ def sign_check(base, packages) -> ProcessResult:
     return result
 
 
-class DNFProgressReporter:
-    """
-    Simple rough progress reporter.
+class FetchProgress(DownloadProgress, Progress):
+    def __init__(self, weight: int):
+        Progress.__init__(self, weight)
+        self.bytes_to_fetch = None
+        self.bytes_fetched = 0
+        self.package_bytes = {}
 
-    It is assumed that fetching packages takes 50% and
-    installing takes 50% of total time.
-    """
+    def end(self, payload, status, msg):
+        """Communicate the information that `payload` has finished downloading.
 
-    def __init__(self, callback: Optional[Callable[[float], None]] = None):
-        saved_stdout = os.dup(sys.stdout.fileno())
-        saved_stderr = os.dup(sys.stderr.fileno())
-        self.stdout = io.TextIOWrapper(os.fdopen(saved_stdout, 'wb'))
-        self.stderr = io.TextIOWrapper(os.fdopen(saved_stderr, 'wb'))
-        self.last_percent = 0.0
-        if callback is None:
-            self.callback = lambda p: \
-                print(f"{p:.2f}", flush=True, file=self.stdout)
-        else:
-            self.callback = callback
-        self.fetch_progress = DNFProgressReporter.FetchProgress(
-            self.callback, 0, 50, self.stdout, self.stderr)
-        self.upgrade_progress = DNFProgressReporter.UpgradeProgress(
-            self.callback, 50, 100, self.stdout, self.stderr)
+        :api, `status` is a constant denoting the type of outcome, `err_msg` is an
+        error message in case the outcome was an error.
 
-    class _Progress:
-        def __init__(
-                self,
-                callback: Callable[[float], None],
-                start, stop,
-                stdout: io.TextIOWrapper, stderr: io.TextIOWrapper
-        ):
-            self.callback = callback
-            self.start_percent = start
-            self.stop_percent = stop
-            self.last_percent = start
-            self.stdout = stdout
-            self.stderr = stderr
+        """
+        pass
 
-        def notify_callback(self, percent):
-            """
-            Report ongoing progress.
-            """
-            _percent = self.start_percent + percent * (
-                    self.stop_percent - self.start_percent) / 100
-            _percent = round(_percent, 2)
-            if self.last_percent < _percent:
-                self.callback(_percent)
-                self.last_percent = _percent
+    def message(self, msg):
+        print(msg, flush=True, file=self.stdout)
 
-    class FetchProgress(DownloadProgress, _Progress):
-        def __init__(
-                self,
-                callback: Callable[[float], None],
-                start, stop,
-                stdout: io.TextIOWrapper, stderr: io.TextIOWrapper
-        ):
-            DNFProgressReporter._Progress.__init__(
-                self, callback, start, stop, stdout, stderr)
-            self.bytes_to_fetch = None
-            self.bytes_fetched = 0
-            self.package_bytes = {}
+    def progress(self, payload, done):
+        """Update the progress display. :api
 
-        def end(self, payload, status, msg):
-            """Communicate the information that `payload` has finished downloading.
+        `payload` is the payload this call reports progress for, `done` is how
+        many bytes of this payload are already downloaded.
 
-            :api, `status` is a constant denoting the type of outcome, `err_msg` is an
-            error message in case the outcome was an error.
+        """
+        self.bytes_fetched += done - self.package_bytes.get(payload, 0)
+        self.package_bytes[payload] = done
+        percent = self.bytes_fetched / self.bytes_to_fetch * 100
+        self.notify_callback(percent)
 
-            """
-            pass
+    def start(self, total_files, total_size, total_drpms=0):
+        """Start new progress metering. :api
 
-        def message(self, msg):
-            print(msg, flush=True, file=self.stdout)
+        `total_files` the number of files that will be downloaded,
+        `total_size` total size of all files.
 
-        def progress(self, payload, done):
-            """Update the progress display. :api
+        """
+        self.bytes_to_fetch = total_size
+        self.package_bytes = {}
+        self.notify_callback(0)
 
-            `payload` is the payload this call reports progress for, `done` is how
-            many bytes of this payload are already downloaded.
 
-            """
-            self.bytes_fetched += done - self.package_bytes.get(payload, 0)
-            self.package_bytes[payload] = done
-            percent = self.bytes_fetched / self.bytes_to_fetch * 100
-            self.notify_callback(percent)
+class UpgradeProgress(TransactionDisplay, Progress):
+    def __init__(self, weight: int):
+        TransactionDisplay.__init__(self)
+        Progress.__init__(self, weight)
 
-        def start(self, total_files, total_size, total_drpms=0):
-            """Start new progress metering. :api
+    def progress(self, _package, action, ti_done, ti_total, ts_done,
+                 ts_total):
+        """
+        Report ongoing progress on a transaction item.
 
-            `total_files` the number of files that will be downloaded,
-            `total_size` total size of all files.
+        :param _package: a package name
+        :param action: the performed action id
+        :param ti_done: number of processed bytes of the transaction item
+        :param ti_total: total number of bytes of the transaction item
+        :param ts_done: number of actions processed in the whole transaction
+        :param ts_total: total number of actions in the whole transaction
+        """
+        fetch = 6
+        install = 7
+        if action not in (fetch, install):
+            return
+        percent = ti_done / ti_total * ts_done / ts_total * 100
+        self.notify_callback(percent)
 
-            """
-            self.bytes_to_fetch = total_size
-            self.package_bytes = {}
-            self.notify_callback(0)
+    def scriptout(self, msgs):
+        """
+        Write an output message to the fake stdout.
+        """
+        if msgs:
+            print(msgs)
 
-    class UpgradeProgress(TransactionDisplay, _Progress):
-        def __init__(
-                self,
-                callback: Callable[[float], None],
-                start: int, stop: int,
-                stdout: io.TextIOWrapper, stderr: io.TextIOWrapper
-        ):
-            TransactionDisplay.__init__(self)
-            DNFProgressReporter._Progress.__init__(
-                self, callback, start, stop, stdout, stderr)
-
-        def progress(self, _package, action, ti_done, ti_total, ts_done,
-                     ts_total):
-            """
-            Report ongoing progress on a transaction item.
-
-            :param _package: a package name
-            :param action: the performed action id
-            :param ti_done: number of processed bytes of the transaction item
-            :param ti_total: total number of bytes of the transaction item
-            :param ts_done: number of actions processed in the whole transaction
-            :param ts_total: total number of actions in the whole transaction
-            """
-            fetch = 6
-            install = 7
-            if action not in (fetch, install):
-                return
-            percent = ti_done / ti_total * ts_done / ts_total * 100
-            self.notify_callback(percent)
-
-        def scriptout(self, msgs):
-            """
-            Write an output message to the fake stdout.
-            """
-            if msgs:
-                print(msgs)
-
-        def error(self, message):
-            """
-            Write an error message to the fake stderr.
-            """
-            print("Error during installation :" + str(message),
-                  flush=True, file=self.stderr)
+    def error(self, message):
+        """
+        Write an error message to the fake stderr.
+        """
+        print("Error during installation :" + str(message),
+              flush=True, file=self.stderr)
 

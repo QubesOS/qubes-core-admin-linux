@@ -35,13 +35,13 @@ class PackageManager:
         self.log.setLevel(log_level)
         self.log.addHandler(log_handler)
         self.log.propagate = False
+        self.requirements: Optional[Dict[str, str]] = None
 
     def upgrade(
             self,
             refresh: bool,
             hard_fail: bool,
             remove_obsolete: bool,
-            requirements: Optional[Dict[str, str]] = None,
             print_streams: bool = False
     ):
         """
@@ -56,10 +56,10 @@ class PackageManager:
         :return: return code
         """
         result = self._upgrade(
-            refresh, hard_fail, remove_obsolete, requirements)
+            refresh, hard_fail, remove_obsolete, self.requirements)
         if print_streams:
-            print(result.out, flush=True)  # TODO
-            print(result.err, file=sys.stderr, flush=True)  # TODO
+            print(result.out, flush=True)
+            print(result.err, file=sys.stderr, flush=True)
         return result.code
 
     def _upgrade(

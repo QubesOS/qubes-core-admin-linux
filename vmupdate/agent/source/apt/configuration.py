@@ -25,22 +25,23 @@ from .allow_release_info_change import buster_workaround
 
 
 def get_configured_apt(
-        os_data, requirements, log_handler, log_level, no_progress):
+        os_data, log, log_handler, log_level, no_progress):
     """
     Returns instance of `PackageManager` for apt.
 
     If `apt` python package is not installed or `no_progress` is `True`
     cli based version is returned.
     """
-    try:  # TODO logs
+    try:
         from .apt_api import APT
     except ImportError:
+        log.warning("Failed to load apt with progress bar. Use apt cli.")
         # no progress reporting
         no_progress = True
 
     if no_progress:
         from .apt_cli import APTCLI as APT
 
-    buster_workaround(os_data)
+    buster_workaround(os_data, log)
 
     return APT(log_handler, log_level)

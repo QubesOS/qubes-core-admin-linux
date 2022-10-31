@@ -84,7 +84,7 @@ class UpdateManager:
         qube_name, ret_code, result = result_tuple
         self.ret_code = max(self.ret_code, ret_code)
         if self.show_output and isinstance(result, list):
-            sys.stdout.write(qube_name + ":\n")
+            sys.stdout.write(qube_name + ":")
             sys.stdout.write('\n'.join(['  ' + line for line in result]))
             sys.stdout.write('\n')
         elif not self.quiet and self.no_progress:

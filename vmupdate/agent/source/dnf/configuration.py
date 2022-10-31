@@ -26,23 +26,26 @@ from .disable_deltarpm import disable_deltarpm
 
 
 def get_configured_dnf(
-        os_data, requirements, log_handler, log_level, no_progress):
+        os_data, log, log_handler, log_level, no_progress):
     """
     Returns instance of `PackageManager` for dnf.
 
     If `dnf` python package is not installed or `no_progress` is `True`
     cli based version is returned.
     """
-    try:  # TODO logs
+    try:
         from .dnf_api import DNF
     except ImportError:
+        log.warning("Failed to load dnf with progress bar. Use dnf cli.")
         # no progress reporting
         no_progress = True
 
     if no_progress:
         from .dnf_cli import DNFCLI as DNF
 
-    manage_rpm_macro(os_data, requirements)
-    disable_deltarpm()
+    requirements = manage_rpm_macro(os_data, log)
+    disable_deltarpm(log)
 
-    return DNF(log_handler, log_level)
+    pkg_mng = DNF(log_handler, log_level)
+    pkg_mng.requirements = requirements
+    return pkg_mng

@@ -19,11 +19,8 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
 # USA.
 
-import io
 import os
-import sys
 from pathlib import Path
-from typing import Callable, Optional
 
 import apt
 import apt.progress.base
@@ -31,6 +28,7 @@ import apt_pkg
 
 from source.common.stream_redirector import StreamRedirector
 from source.common.process_result import ProcessResult
+from source.common.progress_reporter import ProgressReporter, Progress
 
 from .apt_cli import APTCLI
 
@@ -39,7 +37,10 @@ class APT(APTCLI):
     def __init__(self, log_handler, log_level):
         super().__init__(log_handler, log_level)
         self.apt_cache = apt.Cache()
-        self.progress = APTProgressReporter()
+        update = FetchProgress(weight=4)  # 4% of total time
+        fetch = FetchProgress(weight=48)  # 48% of total time
+        upgrade = UpgradeProgress(weight=48)  # 48% of total time
+        self.progress = ProgressReporter(update, fetch, upgrade)
 
         # to prevent a warning: `debconf: unable to initialize frontend: Dialog`
         os.environ['DEBIAN_FRONTEND'] = 'noninteractive'
@@ -88,122 +89,60 @@ class APT(APTCLI):
         return result
 
 
-class APTProgressReporter:
-    """
-    Simple rough progress reporter.
+class FetchProgress(apt.progress.base.AcquireProgress, Progress):
+    def __init__(self, weight: int):
+        Progress.__init__(self, weight)
 
-    It is assumed that updating takes 2%, fetching packages takes 49% and
-    installing takes 49% of total time.
-    """
+    def fail(self, item):
+        """
+        Write an error message to the fake stderr.
+        """
+        print(str(item), flush=True, file=self.stderr)
 
-    def __init__(self, callback: Optional[Callable[[float], None]] = None):
-        saved_stdout = os.dup(sys.stdout.fileno())
-        saved_stderr = os.dup(sys.stderr.fileno())
-        self.stdout = io.TextIOWrapper(os.fdopen(saved_stdout, 'wb'))
-        self.stderr = io.TextIOWrapper(os.fdopen(saved_stderr, 'wb'))
-        self.last_percent = 0.0
-        if callback is None:
-            self.callback = lambda p: \
-                print(f"{p:.2f}", flush=True, file=self.stdout)
-        else:
-            self.callback = callback
-        self.update_progress = APTProgressReporter.FetchProgress(
-            self.callback, 0, 2, self.stdout, self.stderr)
-        self.fetch_progress = APTProgressReporter.FetchProgress(
-            self.callback, 2, 51, self.stdout, self.stderr)
-        self.upgrade_progress = APTProgressReporter.UpgradeProgress(
-            self.callback, 51, 100, self.stdout, self.stderr)
+    def pulse(self, _owner):
+        """
+        Report ongoing progress on fetching packages.
 
-    class _Progress:
-        def __init__(
-                self,
-                callback: Callable[[float], None],
-                start, stop,
-                stdout: io.TextIOWrapper, stderr: io.TextIOWrapper
-        ):
-            self.callback = callback
-            self.start_percent = start
-            self.stop_percent = stop
-            self.last_percent = start
-            self.stdout = stdout
-            self.stderr = stderr
+        Periodically invoked while the Acquire process is underway.
+        This function returns a boolean value indicating whether the
+        acquisition should be continued (True) or cancelled (False).
+        """
+        self.notify_callback(self.current_bytes / self.total_bytes * 100)
+        return True
 
-        def notify_callback(self, percent):
-            """
-            Report ongoing progress.
-            """
-            _percent = self.start_percent + percent * (
-                    self.stop_percent - self.start_percent) / 100
-            _percent = round(_percent, 2)
-            if self.last_percent < _percent:
-                self.callback(_percent)
-                self.last_percent = _percent
+    def start(self):
+        """Invoked when the Acquire process starts running."""
+        super().start()
+        self.notify_callback(0)
 
-    class FetchProgress(apt.progress.base.AcquireProgress, _Progress):
-        def __init__(
-                self,
-                callback: Callable[[float], None],
-                start, stop,
-                stdout: io.TextIOWrapper, stderr: io.TextIOWrapper
-        ):
-            APTProgressReporter._Progress.__init__(
-                self, callback, start, stop, stdout, stderr)
+    def stop(self):
+        """Invoked when the Acquire process stops running."""
+        super().stop()
+        self.notify_callback(100)
 
-        def fail(self, item):
-            """
-            Write an error message to the fake stderr.
-            """
-            print(str(item), flush=True, file=self.stderr)
 
-        def pulse(self, _owner):
-            """
-            Report ongoing progress on fetching packages.
+class UpgradeProgress(apt.progress.base.InstallProgress, Progress):
+    def __init__(self, weight: int):
+        apt.progress.base.InstallProgress.__init__(self)
+        Progress.__init__(self, weight)
 
-            Periodically invoked while the Acquire process is underway.
-            This function returns a boolean value indicating whether the
-            acquisition should be continued (True) or cancelled (False).
-            """
-            self.notify_callback(self.current_bytes / self.total_bytes * 100)
-            return True
+    def status_change(self, _pkg, percent, _status):
+        """
+        Report ongoing progress on installing/upgrading packages.
+        """
+        self.notify_callback(percent)
 
-        def start(self):
-            """Invoked when the Acquire process starts running."""
-            super().start()
-            self.notify_callback(0)
+    def error(self, pkg, errormsg):
+        """
+        Write an error message to the fake stderr.
+        """
+        print("Error during installation " + str(pkg) + ":" + str(errormsg),
+              flush=True, file=self.stderr)
 
-        def stop(self):
-            """Invoked when the Acquire process stops running."""
-            super().stop()
-            self.notify_callback(100)
+    def start_update(self):
+        super().start_update()
+        self.notify_callback(0)
 
-    class UpgradeProgress(apt.progress.base.InstallProgress, _Progress):
-        def __init__(
-                self,
-                callback: Callable[[float], None],
-                start: int, stop: int,
-                stdout: io.TextIOWrapper, stderr: io.TextIOWrapper
-        ):
-            apt.progress.base.InstallProgress.__init__(self)
-            APTProgressReporter._Progress.__init__(
-                self, callback, start, stop, stdout, stderr)
-
-        def status_change(self, _pkg, percent, _status):
-            """
-            Report ongoing progress on installing/upgrading packages.
-            """
-            self.notify_callback(percent)
-
-        def error(self, pkg, errormsg):
-            """
-            Write an error message to the fake stderr.
-            """
-            print("Error during installation " + str(pkg) + ":" + str(errormsg),
-                  flush=True, file=self.stderr)
-
-        def start_update(self):
-            super().start_update()
-            self.notify_callback(0)
-
-        def finish_update(self):
-            super().finish_update()
-            self.notify_callback(100)
+    def finish_update(self):
+        super().finish_update()
+        self.notify_callback(100)
