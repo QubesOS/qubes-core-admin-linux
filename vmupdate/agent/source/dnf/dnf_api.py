@@ -129,7 +129,7 @@ class FetchProgress(DownloadProgress, Progress):
         pass
 
     def message(self, msg):
-        print(msg, flush=True, file=self.stdout)
+        print(msg, flush=True, file=self._stdout)
 
     def progress(self, payload, done):
         """Update the progress display. :api
@@ -191,5 +191,4 @@ class UpgradeProgress(TransactionDisplay, Progress):
         Write an error message to the fake stderr.
         """
         print("Error during installation :" + str(message),
-              flush=True, file=self.stderr)
-
+              flush=True, file=self._stderr)

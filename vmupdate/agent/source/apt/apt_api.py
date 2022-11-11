@@ -97,7 +97,7 @@ class FetchProgress(apt.progress.base.AcquireProgress, Progress):
         """
         Write an error message to the fake stderr.
         """
-        print(str(item), flush=True, file=self.stderr)
+        print(str(item), flush=True, file=self._stderr)
 
     def pulse(self, _owner):
         """
