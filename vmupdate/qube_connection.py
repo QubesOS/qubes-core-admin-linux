@@ -182,7 +182,7 @@ class QubeConnection:
             stderr = b""
 
             progress_finished = False
-            for untrusted_line in iter(proc.stdout.readline, ''):
+            for untrusted_line in iter(proc.stderr.readline, ''):
                 if untrusted_line:
                     if not progress_finished:
                         line = QubeConnection._string_sanitization(

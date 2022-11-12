@@ -61,7 +61,7 @@ def init_logs(arg_log_level):
         # if loglevel is unknown just use `DEBUG`
         log.setLevel(arg_log_level)
         log_level = arg_log_level
-    except ValueError:
+    except (ValueError, TypeError):
         log_level = "DEBUG"
         log.setLevel(log_level)
 

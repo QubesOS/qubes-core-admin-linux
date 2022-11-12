@@ -64,7 +64,7 @@ class ProgressReporter:
         self.last_percent = 0.0
         if callback is None:
             self.callback = lambda p: \
-                print(f"{p:.2f}", flush=True, file=self.stdout)
+                print(f"{p:.2f}", flush=True, file=self.stderr)
         else:
             self.callback = callback
 
