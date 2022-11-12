@@ -32,6 +32,7 @@ from tqdm import tqdm
 import qubesadmin.vm
 import qubesadmin.exc
 from .qube_connection import QubeConnection
+from vmupdate.agent.source.log_congfig import init_logs
 
 
 class UpdateManager:
@@ -197,25 +198,23 @@ class UpdateAgentManager:
     """
     AGENT_RELATIVE_DIR = "agent"
     ENTRYPOINT = AGENT_RELATIVE_DIR + "/entrypoint.py"
-    FORMAT_LOG = '%(asctime)s %(message)s'
     LOGPATH = '/var/log/qubes'
+    FORMAT_LOG = '%(asctime)s %(message)s'
     WORKDIR = "/run/qubes-update/"
 
     def __init__(
             self, app, qube, agent_args, show_progress):
         self.qube = qube
         self.app = app
-        self.log = logging.getLogger('vm-update.qube.' + qube.name)
-        self.log_path = os.path.join(
-            UpdateAgentManager.LOGPATH, f'update-{qube.name}.log')
-        self.logfile_handler = logging.FileHandler(
-            self.log_path,
-            encoding='utf-8')
-        self.log_formatter = logging.Formatter(UpdateAgentManager.FORMAT_LOG)
-        self.logfile_handler.setFormatter(self.log_formatter)
-        self.log.addHandler(self.logfile_handler)
-        self.log.setLevel(agent_args.log)
-        self.log.propagate = False
+
+        self.log, self.log_handler, log_level, self.log_path, self.log_formatter = init_logs(
+            directory=UpdateAgentManager.LOGPATH,
+            file=f'update-{qube.name}.log',
+            format_=UpdateAgentManager.FORMAT_LOG,
+            level=agent_args.log,
+            truncate_file=False,
+        )
+
         self.cleanup = not agent_args.no_cleanup
         self.show_progress = show_progress
 
@@ -263,10 +262,10 @@ class UpdateAgentManager:
                     "Problem with collecting logs from %s, return code: %i",
                     self.qube.name, ret_code_logs)
             # agent logs already have timestamp
-            self.logfile_handler.setFormatter(logging.Formatter('%(message)s'))
+            self.log_handler.setFormatter(logging.Formatter('%(message)s'))
             # critical -> always write agent logs
             for log_line in logs:
                 self.log.critical("%s", log_line)
-            self.logfile_handler.setFormatter(self.log_formatter)
+            self.log_handler.setFormatter(self.log_formatter)
 
         return ret_code, output

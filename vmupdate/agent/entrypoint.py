@@ -2,17 +2,13 @@
 import os
 import sys
 import argparse
-import logging
-from pathlib import Path
 
 from source.args import AgentArgs
 from source.apt.configuration import get_configured_apt
 from source.dnf.configuration import get_configured_dnf
 from source.utils import get_os_data
-from source.log_congfig import LOGPATH, LOG_FILE, FORMAT_LOG
+from source.log_congfig import init_logs
 
-Path(LOGPATH).mkdir(parents=True, exist_ok=True)
-formatter_log = logging.Formatter(FORMAT_LOG)
 
 
 def main(args=None):
@@ -20,7 +16,8 @@ def main(args=None):
     Run the appropriate package manager.
     """
     args = parse_args(args)
-    log, log_handler, log_level = init_logs(args.log)
+    log, log_handler, log_level, _log_path, _log_formatter = init_logs(
+        level=args.log, truncate_file=True)
     log.debug("Run entrypoint with args: %s", str(args))
     os_data = get_os_data()
 
@@ -43,29 +40,6 @@ def parse_args(args):
     AgentArgs.add_arguments(parser)
     args = parser.parse_args(args)
     return args
-
-
-def init_logs(arg_log_level):
-    log_path = os.path.join(LOGPATH, LOG_FILE)
-    with open(log_path, "w"):
-        # We want temporary logs here, so we truncate log file.
-        # Persistent logs are at dom0.
-        pass
-    log_handler = logging.FileHandler(log_path, encoding='utf-8')
-    log_handler.setFormatter(formatter_log)
-
-    log = logging.getLogger('vm-update.agent.PackageManager')
-    log.addHandler(log_handler)
-    log.propagate = False
-    try:
-        # if loglevel is unknown just use `DEBUG`
-        log.setLevel(arg_log_level)
-        log_level = arg_log_level
-    except (ValueError, TypeError):
-        log_level = "DEBUG"
-        log.setLevel(log_level)
-
-    return log, log_handler, log_level
 
 
 def get_package_manager(os_data, log, log_handler, log_level, no_progress):
