@@ -28,7 +28,7 @@ from subprocess import CalledProcessError
 
 import qubesadmin
 from vmupdate.agent.source.args import AgentArgs
-from .agent.source.common import package_manager
+from vmupdate.agent.source.log_congfig import LOGPATH, LOG_FILE
 
 
 class QubeConnection:
@@ -126,12 +126,13 @@ class QubeConnection:
 
         return ret_code, output
 
-    def run_entrypoint(self, entrypoint_path, agent_args):
+    def run_entrypoint(self, entrypoint_path, agent_args, progress_collector):
         """
         Run a script in the qube.
 
         :param entrypoint_path: str: path to the entrypoint.py in the qube
         :param agent_args: args for agent entrypoint
+        :param progress_collector: object to be fed with the progress data
         :return: Tuple[int, str]: return code and output of the script
         """
         # make sure entrypoint is executable
@@ -141,7 +142,8 @@ class QubeConnection:
         # run entrypoint
         command = [entrypoint_path, *AgentArgs.to_cli_args(agent_args)]
         exit_code_, output_ = self._run_shell_command_in_qube(
-            self.qube, command, show=self.show_progress
+            self.qube, command, show=self.show_progress,
+            progress_collector=progress_collector
         )
         exit_code = max(exit_code, exit_code_)
         output += output_
@@ -153,23 +155,26 @@ class QubeConnection:
         Read vm logs file.
         """
         command = ['cat',
-                   str(join(package_manager.LOGPATH, package_manager.LOG_FILE))]
+                   str(join(LOGPATH, LOG_FILE))]
         exit_code, output = self._run_shell_command_in_qube(self.qube, command)
         return exit_code, output
 
-    def _run_shell_command_in_qube(self, target, command, show=False):
+    def _run_shell_command_in_qube(
+            self, target, command, show=False, progress_collector=None):
         self.logger.debug("run command in %s: %s",
                           target.name, " ".join(command))
         if not show:
             try:
-                untrusted_stdout_and_stderr = target.run_with_args(*command,
-                                                                   user='root')
+                untrusted_stdout_and_stderr = target.run_with_args(
+                    *command, user='root'
+                )
                 ret_code = 0
             except CalledProcessError as err:
                 self.logger.error(str(err))
                 ret_code = err.returncode
                 untrusted_stdout_and_stderr = (b"", b"")
         else:
+            assert progress_collector is not None
             proc = target.run_service(
                 'qubes.VMExec+' + qubesadmin.utils.encode_for_vmexec(command),
                 user='root')
@@ -177,19 +182,24 @@ class QubeConnection:
             stderr = b""
 
             progress_finished = False
-            for untrusted_line in iter(proc.stdout.readline, ''):
+            for untrusted_line in iter(proc.stderr.readline, ''):
                 if untrusted_line:
                     if not progress_finished:
                         line = QubeConnection._string_sanitization(
                             untrusted_line.decode().rstrip())
-                        if line.strip() == "100.00%":
+                        try:
+                            progress = float(line)
+                        except ValueError:
+                            stdout += untrusted_line
+                            continue
+
+                        if progress == 100.:
                             progress_finished = True
-                        print(self.qube.name + ":", line, end="\r")
+                        progress_collector.put((self.qube, progress))
                     else:
                         stdout += untrusted_line
                 else:
-                    # erase previous output
-                    print(self.qube.name + ":..." + 8 * " ", end="\r")
+                    progress_collector.put((self.qube,))
                     break
             proc.stdout.close()
 

@@ -20,11 +20,12 @@
 # USA.
 
 
-def disable_deltarpm(dnf_conf="/etc/dnf/dnf.conf"):
+def disable_deltarpm(log, dnf_conf="/etc/dnf/dnf.conf"):
     """
     Modify dnf.conf file to disable `deltarpm`.
     """
-    # TODO dnf makecache
+    log.debug("Add `deltarpm=False` to %s", dnf_conf)
+
     with open(dnf_conf, "r") as file:
         lines = file.readlines()
         start = lines.index("### QUBES BEGIN ###\n")

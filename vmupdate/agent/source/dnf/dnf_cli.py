@@ -20,14 +20,15 @@
 # USA.
 
 import shutil
-from typing import List, Tuple
+from typing import List
 
 from source.common.package_manager import PackageManager
+from source.common.process_result import ProcessResult
 
 
 class DNFCLI(PackageManager):
-    def __init__(self, loglevel):
-        super().__init__(loglevel)
+    def __init__(self, log_handler, log_level):
+        super().__init__(log_handler, log_level)
         pck_mng_path = shutil.which('dnf')
         if pck_mng_path is not None:
             pck_mngr = 'dnf'
@@ -39,42 +40,31 @@ class DNFCLI(PackageManager):
                 raise RuntimeError("Package manager not found!")
         self.package_manager: str = pck_mngr
 
-    def refresh(self, hard_fail: bool) -> Tuple[int, str, str]:
+    def refresh(self, hard_fail: bool) -> ProcessResult:
         """
         Use package manager to refresh available packages.
 
         :param hard_fail: raise error if some repo is unavailable
         :return: (exit_code, stdout, stderr)
         """
-        out = ""
-        err = ""
-
         cmd = [self.package_manager,
                "-q",
                "clean",
                "expire-cache"]
-        ret_code, stdout, stderr = self.run_cmd(cmd)
-        exit_code = ret_code
-        out += stdout
-        err += stderr
+        result = self.run_cmd(cmd)
 
         cmd = [self.package_manager,
                "-q",
                "check-update",
                f"--setopt=skip_if_unavailable={int(not hard_fail)}"]
-        ret_code, stdout, stderr = self.run_cmd(cmd)
+        result_check = self.run_cmd(cmd)
         # ret_code == 100 is not an error
         # It means there are packages to be updated
-        ret_code = ret_code if ret_code != 100 else 0
-        exit_code = max(ret_code, exit_code)
-        out += stdout
-        err += stderr
+        result_check.code = result_check.code if result_check.code != 100 else 0
+        result += result_check
+        result.error_from_messages()
 
-        out_lines = (out + err).splitlines()
-        if any(line.startswith("Error:") for line in out_lines):
-            exit_code = 1
-
-        return exit_code, out, err
+        return result
 
     def get_packages(self):
         """
@@ -89,10 +79,10 @@ class DNFCLI(PackageManager):
         ]
         # EXAMPLE OUTPUT:
         # qubes-core-agent 4.1.351.fc34
-        ret_code, stdout, stderr = self.run_cmd(cmd)
+        result = self.run_cmd(cmd)
 
         packages = {}
-        for line in stdout.splitlines():
+        for line in result.out.splitlines():
             cols = line.split()
             package, version = cols
             packages.setdefault(package, []).append(version)

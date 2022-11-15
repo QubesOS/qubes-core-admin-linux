@@ -25,6 +25,8 @@ import sys
 import tempfile
 import ctypes
 
+from source.common.process_result import ProcessResult
+
 
 class StreamRedirector:
     """
@@ -37,9 +39,10 @@ class StreamRedirector:
     C_STDOUT = ctypes.c_void_p.in_dll(LIBC, 'stdout')
     C_STDERR = ctypes.c_void_p.in_dll(LIBC, 'stderr')
 
-    def __init__(self, dest_out, dest_err):
-        self.dest_out = dest_out
-        self.dest_err = dest_err
+    def __init__(self, dest_result: ProcessResult):
+        self.dest_result = dest_result
+        self.dest_out = io.BytesIO()
+        self.dest_err = io.BytesIO()
         self.stdout_file_descriptor = sys.stdout.fileno()
         self.stderr_file_descriptor = sys.stderr.fileno()
 
@@ -70,6 +73,14 @@ class StreamRedirector:
             self._temp_stderr.close()
             os.close(self._stdout_file_descriptor_copy)
             os.close(self._stderr_file_descriptor_copy)
+
+        self.dest_out.flush()
+        self.dest_out.seek(0, io.SEEK_SET)
+        out = self.dest_out.read().decode()
+        self.dest_err.flush()
+        self.dest_err.seek(0, io.SEEK_SET)
+        err = self.dest_err.read().decode()
+        self.dest_result += ProcessResult(0, out, err)
 
     def _redirect_stdout(self, destination):
         """

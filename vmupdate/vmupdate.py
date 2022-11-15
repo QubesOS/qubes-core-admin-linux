@@ -10,11 +10,19 @@ from . import update_manager
 from .agent.source.args import AgentArgs
 
 
+class ArgumentError(Exception):
+    """Nonsense arguments
+    """
+
 def main(args=None):
     args = parse_args(args)
     app = qubesadmin.Qubes()
     # Load VM list only after dom0 salt call - some new VMs might be created
-    targets = get_targets(args, app)
+    try:
+        targets = get_targets(args, app)
+    except ArgumentError as err:
+        print(str(err), file=sys.stderr)
+        return 128
 
     # template qubes first
     exit_code_templates = run_update(
@@ -74,6 +82,14 @@ def get_targets(args, app):
     elif args.targets:
         names = args.targets.split(',')
         targets = [vm for vm in app.domains.values() if vm.name in names]
+        if len(names) != len(targets):
+            target_names = {q.name for q in targets}
+            unknowns = set(names) - target_names
+            plural = len(unknowns) > 1
+            raise ArgumentError(
+                f"Unknown qube name{'s' if plural else ''}"
+                f": {', '.join(unknowns) if plural else ''.join(unknowns)}"
+            )
 
     # remove dom0 - not a target
     targets = [vm for vm in targets if vm.name != 'dom0']

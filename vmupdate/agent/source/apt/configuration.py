@@ -21,10 +21,11 @@
 
 # pylint: disable=import-outside-toplevel,unused-argument
 
-from .allow_release_info_change import allow_release_info_change
+from .allow_release_info_change import buster_workaround
 
 
-def get_configured_apt(os_data, requirements, loglevel, no_progress):
+def get_configured_apt(
+        os_data, log, log_handler, log_level, no_progress):
     """
     Returns instance of `PackageManager` for apt.
 
@@ -34,11 +35,13 @@ def get_configured_apt(os_data, requirements, loglevel, no_progress):
     try:
         from .apt_api import APT
     except ImportError:
+        log.warning("Failed to load apt with progress bar. Use apt cli.")
         # no progress reporting
         no_progress = True
 
     if no_progress:
         from .apt_cli import APTCLI as APT
 
-    allow_release_info_change(os_data)
-    return APT(loglevel)
+    buster_workaround(os_data, log)
+
+    return APT(log_handler, log_level)

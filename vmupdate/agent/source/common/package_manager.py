@@ -24,41 +24,24 @@ import logging
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional, Dict, List, Tuple
-
-
-LOGPATH = '/var/log/qubes/qubes-update'
-FORMAT_LOG = '%(asctime)s [Agent] %(message)s'
-LOG_FILE = 'update-agent.log'
-Path(LOGPATH).mkdir(parents=True, exist_ok=True)
-formatter_log = logging.Formatter(FORMAT_LOG)
+from typing import Optional, Dict, List
+from .process_result import ProcessResult
 
 
 class PackageManager:
-    def __init__(self, loglevel):
+    def __init__(self, log_handler, log_level):
         self.package_manager: Optional[str] = None
-        self.log = logging.getLogger('vm-update.agent.PackageManager')
-        try:
-            # if loglevel is unknown just use `DEBUG`
-            self.log.setLevel(loglevel)
-        except ValueError:
-            self.log.setLevel("DEBUG")
-        self.log_path = os.path.join(LOGPATH, LOG_FILE)
-        with open(self.log_path, "w"):
-            # We want temporary logs here, so we truncate log file
-            # persistent logs are at dom0
-            pass
-        handler_log = logging.FileHandler(self.log_path, encoding='utf-8')
-        handler_log.setFormatter(formatter_log)
-        self.log.addHandler(handler_log)
+        self.log = logging.getLogger(f'vm-update.agent.{self.__class__.__name__}')
+        self.log.setLevel(log_level)
+        self.log.addHandler(log_handler)
         self.log.propagate = False
+        self.requirements: Optional[Dict[str, str]] = None
 
     def upgrade(
             self,
             refresh: bool,
             hard_fail: bool,
             remove_obsolete: bool,
-            requirements: Optional[Dict[str, str]] = None,
             print_streams: bool = False
     ):
         """
@@ -72,12 +55,12 @@ class PackageManager:
         :param print_streams: dump captured output to std streams
         :return: return code
         """
-        return_code, stdout, stderr = self._upgrade(
-            refresh, hard_fail, remove_obsolete, requirements)
+        result = self._upgrade(
+            refresh, hard_fail, remove_obsolete, self.requirements)
         if print_streams:
-            print(stdout, flush=True)
-            print(stderr, file=sys.stderr, flush=True)
-        return return_code
+            print(result.out, flush=True)
+            print(result.err, file=sys.stderr, flush=True)
+        return result.code
 
     def _upgrade(
             self,
@@ -85,57 +68,52 @@ class PackageManager:
             hard_fail: bool,
             remove_obsolete: bool,
             requirements: Optional[Dict[str, str]] = None
-    ):
-        stdout = ""
-        stderr = ""
+    ) -> ProcessResult:
+        result = ProcessResult()
         if refresh:
-            ret_code, stdout_, stderr_ = self.refresh(hard_fail)
-            self._log_output("refresh", stdout_, stderr_, bool(ret_code))
-            stdout += stdout_
-            stderr += stderr_
-            if ret_code != 0:
+            result_refresh = self.refresh(hard_fail)
+            self._log_output("refresh", result_refresh)
+            result += result_refresh
+            if result.code != 0:
                 self.log.warning("Refreshing failed.")
                 if hard_fail:
                     self.log.error("Exiting due to a refresh error. "
                                    "Use --force-upgrade to upgrade anyway.")
-                    return ret_code, stdout, stderr
+                    return result
 
         curr_pkg = self.get_packages()
 
         if requirements:
-            ret_code, stdout_, stderr_ = self.install_requirements(
-                requirements, curr_pkg)
-            self._log_output(
-                "install requirements", stdout_, stderr_, bool(ret_code))
-            stdout += stdout_
-            stderr += stderr_
-            if ret_code != 0:
+            result_install = self.install_requirements(requirements, curr_pkg)
+            self._log_output("install requirements", result_install)
+            result += result_install
+            if result.code != 0:
                 self.log.warning("Installing requirements failed.")
                 if hard_fail:
                     self.log.error("Exiting due to a packages install error. "
                                    "Use --force-upgrade to upgrade anyway.")
-                    return ret_code, stdout, stderr
+                    return result
 
-        ret_code, stdout_, stderr_ = self.upgrade_internal(remove_obsolete)
-        self._log_output("upgrade", stdout_, stderr_, bool(ret_code))
-        stdout += stdout_
-        stderr += stderr_
+        result_upgrade = self.upgrade_internal(remove_obsolete)
+        self._log_output("upgrade", result_upgrade)
+        result += result_upgrade
 
         new_pkg = self.get_packages()
 
         changes = PackageManager.compare_packages(old=curr_pkg, new=new_pkg)
         self._log_changes(changes)
 
-        return ret_code, stdout, stderr
+        return result
 
-    def _log_output(self, title, stdout, stderr, log_as_error=False):
-        if stdout:
-            out_lines = stdout.split("\n")
+    def _log_output(self, title, result):
+        log_as_error = bool(result.code)
+        if result.out:
+            out_lines = result.out.split("\n")
             log = self.log.error if log_as_error else self.log.debug
             for out_line in out_lines:
                 log("%s out: %s", title, out_line)
-        if stderr:
-            err_lines = stdout.split("\n")
+        if result.err:
+            err_lines = result.err.split("\n")
             log = self.log.error if log_as_error else self.log.debug
             for err_line in err_lines:
                 log("%s err: %s", title, err_line)
@@ -144,16 +122,14 @@ class PackageManager:
             self,
             requirements: Optional[Dict[str, str]],
             curr_pkg: Dict[str, List[str]]
-    ) -> Tuple[int, str, str]:
+    ) -> ProcessResult:
         """
         Make sure if required packages is installed before upgrading.
         """
         if requirements is None:
             requirements = {}
 
-        exit_code = 0
-        out = ""
-        err = ""
+        result = ProcessResult()
         to_install = []  # install latest (ignore version)
         to_upgrade = {}
         for pkg, version in requirements.items():
@@ -171,10 +147,7 @@ class PackageManager:
                    "-y",
                    "install",
                    *to_install]
-            ret_code, stdout, stderr = self.run_cmd(cmd)
-            exit_code = max(exit_code, ret_code)
-            out += stdout
-            err += stderr
+            result += self.run_cmd(cmd)
 
         if to_upgrade:
             cmd = [self.package_manager,
@@ -182,14 +155,11 @@ class PackageManager:
                    "-y",
                    *self.get_action(remove_obsolete=False),
                    *to_upgrade]
-            ret_code, stdout, stderr = self.run_cmd(cmd)
-            exit_code = max(exit_code, ret_code)
-            out += stdout
-            err += stderr
+            result += self.run_cmd(cmd)
 
-        return exit_code, out, err
+        return result
 
-    def run_cmd(self, command: List[str]) -> Tuple[int, str, str]:
+    def run_cmd(self, command: List[str]) -> ProcessResult:
         """
         Run command and wait.
 
@@ -201,10 +171,10 @@ class PackageManager:
                               stdin=subprocess.PIPE,
                               stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE) as proc:
-            stdout, stderr = proc.communicate()
-        self.log.debug("command exit code: %i", proc.returncode)
+            result = ProcessResult.process_communicate(proc)
+        self.log.debug("command exit code: %i", result.code)
 
-        return proc.returncode, stdout.decode(), stderr.decode()
+        return result
 
     @staticmethod
     def compare_packages(old, new):
@@ -247,7 +217,7 @@ class PackageManager:
         else:
             self.log.info("None")
 
-    def refresh(self, hard_fail: bool) -> Tuple[int, str, str]:
+    def refresh(self, hard_fail: bool) -> ProcessResult:
         """
         Refresh available packages for upgrade.
 
@@ -268,7 +238,7 @@ class PackageManager:
         """
         raise NotImplementedError()
 
-    def upgrade_internal(self, remove_obsolete: bool) -> Tuple[int, str, str]:
+    def upgrade_internal(self, remove_obsolete: bool) -> ProcessResult:
         """
         Just run upgrade via CLI.
         """
@@ -276,5 +246,4 @@ class PackageManager:
                "-y",
                *self.get_action(remove_obsolete)]
 
-        ret_code, stdout, stderr = self.run_cmd(cmd)
-        return ret_code, stdout, stderr
+        return self.run_cmd(cmd)
