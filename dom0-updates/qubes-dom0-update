@@ -294,6 +294,7 @@ if [ -r /var/lib/qubes/updates/errors ]; then
     echo "*** ERROR while receiving updates:" >&2
     cat /var/lib/qubes/updates/errors >&2
     echo "--> if you want to use packages that were downloaded correctly, use dnf directly now" >&2
+    echo "--> otherwise, you can use --clean to remove left-over packages" >&2
     exit 1
 fi
 
