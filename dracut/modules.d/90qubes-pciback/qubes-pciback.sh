@@ -1,9 +1,18 @@
 #!/bin/bash --
 
 type getarg >/dev/null 2>&1 || . /lib/dracut-lib.sh
-unset re HIDE_PCI usb_in_dom0 dev skip exposed
+unset re HIDE_PCI usb_in_dom0 dev skip exposed PCI_POLICY_FILE PCI_POLICY_RE ignore_re devs invert
 
 usb_in_dom0=false
+
+# PCI_POLICY_FILE syntax:
+# - one POSIX regex on `lspci -mm -n` per line (matching device = allowed)
+# - empty lines & lines starting with # are ignored
+# - lines starting with ! will cause a block
+# - processing stops as soon as a match is found
+# - WARNING: If you block devices required by dom0, Qubes may not boot anymore.
+#            You'll have to chroot and re-create the initramfs.
+PCI_POLICY_FILE="/etc/qubes-pci-policy.conf"
 
 if getargbool 0 rd.qubes.hide_all_usb; then
     # Select all networking and USB devices
@@ -17,8 +26,30 @@ else
     warn 'USB in dom0 is not restricted. Consider rd.qubes.hide_all_usb or usbcore.authorized_default=0.'
 fi
 
-HIDE_PCI=$(set -o pipefail; { lspci -mm -n | awk "/^[^ ]* \"$re/ {print \$1}";}) ||
-    die 'Cannot obtain list of PCI devices to unbind.'
+if getargbool 0 rd.qubes.pci_policy; then
+    PCI_POLICY_RE="$(cat "$PCI_POLICY_FILE")" || die "Failed to read ${PCI_POLICY_FILE}."
+    info "Manual PCI policy mode based on ${PCI_POLICY_FILE} in initramfs."
+    getargbool 0 "rd.qubes.hide_all_usb" && warn "rd.qubes.hide_all_usb has no effect with rd.qubes.pci_policy."
+    ignore_re='^[[:blank:]]*(#.*)?$'
+    devs="$(lspci -mm -n)" || die "Cannot obtain the list of PCI devices."
+
+    while IFS= read -r dev ; do
+        skip=1
+        while IFS= read -r re ; do
+            invert=1
+            [[ "$re" =~ $ignore_re ]] && continue
+            [[ "$re" == '!'* ]] && invert=0 && re="${re:1}"
+            if [[ "$dev" =~ $re ]] ; then
+                [ $invert -eq 0 ] && skip=1 || skip=0
+                break
+            fi
+        done <<< "$PCI_POLICY_RE"
+        [ $skip -eq 0 ] && info "Allowed PCI device: $dev" || HIDE_PCI="$HIDE_PCI ${dev%% *}"
+    done <<< "$devs"
+else
+    HIDE_PCI=$(set -o pipefail; { lspci -mm -n | awk "/^[^ ]* \"$re/ {print \$1}";}) ||
+        die 'Cannot obtain the list of PCI devices to unbind.'
+fi
 
 manual_pcidevs=$(getarg rd.qubes.hide_pci)
 case $manual_pcidevs in

@@ -10,6 +10,7 @@ install () {
     inst_multiple /etc/nsswitch.conf
     inst_multiple /etc/usbguard/{qubes-usbguard.conf,rules.d,IPCAccessControl.d}
     inst_multiple /etc/usbguard/rules.d/*
+    inst_multiple -o /etc/qubes-pci-policy.conf
     inst -l /usr/bin/usbguard
     inst -l /usr/sbin/usbguard-daemon
     inst /usr/lib/systemd/system/usbguard.service.d/30_qubes.conf
