@@ -22,14 +22,14 @@
 APT_CONF = "/etc/apt/apt.conf.d/01qubes-update"
 
 
-def buster_workaround(os_data, log):
+def allow_release_info_change(os_data, log, **kwargs):
     """
     Add apt conf file to disable `AllowReleaseInfoChange` for `buster`.
 
     # https://bugs.debian.org/931566
     # Apply the workaround manually, to be able to pull in the fixed apt version
     """
-    if os_data["codename"] == "buster":
+    if os_data.get("codename", "") == "buster":
         option = 'Acquire::AllowReleaseInfoChange "false"'
         log.info("Set %s as workaround for buster.", option)
         with open(APT_CONF, "w") as file:

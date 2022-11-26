@@ -19,11 +19,9 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
 # USA.
 
-import os
 import logging
 import subprocess
 import sys
-from pathlib import Path
 from typing import Optional, Dict, List
 from .process_result import ProcessResult
 
