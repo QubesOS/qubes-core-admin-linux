@@ -305,6 +305,8 @@ if [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
         |cut -f 1,2 -d . \
         |uniq)
     xen_running=$(xl info xen_version|cut -f 1,2 -d .)
+    # cut off -rc if any
+    xen_running=${xen_running%-*}
     if [ -n "$xen_in_update" ] && [ "$xen_in_update" != "$xen_running" ]; then
         # check if there are running VMs
         if [ "$(xl list|wc -l)" -gt 2 ]; then
