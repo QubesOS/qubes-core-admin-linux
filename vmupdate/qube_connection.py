@@ -190,25 +190,25 @@ class QubeConnection:
                         try:
                             progress = float(line)
                         except ValueError:
-                            stdout += untrusted_line
+                            stderr += untrusted_line
                             continue
 
                         if progress == 100.:
                             progress_finished = True
                         progress_collector.put((self.qube, progress))
                     else:
-                        stdout += untrusted_line
+                        stderr += untrusted_line
                 else:
                     progress_collector.put((self.qube,))
                     break
-            proc.stdout.close()
+            proc.stderr.close()
 
-            for untrusted_line in iter(proc.stderr.readline, ''):
+            for untrusted_line in iter(proc.stdout.readline, ''):
                 if untrusted_line:
-                    stderr += untrusted_line
+                    stdout += untrusted_line
                 else:
                     break
-            proc.stderr.close()
+            proc.stdout.close()
 
             proc.wait()
             untrusted_stdout_and_stderr = (stdout, stderr)
