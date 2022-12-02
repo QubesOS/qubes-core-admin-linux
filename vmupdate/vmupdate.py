@@ -4,8 +4,10 @@ Update qubes.
 """
 import sys
 import argparse
+import time
 
 import qubesadmin
+import qubesadmin.exc
 from . import update_manager
 from .agent.source.args import AgentArgs
 
@@ -30,6 +32,9 @@ def main(args=None):
     # then non-template qubes (AppVMs, StandaloneVMs...)
     exit_code_rest = run_update(
         lambda cls: cls != 'TemplateVM', targets, args)
+
+    restart_app_vms(args, app)
+
     return max(exit_code_templates, exit_code_rest)
 
 
@@ -40,6 +45,9 @@ def parse_args(args):
                         help='Maximum number of VMs configured simultaneously '
                              '(default: %(default)d)',
                         type=int, default=4)
+
+    parser.add_argument('--restart', action='store_true',
+                        help='Restart AppVMs whose template has been updated.')
 
     parser.add_argument('--no-cleanup', action='store_true',
                         help='Do not remove updater files from target qube')
@@ -78,7 +86,7 @@ def get_targets(args, app):
     if args.all:
         # all but DispVMs
         targets = [vm for vm in app.domains.values()
-                   if not vm.klass == 'DispVM']
+                   if vm.klass != 'DispVM']
     elif args.targets:
         names = args.targets.split(',')
         targets = [vm for vm in app.domains.values() if vm.name in names]
@@ -100,6 +108,26 @@ def run_update(qube_predicator, targets, args):
     qubes_to_go = [vm for vm in targets if qube_predicator(vm.klass)]
     runner = update_manager.UpdateManager(qubes_to_go, args)
     return runner.run(agent_args=args)
+
+
+def restart_app_vms(args, app):
+    if not args.restart:
+        return
+
+    to_restart = [vm for vm in app.domains.values()
+                  if vm.klass in ('AppVM', 'DispVM')
+                  and vm.is_running()
+                  and any(vol.is_outdated() for vol in vm.volumes.values())]
+    for vm in to_restart:
+        try:
+            vm.shutdown()
+        except qubesadmin.exc.QubesVMError:
+            if True:  # TODO
+                vm.kill()
+    while any(vm.is_running() for vm in to_restart):
+        time.sleep(1)
+    for vm in to_restart:
+        vm.start()
 
 
 if __name__ == '__main__':
