@@ -37,7 +37,9 @@ class AgentArgs:
                            "help": 'Do not remove obsolete packages during '
                                    'upgrading'},
         "no-progress": {"action": "store_true",
-                        "help": "Do not show upgrading progress."}
+                        "help": "Do not show upgrading progress."},
+        "just-print-progress": {"action": "store_true",
+                                "help": "Print progress line by line."}
     }
     EXCLUSIVE_OPTIONS = {
         "show-output": {"action": 'store_true',

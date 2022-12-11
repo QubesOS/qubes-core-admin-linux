@@ -58,8 +58,10 @@ class UpdateManager:
 
         pool = multiprocessing.Pool(self.max_concurrency)
         show_progress = not self.quiet and not self.no_progress
+        progress_output = SimpleTerminalBar \
+            if agent_args.just_print_progress else tqdm
         progress_bar = MultipleUpdateMultipleProgressBar(
-            dummy=not show_progress)
+            dummy=not show_progress, output=progress_output)
 
         for qube in self.qubes:
             progress_bar.add_bar(qube.name)
@@ -92,12 +94,42 @@ class UpdateManager:
             print(qube_name + ": " + result)
 
 
+class TerminalMultiBar:
+    def __init__(self):
+        self.progresses = []
+
+    def print(self):
+        for progress in self.progresses:
+            print(progress, file=sys.stderr, flush=True)
+
+
+class SimpleTerminalBar:
+    terminalMultiBar = TerminalMultiBar()
+
+    def __init__(self, total, position, desc):
+        assert position == len(SimpleTerminalBar.terminalMultiBar.progresses)
+        SimpleTerminalBar.terminalMultiBar.progresses.append(self)
+        self.desc = desc
+        self.progress = 0
+        self.total = total
+
+    def __str__(self):
+        return self.desc + " " + str(self.progress)
+
+    def update(self, progress):
+        self.progress += progress
+        SimpleTerminalBar.terminalMultiBar.print()
+
+    def close(self):
+        pass
+
+
 class MultipleUpdateMultipleProgressBar:
     """
     Show update info for each qube in the terminal.
     """
 
-    def __init__(self, dummy):
+    def __init__(self, dummy, output):
         self.dummy = dummy
         if self.dummy:
             self.manager = None
@@ -107,6 +139,7 @@ class MultipleUpdateMultipleProgressBar:
             self.queue = self.manager.Queue()
         self.progresses = {}
         self.progress_bars = {}
+        self.output_class = output
 
     def add_bar(self, qname: str):
         """
@@ -116,7 +149,7 @@ class MultipleUpdateMultipleProgressBar:
             return
 
         self.progresses[qname] = 0
-        self.progress_bars[qname] = tqdm(
+        self.progress_bars[qname] = self.output_class(
             total=100, position=len(self.progress_bars), desc=qname
         )
 

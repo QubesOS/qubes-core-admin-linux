@@ -137,7 +137,7 @@ class UpgradeProgress(apt.progress.base.InstallProgress, Progress):
         Write an error message to the fake stderr.
         """
         print("Error during installation " + str(pkg) + ":" + str(errormsg),
-              flush=True, file=self.stderr)
+              flush=True, file=self._stderr)
 
     def start_update(self):
         super().start_update()
