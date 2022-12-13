@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash --
 
 find_regex_in_args() {
     local regex="${1}"
