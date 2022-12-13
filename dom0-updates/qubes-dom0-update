@@ -1,5 +1,5 @@
 #!/bin/bash --
-set -o pipefail
+set -euo pipefail
 unset YUM_ACTION UPDATEVM
 
 check_template_in_args () {
