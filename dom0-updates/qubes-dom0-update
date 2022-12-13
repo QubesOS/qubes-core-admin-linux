@@ -219,15 +219,15 @@ echo "Using $UPDATEVM as UpdateVM to download updates for Dom0; this may take so
 
 # qvm-run by default auto-starts the VM if not running
 readonly dom0_updates_dir=/var/lib/qubes/dom0-updates
-qvm-run --nogui -q -u root -- "$UPDATEVM" "mkdir -m 775 -p -- '$dom0_updates_dir'" || exit 1
-qvm-run --nogui -q -u root -- "$UPDATEVM" "chown -R -- user:user '$dom0_updates_dir'" || exit 1
-qvm-run --nogui -q -- "$UPDATEVM" "rm -rf -- '$dom0_updates_dir/etc' '$dom0_updates_dir/var/lib/rpm'" || exit 1
+qvm-run --no-gui -q -u root -- "$UPDATEVM" "mkdir -m 775 -p -- '$dom0_updates_dir'" || exit 1
+qvm-run --no-gui -q -u root -- "$UPDATEVM" "chown -R -- user:user '$dom0_updates_dir'" || exit 1
+qvm-run --no-gui -q -- "$UPDATEVM" "rm -rf -- '$dom0_updates_dir/etc' '$dom0_updates_dir/var/lib/rpm'" || exit 1
 dnf_conf=(/var/lib/rpm /etc/yum.repos.d /etc/dnf/dnf.conf /etc/pki/rpm-gpg/RPM-GPG-KEY-*)
 if [[ -d /etc/yum/vars ]]; then
     dnf_conf+=(/etc/yum/vars)
 fi
 (cd / && exec tar -c -- "${dnf_conf[@]#/}") |
-   qvm-run --nogui -q --pass-io -- "$UPDATEVM" "LC_MESSAGES=C tar -C '$dom0_updates_dir' -x &&
+   qvm-run --no-gui -q --pass-io -- "$UPDATEVM" "LC_MESSAGES=C tar -C '$dom0_updates_dir' -x &&
    sed -Ei 's,^([[:space:]]*gpgkey[[:space:]]*=[[:space:]]*file://)(/etc/pki/rpm-gpg/RPM-GPG-KEY-),\\1$dom0_updates_dir\\2,' '$dom0_updates_dir/etc/yum.repos.d'/*.repo" >/dev/null 2>&1 || {
    status=$?
    echo "Sending repository information to UpdateVM failed: code $status">&2
@@ -244,7 +244,7 @@ for i in "${UPDATEVM_OPTS[@]}"; do CMD+=" '${i//\'/\'\\\'\'}'"; done
 QVMRUN_OPTS=(--quiet --filter-escape-chars)
 # If we are running in a terminal, run the command in its own terminal in the UpdateVM.
 if [[ "$CONSOLE" = 1 ]]; then
-    QVMRUN_OPTS+=(--nogui)
+    QVMRUN_OPTS+=(--no-gui)
     if [[ "$SHOW_OUTPUT" = 1 ]]; then
         QVMRUN_OPTS+=(--pass-io)
         if [[ -t 1 ]] && [[ -t 2 ]]; then
@@ -270,7 +270,7 @@ fi
 read -p "Fetching updates $prompt; press Enter to exit" q
 exit "$status"'"' sh $CMD"
 else
-    QVMRUN_OPTS=(--nogui)
+    QVMRUN_OPTS=(--no-gui)
 fi
 
 qvm-run "${QVMRUN_OPTS[@]}" -- "$UPDATEVM" "$CMD" < /dev/null
