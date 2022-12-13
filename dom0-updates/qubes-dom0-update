@@ -104,7 +104,7 @@ while [[ $# -gt 0 ]]; do
             fi
             ;;
         -*)
-            YUM_OPTS+=( "${1}" )
+            YUM_OPTS+=( "$1" )
             UPDATEVM_OPTS+=( "$1" )
             QVMTEMPLATE_OPTS+=( "$1" )
             ;;
@@ -289,7 +289,7 @@ if [[ "$REMOTE_ONLY" = '1' ]] || [[ "$RETCODE" -ne 0 ]]; then
             echo "Failed to check for dom0 updates" >&2
         fi
     fi
-    exit $RETCODE
+    exit "$RETCODE"
 fi
 # Wait for download completed
 while pidof -x qubes-receive-updates >/dev/null; do sleep 0.5; done
@@ -336,9 +336,7 @@ if [[ -f /var/lib/qubes/updates/repodata/repomd.xml ]]; then
 fi
 
 if [[ "${#PKGS[@]}" -gt 0 ]]; then
-
-    dnf "${YUM_OPTS[@]}" $YUM_ACTION "${PKGS[@]}" ; RETCODE=$?
-
+    dnf "${YUM_OPTS[@]}" $YUM_ACTION "${PKGS[@]}"
 elif [[ -f /var/lib/qubes/updates/repodata/repomd.xml ]]; then
     # Above file exists only when at least one package was downloaded
     if [[ "$GUI" == "1" ]]; then
