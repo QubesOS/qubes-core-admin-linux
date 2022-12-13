@@ -5,6 +5,7 @@ Update qubes.
 import sys
 import argparse
 import time
+from datetime import datetime
 
 import qubesadmin
 import qubesadmin.exc
@@ -58,6 +59,12 @@ def parse_args(args):
     group.add_argument('--all', action='store_true',
                        help='Target all non-disposable VMs (TemplateVMs and '
                             'AppVMs)')
+    group.add_argument('--smart', action='store',
+                       help='Default option. '
+                            'Target all TemplateVMs with known updates or for '
+                            'which last update check was more than N days ago.'
+                            'Default value for N is 7 (one week).',
+                       type=int, default=7)
 
     parser.add_argument('--templates', action='store_true',
                         help='Target all TemplatesVMs')
@@ -101,6 +108,27 @@ def get_targets(args, app):
                 f"Unknown qube name{'s' if plural else ''}"
                 f": {', '.join(unknowns) if plural else ''.join(unknowns)}"
             )
+    else:
+        for vm in app.domains:
+            if getattr(vm, 'updateable', False) and vm.klass != 'AdminVM':
+                try:
+                    state = vm.features.get('updates-available', False)
+                except qubesadmin.exc.QubesDaemonCommunicationError:
+                    state = False
+
+                today = datetime.today()
+                try:
+                    last_update_str = vm.features.get(
+                        'last-updates-check',
+                        datetime.fromtimestamp(0).strftime('%Y-%m-%d %H:%M:%S')
+                    )
+                    last_update = datetime.fromisoformat(last_update_str)
+                    if (today - last_update).days > args.smart:
+                        state = True
+                except qubesadmin.exc.QubesDaemonCommunicationError:
+                    state = False
+                if state:
+                    targets.append(vm)
 
     # remove dom0 - not a target
     targets = [vm for vm in targets if vm.name != 'dom0']
