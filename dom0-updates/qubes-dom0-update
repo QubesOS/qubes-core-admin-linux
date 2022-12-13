@@ -1,13 +1,9 @@
 #!/bin/bash --
 
-find_regex_in_args() {
-    local regex="${1}"
-    shift 1
-
-    for arg in "${@}"; do
-        if echo "${arg}" | grep -q -e "${regex}"; then
-            return 0
-        fi
+check_template_in_args () {
+    local pkg
+    for pkg; do
+        if [[ "$pkg" =~ ^qubes-template- ]]; then return 0; fi
     done
 
     return 1
@@ -143,7 +139,7 @@ if [ "$CHECK_ONLY" == "1" ]; then
 fi
 
 # Redirect operations on templates to qvm-template command
-if find_regex_in_args '^qubes-template-' "${PKGS[@]}"; then
+if check_template_in_args "${PKGS[@]}"; then
     if [[ ${#PKGS[@]} -ne 1 ]]; then
         echo "ERROR: Specify only one package to reinstall template"
         exit 2
