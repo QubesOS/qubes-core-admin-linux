@@ -234,47 +234,50 @@ fi
    exit "$status"
 }
 
-CMD="/usr/lib/qubes/qubes-download-dom0-updates.sh --doit --nogui"
+declare -a QVMRUN_OPTS CMD_ARRAY
+CMD_ARRAY=(/usr/lib/qubes/qubes-download-dom0-updates.sh --doit --nogui)
 
-# We avoid using bash’s own facilities for this, as they produce $'\n'-style
-# strings in certain cases.  These are not portable, whereas the string produced
-# by the following is.
-for i in "${UPDATEVM_OPTS[@]}"; do CMD+=" '${i//\'/\'\\\'\'}'"; done
-
-QVMRUN_OPTS=(--quiet --filter-escape-chars)
+QVMRUN_OPTS=(--quiet --filter-escape-chars --no-shell)
 # If we are running in a terminal, run the command in its own terminal in the UpdateVM.
 if [[ "$CONSOLE" = 1 ]]; then
     QVMRUN_OPTS+=(--no-gui)
     if [[ "$SHOW_OUTPUT" = 1 ]]; then
         QVMRUN_OPTS+=(--pass-io)
         if [[ -t 1 ]] && [[ -t 2 ]]; then
+            CMD='/usr/lib/qubes/qubes-download-dom0-updates.sh --doit --nogui'
+
+            # We avoid using bash’s own facilities for this, as they produce $'\n'-style
+            # strings in certain cases.  These are not portable, whereas the string produced
+            # by the following is.
+            for i in "${UPDATEVM_OPTS[@]}"; do CMD+=" '${i//\'/\'\\\'\'}'"; done
+
             # Use ‘script’ to emulate a TTY, so that we get status bars and other
             # progress output.  Since stdout and stderr are both terminals, qvm-run
             # will automatically sanitize them, but we explicitly tell it to anyway
             # as a precaution.
             #
-            # We MUST NOT use ‘exec script’ here.  That causes ‘script’ to
+            # We MUST NOT use ‘exec’ here.  That causes ‘script’ to
             # inherit the child processes of the shell.  ‘script’ mishandles
             # this and enters an infinite loop.
-            CMD="script --quiet --return --command '${CMD//\'/\'\\\'\'}'"
+            CMD_ARRAY=(script --quiet --return --command "$CMD")
         fi
     fi
 elif [[ "$GUI" = 1 ]] || [[ -t 1 ]] || [[ -t 2 ]]; then
     # In GUI mode, or in a terminal without --console, spawn an xterm to display
     # the output of the remote command.
-    CMD="xterm -e /bin/sh -c '"'if "$@" '"$exit_cmd"'; then
+    CMD_ARRAY=(xterm -e /bin/sh -c 'if "$@" '"$exit_cmd"'; then
     status=0 prompt=succeeded
 else
     status=$? prompt="failed with code $?"
 fi
 read -p "Fetching updates $prompt; press Enter to exit" q
-exit "$status"'"' sh $CMD"
+exit "$status"' sh "${CMD_ARRAY[@]}")
 else
-    QVMRUN_OPTS=(--no-gui)
+    QVMRUN_OPTS=(--no-gui --no-shell)
 fi
 
 RETCODE=0
-qvm-run "${QVMRUN_OPTS[@]}" -- "$UPDATEVM" "$CMD" < /dev/null || RETCODE=$?
+qvm-run "${QVMRUN_OPTS[@]}" -- "$UPDATEVM" "${CMD_ARRAY[@]}" < /dev/null || RETCODE=$?
 if [[ "$REMOTE_ONLY" = '1' ]] || [[ "$RETCODE" -ne 0 ]]; then
     if [[ "$CHECK_ONLY" = '1' ]]; then
         if [[ "$RETCODE" -eq 100 ]]; then
