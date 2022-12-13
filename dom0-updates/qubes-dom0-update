@@ -11,12 +11,12 @@ check_template_in_args () {
 
 UPDATEVM="$(qubes-prefs --force-root updatevm)"
 
-if [ -z "$UPDATEVM" ]; then
+if [[ -z "$UPDATEVM" ]]; then
     echo "UpdateVM not set, exiting"
     exit 1
 fi
 
-if [ "$1" = "--help" ]; then
+if [[ "$1" = "--help" ]]; then
     echo "This tool is used to download packages for dom0. Without package list"
     echo "it checks for updates for installed packages"
     echo ""
@@ -54,7 +54,7 @@ TEMPLATE_BACKUP=
 FORCE_XEN_UPGRADE=
 REBOOT_REQUIRED=
 # Filter out some dnf options and collect packages list
-while [ $# -gt 0 ]; do
+while [[ $# -gt 0 ]]; do
     case "$1" in
         --enablerepo=*|\
         --disablerepo=*)
@@ -133,7 +133,7 @@ case ${YUM_ACTION=upgrade} in
     ;;
 esac
 
-if [ "$CHECK_ONLY" == "1" ]; then
+if [[ "$CHECK_ONLY" == "1" ]]; then
     REMOTE_ONLY=1
     CONSOLE=1
 fi
@@ -157,20 +157,20 @@ YUM_OPTS=( "${TEMPLATE_EXCLUDE_OPTS[@]}" "${YUM_OPTS[@]}" )
 UPDATEVM_OPTS=( "${TEMPLATE_EXCLUDE_OPTS[@]}" "${UPDATEVM_OPTS[@]}" )
 
 ID=$(id -ur)
-if [ "$ID" != 0 ] && [ -z "$GUI" ] && [ -z "$CHECK_ONLY" ] ; then
+if [[ "$ID" != 0 ]] && [[ -z "$GUI" ]] && [[ -z "$CHECK_ONLY" ]] ; then
     echo "This script should be run as root (when used in console mode), use sudo." >&2
     exit 1
 fi
 
-if [ "$GUI" == "1" ] && [ ${#PKGS[@]} -ne 0 ]; then
+if [[ "$GUI" == "1" ]] && [[ ${#PKGS[@]} -ne 0 ]]; then
     echo "ERROR: GUI mode can be used only for updates" >&2
     exit 1
 fi
 
-if [ "$GUI" == "1" ]; then
+if [[ "$GUI" == "1" ]]; then
     apps="xterm konsole yumex apper gpk-update-viewer"
 
-    if [ -n "$KDE_FULL_SESSION" ]; then
+    if [[ -n "${KDE_FULL_SESSION-}" ]]; then
         apps="konsole xterm apper yumex gpk-update-viewer"
     fi
 
@@ -188,11 +188,11 @@ if [ "$GUI" == "1" ]; then
         fi
     done
 
-    if [ -z "$guiapp" ]; then
+    if [[ -z "$guiapp" ]]; then
         message1="You don't have any supported dnf frontend installed."
         message2="Install (using qubes-dom0-update) one of: $apps"
 
-        if [ "$KDE_FULL_SESSION" ]; then
+        if [[ -n "${KDE_FULL_SESSION-}" ]]; then
             kdialog --sorry "$message1<br/>$message2"
         else
             zenity --error --text "$message1\n$message2"
@@ -203,12 +203,12 @@ if [ "$GUI" == "1" ]; then
 fi
 
 # Do not start VM automatically when running from cron (only checking for updates)
-if [ "$CHECK_ONLY" == "1" ] && ! qvm-check -q --running "$UPDATEVM" > /dev/null 2>&1; then
+if [[ "$CHECK_ONLY" = "1" ]] && ! qvm-check -q --running -- "$UPDATEVM" > /dev/null 2>&1; then
     echo "ERROR: UpdateVM not running, not starting it in non-interactive mode" >&2
     exit 1
 fi
 
-if [ -n "$CLEAN" ]; then
+if [[ -n "$CLEAN" ]]; then
     rm -f /var/lib/qubes/updates/rpm/*
     rm -f /var/lib/qubes/updates/repodata/*
 fi
@@ -271,11 +271,11 @@ fi
 qvm-run "${QVMRUN_OPTS[@]}" -- "$UPDATEVM" "$CMD" < /dev/null
 
 RETCODE=$?
-if [[ "$REMOTE_ONLY" = '1' ]] || [ "$RETCODE" -ne 0 ]; then
-    if [ "$CHECK_ONLY" = '1' ]; then
-        if [ "$RETCODE" -eq 100 ]; then
+if [[ "$REMOTE_ONLY" = '1' ]] || [[ "$RETCODE" -ne 0 ]]; then
+    if [[ "$CHECK_ONLY" = '1' ]]; then
+        if [[ "$RETCODE" -eq 100 ]]; then
             echo "There are dom0 updates available" >&2
-        elif [ "$RETCODE" -eq 0 ]; then
+        elif [[ "$RETCODE" -eq 0 ]]; then
             echo "No dom0 updates available" >&2
         else
             echo "Failed to check for dom0 updates" >&2
@@ -286,7 +286,7 @@ fi
 # Wait for download completed
 while pidof -x qubes-receive-updates >/dev/null; do sleep 0.5; done
 
-if [ -r /var/lib/qubes/updates/errors ]; then
+if [[ -r /var/lib/qubes/updates/errors ]]; then
     echo "*** ERROR while receiving updates:" >&2
     cat /var/lib/qubes/updates/errors >&2
     echo "--> if you want to use packages that were downloaded correctly, use dnf directly now" >&2
@@ -295,7 +295,7 @@ if [ -r /var/lib/qubes/updates/errors ]; then
 fi
 
 # Check for major xen upgrade and warn the user
-if [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
+if [[ -f /var/lib/qubes/updates/repodata/repomd.xml ]]; then
     xen_in_update=$(ls /var/lib/qubes/updates/rpm/xen-libs-[1-9]* 2>/dev/null \
         |sed -e 's/.*xen-libs-//' \
         |cut -f 1,2 -d . \
@@ -303,19 +303,19 @@ if [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
     xen_running=$(xl info xen_version|cut -f 1,2 -d .)
     # cut off -rc if any
     xen_running=${xen_running%-*}
-    if [ -n "$xen_in_update" ] && [ "$xen_in_update" != "$xen_running" ]; then
+    if [[ -n "$xen_in_update" ]] && [[ "$xen_in_update" != "$xen_running" ]]; then
         # check if there are running VMs
-        if [ "$(xl list|wc -l)" -gt 2 ]; then
+        if [[ "$(xl list|wc -l)" -gt 2 ]]; then
             echo "WARNING: Attempting a major Xen upgrade ($xen_running -> $xen_in_update) while some qubes are running"
             echo "WARNING: You will not be able to interact with them (not even cleanly shutdown) until you restart the system"
             echo "List of running qubes:"
             qvm-ls --running | grep -v dom0
-            if [ "$FORCE_XEN_UPGRADE" = 1 ]; then
+            if [[ "$FORCE_XEN_UPGRADE" = 1 ]]; then
                 echo "Continuing as requested"
             else
                 echo -n "Do you want to shutdown all the qubes now? [y/N] "
                 read answer
-                if [ "$answer" = "y" ] || [ "$answer" = "Y" ]; then
+                if [[ "$answer" = "y" ]] || [[ "$answer" = "Y" ]]; then
                     qvm-shutdown --all --wait
                 else
                     echo "Please shutdown all the qubes, then resume the update with 'sudo dnf upgrade'"
@@ -327,19 +327,19 @@ if [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
     fi
 fi
 
-if [ ${#PKGS[@]} -gt 0 ]; then
+if [[ "${#PKGS[@]}" -gt 0 ]]; then
 
     dnf "${YUM_OPTS[@]}" $YUM_ACTION "${PKGS[@]}" ; RETCODE=$?
 
-elif [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
+elif [[ -f /var/lib/qubes/updates/repodata/repomd.xml ]]; then
     # Above file exists only when at least one package was downloaded
-    if [ "$GUI" == "1" ]; then
+    if [[ "$GUI" == "1" ]]; then
         # refresh packagekit metadata, GUI utilities use it
         pkcon refresh force
         $guiapp
     else
         dnf check-update ||
-        if [ $? -eq 100 ]; then # Run dnf with options
+        if [[ $? -eq 100 ]]; then # Run dnf with options
             dnf "${YUM_OPTS[@]}" $YUM_ACTION; RETCODE=$?
         fi
     fi
@@ -353,16 +353,16 @@ else
         echo "*** WARNING: cannot set feature 'updates-available'" >&2
     fi
     echo "No updates available" >&2
-    if [ "$GUI" == "1" ]; then
+    if [[ "$GUI" == "1" ]]; then
         zenity --info --title='Dom0 updates' --text='No updates available'
     fi
 fi
 
-if [ "$REBOOT_REQUIRED" = 1 ]; then
+if [[ "$REBOOT_REQUIRED" = 1 ]]; then
     echo "This upgrade requires system restart before doing anything else."
     echo -n "Do you want to restart now? [Y/n] "
     read answer
-    if [ "$answer" != "n" ] && [ "$answer" != "N" ]; then
+    if [[ "$answer" != "n" ]] && [[ "$answer" != "N" ]]; then
         reboot
     fi
 fi
