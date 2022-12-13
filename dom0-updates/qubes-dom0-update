@@ -1,5 +1,6 @@
 #!/bin/bash --
 set -o pipefail
+unset YUM_ACTION UPDATEVM
 
 check_template_in_args () {
     local pkg
