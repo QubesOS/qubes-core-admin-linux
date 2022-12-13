@@ -273,9 +273,8 @@ else
     QVMRUN_OPTS=(--no-gui)
 fi
 
-qvm-run "${QVMRUN_OPTS[@]}" -- "$UPDATEVM" "$CMD" < /dev/null
-
-RETCODE=$?
+RETCODE=0
+qvm-run "${QVMRUN_OPTS[@]}" -- "$UPDATEVM" "$CMD" < /dev/null || RETCODE=$?
 if [[ "$REMOTE_ONLY" = '1' ]] || [[ "$RETCODE" -ne 0 ]]; then
     if [[ "$CHECK_ONLY" = '1' ]]; then
         if [[ "$RETCODE" -eq 100 ]]; then
@@ -343,10 +342,12 @@ elif [[ -f /var/lib/qubes/updates/repodata/repomd.xml ]]; then
         pkcon refresh force
         $guiapp
     else
-        dnf check-update ||
-        if [[ $? -eq 100 ]]; then # Run dnf with options
-            dnf "${YUM_OPTS[@]}" $YUM_ACTION; RETCODE=$?
-        fi
+        RETCODE=0
+        dnf check-update || {
+            if [[ $? -eq 100 ]]; then # Run dnf with options
+                dnf "${YUM_OPTS[@]}" $YUM_ACTION || RETCODE=$?
+            fi
+        }
     fi
     if dnf -q check-update; then
         if ! qvm-features dom0 updates-available '' 2>/dev/null; then
