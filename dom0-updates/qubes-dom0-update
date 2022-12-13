@@ -1,4 +1,5 @@
 #!/bin/bash --
+set -o pipefail
 
 check_template_in_args () {
     local pkg
