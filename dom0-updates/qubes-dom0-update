@@ -365,8 +365,7 @@ fi
 
 if [[ "$REBOOT_REQUIRED" = 1 ]]; then
     echo "This upgrade requires system restart before doing anything else."
-    echo -n "Do you want to restart now? [Y/n] "
-    read answer
+    read -p 'Do you want to restart now? [Y/n] ' answer || :
     if [[ "$answer" != "n" ]] && [[ "$answer" != "N" ]]; then
         reboot
     fi
