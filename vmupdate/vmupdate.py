@@ -62,10 +62,13 @@ def parse_args(args):
     group.add_argument('--smart', action='store',
                        help='Default option. '
                             'Target all TemplateVMs with known updates or for '
-                            'which last update check was more than N days ago.'
-                            'Default value for N is 7 (one week).',
+                            'which last update check was more than SMART days '
+                            'ago. (default: %(default)d)',
                        type=int, default=7)
 
+    parser.add_argument('--skip', action='store',
+                        help='Comma separated list of VMs to be skipped, '
+                             'works with all other options.', default="")
     parser.add_argument('--templates', action='store_true',
                         help='Target all TemplatesVMs')
     parser.add_argument('--standalones', action='store_true',
@@ -130,14 +133,17 @@ def get_targets(args, app):
                 if state:
                     targets.append(vm)
 
-    # remove dom0 - not a target
-    targets = [vm for vm in targets if vm.name != 'dom0']
+    # remove skipped qubes and dom0 - not a target
+    to_skip = args.skip.split(',')
+    targets = [vm for vm in targets
+               if vm.name != 'dom0' and vm.name not in to_skip]
     return targets
 
 
 def run_update(targets, args, qube_klass="qubes"):
     if args.dry_run:
-        print(f"Following {qube_klass} will be updated: ", ",".join((target.name for target in targets)))
+        print(f"Following {qube_klass} will be updated:",
+              ",".join((target.name for target in targets)))
         return 0
 
     runner = update_manager.UpdateManager(targets, args)
@@ -151,14 +157,23 @@ def restart_app_vms(args, templates):
     templates_to_shutdown = [template for template in templates
                              if template.is_running()]
     if args.dry_run:
-        print("Following templates will be shutdown: ",
+        print("Following templates will be shutdown:",
               ",".join((target.name for target in templates_to_shutdown)))
-    else:
-        for template in templates_to_shutdown:
-            try:
-                template.shutdown()
-            except qubesadmin.exc.QubesVMError:
-                pass  # TODO
+        # we do not check if any volume is updated, we expect it will be.
+        to_restart = {vm
+                      for template in templates
+                      for vm in template.appvms
+                      if vm.klass in ('AppVM', 'DispVM')
+                      and vm.is_running()}
+        print("Following qubes CAN be restarted:",
+              ",".join((target.name for target in to_restart)))
+        return
+
+    for template in templates_to_shutdown:
+        try:
+            template.shutdown()
+        except qubesadmin.exc.QubesVMError:
+            pass  # TODO
 
     to_restart = {vm
                   for template in templates
@@ -166,11 +181,6 @@ def restart_app_vms(args, templates):
                   if vm.klass in ('AppVM', 'DispVM')
                   and vm.is_running()
                   and any(vol.is_outdated() for vol in vm.volumes.values())}
-
-    if args.dry_run:
-        print("Following qubes will be restarted: ",
-              ",".join((target.name for target in to_restart)))
-        return
 
     for vm in to_restart:
         if next(vm.connected_vms(), None) is None:
