@@ -59,10 +59,10 @@ def parse_args(args):
     group.add_argument('--all', action='store_true',
                        help='Target all non-disposable VMs (TemplateVMs and '
                             'AppVMs)')
-    group.add_argument('--smart', action='store',
-                       help='Default option. '
+    group.add_argument('--n', action='store',
+                       help='DEFAULT. '
                             'Target all TemplateVMs with known updates or for '
-                            'which last update check was more than SMART days '
+                            'which last update check was more than N days '
                             'ago. (default: %(default)d)',
                        type=int, default=7)
 
@@ -147,7 +147,7 @@ def stale_update_info(vm, args):
             datetime.fromtimestamp(0).strftime('%Y-%m-%d %H:%M:%S')
         )
         last_update = datetime.fromisoformat(last_update_str)
-        if (today - last_update).days > args.smart:
+        if (today - last_update).days > args.n:
             return True
     except qubesadmin.exc.QubesDaemonCommunicationError:
         pass
