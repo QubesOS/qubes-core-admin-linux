@@ -112,26 +112,7 @@ def get_targets(args, app):
                 f": {', '.join(unknowns) if plural else ''.join(unknowns)}"
             )
     else:
-        for vm in app.domains:
-            if getattr(vm, 'updateable', False) and vm.klass != 'AdminVM':
-                try:
-                    state = vm.features.get('updates-available', False)
-                except qubesadmin.exc.QubesDaemonCommunicationError:
-                    state = False
-
-                today = datetime.today()
-                try:
-                    last_update_str = vm.features.get(
-                        'last-updates-check',
-                        datetime.fromtimestamp(0).strftime('%Y-%m-%d %H:%M:%S')
-                    )
-                    last_update = datetime.fromisoformat(last_update_str)
-                    if (today - last_update).days > args.smart:
-                        state = True
-                except qubesadmin.exc.QubesDaemonCommunicationError:
-                    state = False
-                if state:
-                    targets.append(vm)
+        targets += smart_targeting(app, args)
 
     # remove skipped qubes and dom0 - not a target
     to_skip = args.skip.split(',')
@@ -139,6 +120,38 @@ def get_targets(args, app):
                if vm.name != 'dom0' and vm.name not in to_skip]
     return targets
 
+
+def smart_targeting(app, args):
+    targets = []
+    for vm in app.domains:
+        if getattr(vm, 'updateable', False) and vm.klass != 'AdminVM':
+            try:
+                to_update = vm.features.get('updates-available', False)
+            except qubesadmin.exc.QubesDaemonCommunicationError:
+                to_update = False
+
+            if not to_update:
+                to_update = stale_update_info(vm, args)
+
+            if to_update:
+                targets.append(vm)
+
+    return targets
+
+
+def stale_update_info(vm, args):
+    today = datetime.today()
+    try:
+        last_update_str = vm.features.get(
+            'last-updates-check',
+            datetime.fromtimestamp(0).strftime('%Y-%m-%d %H:%M:%S')
+        )
+        last_update = datetime.fromisoformat(last_update_str)
+        if (today - last_update).days > args.smart:
+            return True
+    except qubesadmin.exc.QubesDaemonCommunicationError:
+        pass
+    return False
 
 def run_update(targets, args, qube_klass="qubes"):
     if args.dry_run:
@@ -159,7 +172,7 @@ def restart_app_vms(args, templates):
     if args.dry_run:
         print("Following templates will be shutdown:",
               ",".join((target.name for target in templates_to_shutdown)))
-        # we do not check if any volume is updated, we expect it will be.
+        # we do not check if any volume is outdated, we expect it will be.
         to_restart = {vm
                       for template in templates
                       for vm in template.appvms
@@ -169,11 +182,12 @@ def restart_app_vms(args, templates):
               ",".join((target.name for target in to_restart)))
         return
 
+    # first shutdown templates to apply changes to the root volume
     for template in templates_to_shutdown:
         try:
             template.shutdown()
-        except qubesadmin.exc.QubesVMError:
-            pass  # TODO
+        except qubesadmin.exc.QubesVMError as exc:
+            print(exc, file=sys.stderr)
 
     to_restart = {vm
                   for template in templates
@@ -182,21 +196,38 @@ def restart_app_vms(args, templates):
                   and vm.is_running()
                   and any(vol.is_outdated() for vol in vm.volumes.values())}
 
+    restart_vms(to_restart)
+
+    # they are no need to start templates automatically
+
+
+def restart_vms(to_restart):
+    # try shutdown/kill qubes
+    wait_for = []
     for vm in to_restart:
         if next(vm.connected_vms(), None) is None:
             try:
                 vm.shutdown()
-            except qubesadmin.exc.QubesVMError:
-                pass  # TODO
+                wait_for.append(vm)
+            except qubesadmin.exc.QubesVMError as exc:
+                print(exc, file=sys.stderr)
         else:
             try:
                 vm.kill()
-            except qubesadmin.exc.QubesVMError:
-                pass  # TODO
-    while any(vm.is_running() for vm in to_restart):
+                wait_for.append(vm)
+            except qubesadmin.exc.QubesVMError as exc:
+                print(exc, file=sys.stderr)
+
+    # wait for qubes to shut down
+    while any(vm.is_running() for vm in wait_for):
         time.sleep(1)
-    for vm in to_restart:
-        vm.start()
+
+    # restart shutdown qubes
+    for vm in wait_for:
+        try:
+            vm.start()
+        except qubesadmin.exc.QubesVMError as exc:
+            print(exc, file=sys.stderr)
 
 
 if __name__ == '__main__':
