@@ -2,13 +2,14 @@
 """
 Update qubes.
 """
+import asyncio
 import sys
 import argparse
-import time
 from datetime import datetime
 
 import qubesadmin
 import qubesadmin.exc
+from qubesadmin.events.utils import wait_for_domain_shutdown
 from . import update_manager
 from .agent.source.args import AgentArgs
 
@@ -16,6 +17,7 @@ from .agent.source.args import AgentArgs
 class ArgumentError(Exception):
     """Nonsense arguments
     """
+
 
 def main(args=None):
     args = parse_args(args)
@@ -153,6 +155,7 @@ def stale_update_info(vm, args):
         pass
     return False
 
+
 def run_update(targets, args, qube_klass="qubes"):
     if args.dry_run:
         print(f"Following {qube_klass} will be updated:",
@@ -164,6 +167,9 @@ def run_update(targets, args, qube_klass="qubes"):
 
 
 def restart_app_vms(args, templates):
+    """
+    Shutdown running templates and then restart outdated app vms.
+    """
     if not args.restart:
         return
 
@@ -183,11 +189,7 @@ def restart_app_vms(args, templates):
         return
 
     # first shutdown templates to apply changes to the root volume
-    for template in templates_to_shutdown:
-        try:
-            template.shutdown()
-        except qubesadmin.exc.QubesVMError as exc:
-            print(exc, file=sys.stderr)
+    shutdown_domains(templates_to_shutdown)
 
     to_restart = {vm
                   for template in templates
@@ -201,29 +203,31 @@ def restart_app_vms(args, templates):
     # they are no need to start templates automatically
 
 
-def restart_vms(to_restart):
-    # try shutdown/kill qubes
+def shutdown_domains(to_shutdown):
+    """
+    Try to shut down vms and wait to finish.
+    """
     wait_for = []
-    for vm in to_restart:
-        if next(vm.connected_vms(), None) is None:
-            try:
-                vm.shutdown()
-                wait_for.append(vm)
-            except qubesadmin.exc.QubesVMError as exc:
-                print(exc, file=sys.stderr)
-        else:
-            try:
-                vm.kill()
-                wait_for.append(vm)
-            except qubesadmin.exc.QubesVMError as exc:
-                print(exc, file=sys.stderr)
+    for vm in to_shutdown:
+        try:
+            vm.shutdown(force=True)
+            wait_for.append(vm)
+        except qubesadmin.exc.QubesVMError as exc:
+            print(exc, file=sys.stderr)
 
-    # wait for qubes to shut down
-    while any(vm.is_running() for vm in wait_for):
-        time.sleep(1)
+    asyncio.run(wait_for_domain_shutdown(wait_for))
+
+    return wait_for
+
+
+def restart_vms(to_restart):
+    """
+    Try to restart vms.
+    """
+    shutdowns = shutdown_domains(to_restart)
 
     # restart shutdown qubes
-    for vm in wait_for:
+    for vm in shutdowns:
         try:
             vm.start()
         except qubesadmin.exc.QubesVMError as exc:
