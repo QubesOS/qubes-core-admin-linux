@@ -59,7 +59,7 @@ def parse_args(args):
     group.add_argument('--all', action='store_true',
                        help='Target all non-disposable VMs (TemplateVMs and '
                             'AppVMs)')
-    group.add_argument('--n', action='store',
+    group.add_argument('--update-if-stale', action='store',
                        help='DEFAULT. '
                             'Target all TemplateVMs with known updates or for '
                             'which last update check was more than N days '
