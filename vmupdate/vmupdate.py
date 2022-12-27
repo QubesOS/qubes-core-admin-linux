@@ -149,7 +149,7 @@ def stale_update_info(vm, args):
             datetime.fromtimestamp(0).strftime('%Y-%m-%d %H:%M:%S')
         )
         last_update = datetime.fromisoformat(last_update_str)
-        if (today - last_update).days > args.n:
+        if (today - last_update).days > args.update_if_stale:
             return True
     except qubesadmin.exc.QubesDaemonCommunicationError:
         pass
