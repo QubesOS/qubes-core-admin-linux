@@ -22,7 +22,8 @@ if [ -x /usr/sbin/grub2-mkconfig ]; then
     if [ -e /boot/grub2/grub.cfg ]; then
         grub2-mkconfig -o /boot/grub2/grub.cfg
     fi
-    if [ -e /boot/efi/EFI/qubes/grub.cfg ]; then
+    if [ -e /boot/efi/EFI/qubes/grub.cfg ] && \
+            ! grep -q "configfile" /boot/efi/EFI/qubes/grub.cfg; then
         grub2-mkconfig -o /boot/efi/EFI/qubes/grub.cfg
     fi
 fi
