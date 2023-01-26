@@ -284,7 +284,6 @@ chmod -x /etc/grub.d/10_linux
 %{_dracutmoddir}/90extra-modules/*
 %dir %{_dracutmoddir}/90qubes-udev
 %{_dracutmoddir}/90qubes-udev/*
-%attr(0700,root,root) %dir /etc/usbguard/rules.d
 %attr(0600,root,root) /etc/usbguard/rules.d/02-qubes.conf
 %attr(0600,root,root) /etc/usbguard/qubes-usbguard.conf
 %_unitdir/usbguard.service.d/30_qubes.conf
