@@ -80,11 +80,13 @@ int main(int argc, char ** argv)
         exit(1);
     }
 
-    statvfs(incoming_dir, &st);
-    // take a little margin with 90% of the free space
-    root_free_space = max(0, st.f_bfree * st.f_bsize * 0.90);
-
-    bytes_limit = min(root_free_space, DEFAULT_MAX_UPDATES_BYTES);
+    if (statvfs(".", &st) == 0) {
+        // take a little margin with 90% of the free space
+        root_free_space = max(0, st.f_bfree * st.f_bsize * 0.90);
+        bytes_limit = min(root_free_space, DEFAULT_MAX_UPDATES_BYTES);
+    } else {
+        perror("Failed to check free space");
+    }
 
     if ((var=getenv("UPDATES_MAX_BYTES")))
         bytes_limit = atoll(var);
