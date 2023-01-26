@@ -36,8 +36,19 @@ enable libvirtd.service
 enable virlockd.socket
 
 enable upower.service
+enable udisks2.service
 enable crond.service
 enable logrotate.timer
+
+# Enable service to automatically rebuild the RPM database
+# on startup when /var/lib/rpm/.rebuilddb exists
+# https://bugzilla.redhat.com/show_bug.cgi?id=1826658
+enable rpmdb-rebuild.service
+
+# Enable service to automatically migrate the RPM database to /usr
+# on startup when /var/lib/rpm/.migratedb exists
+# https://bugzilla.redhat.com/show_bug.cgi?id=2044061
+enable rpmdb-migrate.service
 
 enable usbguard.service
 
