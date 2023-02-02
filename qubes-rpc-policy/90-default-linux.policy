@@ -1,0 +1,8 @@
+# qubes-dom0-update
+qubes.ReceiveUpdates    * @anyvm	dom0	allow
+
+# This used to define policies for:
+# - qubes.repos.List
+# - qubes.repos.Enable
+# - qubes.repos.Disable
+# but since those are "deny" by default anyway, skip them

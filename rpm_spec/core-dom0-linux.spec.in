@@ -100,8 +100,6 @@ make all
 %install
 
 ## Appmenus
-install -d $RPM_BUILD_ROOT/etc/qubes-rpc/policy
-cp qubesappmenus/qubes.SyncAppMenus.policy $RPM_BUILD_ROOT/etc/qubes-rpc/policy/qubes.SyncAppMenus
 make install DESTDIR=$RPM_BUILD_ROOT
 
 ### Dom0 updates
@@ -111,16 +109,18 @@ install -D dom0-updates/qubes-receive-updates $RPM_BUILD_ROOT/usr/libexec/qubes/
 install -D dom0-updates/patch-dnf-yum-config $RPM_BUILD_ROOT/usr/lib/qubes/patch-dnf-yum-config
 install -m 0644 -D dom0-updates/qubes-cached.repo $RPM_BUILD_ROOT/etc/yum.real.repos.d/qubes-cached.repo
 install -D dom0-updates/qfile-dom0-unpacker $RPM_BUILD_ROOT/usr/libexec/qubes/qfile-dom0-unpacker
+install -d $RPM_BUILD_ROOT/etc/qubes-rpc
 ln -s ../../usr/libexec/qubes/qubes-receive-updates $RPM_BUILD_ROOT/etc/qubes-rpc/qubes.ReceiveUpdates
-install -m 0664 -D dom0-updates/qubes.ReceiveUpdates.policy $RPM_BUILD_ROOT/etc/qubes-rpc/policy/qubes.ReceiveUpdates
+install -d $RPM_BUILD_ROOT/etc/qubes/policy.d/
+install -m 0644 qubes-rpc-policy/90-default-linux.policy \
+       $RPM_BUILD_ROOT/etc/qubes/policy.d/90-default-linux.policy
 
 install -d $RPM_BUILD_ROOT/var/lib/qubes/updates
 
 # Qrexec services
-mkdir -p $RPM_BUILD_ROOT/usr/lib/qubes/qubes-rpc $RPM_BUILD_ROOT/etc/qubes-rpc/policy
+mkdir -p $RPM_BUILD_ROOT/usr/lib/qubes/qubes-rpc
 cp qubes-rpc/* $RPM_BUILD_ROOT/usr/lib/qubes/qubes-rpc/
 for i in qubes-rpc/*; do ln -s ../../usr/lib/qubes/$i $RPM_BUILD_ROOT/etc/qubes-rpc/$(basename $i); done
-cp qubes-rpc-policy/* $RPM_BUILD_ROOT/etc/qubes-rpc/policy/
 
 ### pm-utils
 mkdir -p $RPM_BUILD_ROOT/usr/lib64/pm-utils/sleep.d
@@ -257,7 +257,6 @@ rm -f /lib/udev/rules.d/69-xorg-vmmouse.rules
 chmod -x /etc/grub.d/10_linux
 
 %files -f INSTALLED_FILES
-/etc/qubes-rpc/policy/qubes.SyncAppMenus
 # Dom0 updates
 /etc/cron.daily/qubes-dom0-updates.cron
 /etc/yum.real.repos.d/qubes-cached.repo
@@ -266,14 +265,11 @@ chmod -x /etc/grub.d/10_linux
 %attr(4750,root,qubes) /usr/libexec/qubes/qfile-dom0-unpacker
 /usr/libexec/qubes/qubes-receive-updates
 /etc/qubes-rpc/qubes.ReceiveUpdates
-%attr(0664,root,qubes) %config(noreplace) /etc/qubes-rpc/policy/qubes.ReceiveUpdates
+%attr(0664,root,qubes) %config(noreplace) /etc/qubes/policy.d/90-default-linux.policy
 %attr(0770,root,qubes) %dir /var/lib/qubes/updates
 # Qrexec services
 /etc/qubes-rpc/qubes.repos.*
 /usr/lib/qubes/qubes-rpc/qubes.repos.*
-%attr(0664,root,qubes) %config(noreplace) /etc/qubes-rpc/policy/qubes.repos.List
-%attr(0664,root,qubes) %config(noreplace) /etc/qubes-rpc/policy/qubes.repos.Enable
-%attr(0664,root,qubes) %config(noreplace) /etc/qubes-rpc/policy/qubes.repos.Disable
 # Dracut module
 /usr/lib/dracut/dracut.conf.d/*
 %dir %{_dracutmoddir}/90macbook12-spi-driver
