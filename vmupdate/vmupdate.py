@@ -46,8 +46,8 @@ def parse_args(args):
 
     parser.add_argument('--max-concurrency', action='store',
                         help='Maximum number of VMs configured simultaneously '
-                             '(default: %(default)d)',
-                        type=int, default=4)
+                             '(default: number of cpus)',
+                        type=int)
 
     parser.add_argument('--restart', action='store_true',
                         help='Restart AppVMs whose template has been updated.')
