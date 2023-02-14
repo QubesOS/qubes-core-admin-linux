@@ -280,7 +280,12 @@ class UpdateAgentManager:
         src_dir = join(this_dir, UpdateAgentManager.AGENT_RELATIVE_DIR)
 
         with QubeConnection(
-                self.qube, dest_dir, self.cleanup, self.log, self.show_progress
+                self.qube,
+                dest_dir,
+                self.cleanup,
+                self.log,
+                self.show_progress,
+                progress_collector
         ) as qconn:
             self.log.info(
                 "Transferring files to destination qube: %s", self.qube.name)
@@ -292,7 +297,7 @@ class UpdateAgentManager:
             self.log.info(
                 "The agent is starting the task in qube: %s", self.qube.name)
             ret_code_, output = qconn.run_entrypoint(
-                dest_agent, agent_args, progress_collector)
+                dest_agent, agent_args)
             ret_code = max(ret_code, ret_code_)
 
             ret_code_logs, logs = qconn.read_logs()

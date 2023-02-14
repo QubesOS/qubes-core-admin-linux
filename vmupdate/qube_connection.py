@@ -42,12 +42,21 @@ class QubeConnection:
        stop the qube if it was started by this connection.
     """
 
-    def __init__(self, qube, dest_dir, cleanup, logger, show_progress):
+    def __init__(
+            self,
+            qube,
+            dest_dir,
+            cleanup,
+            logger,
+            show_progress,
+            progress_collector
+    ):
         self.qube = qube
         self.dest_dir = dest_dir
         self.cleanup = cleanup
         self.logger = logger
         self.show_progress = show_progress
+        self.progress_collector = progress_collector
         self._initially_running = None
         self.__connected = False
 
@@ -57,6 +66,8 @@ class QubeConnection:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        self.progress_collector.put((self.qube,))
+
         if self.cleanup:
             self.logger.info('Remove %s', self.dest_dir)
             self._run_shell_command_in_qube(
@@ -126,13 +137,12 @@ class QubeConnection:
 
         return ret_code, output
 
-    def run_entrypoint(self, entrypoint_path, agent_args, progress_collector):
+    def run_entrypoint(self, entrypoint_path, agent_args):
         """
         Run a script in the qube.
 
         :param entrypoint_path: str: path to the entrypoint.py in the qube
         :param agent_args: args for agent entrypoint
-        :param progress_collector: object to be fed with the progress data
         :return: Tuple[int, str]: return code and output of the script
         """
         # make sure entrypoint is executable
@@ -143,7 +153,7 @@ class QubeConnection:
         command = [entrypoint_path, *AgentArgs.to_cli_args(agent_args)]
         exit_code_, output_ = self._run_shell_command_in_qube(
             self.qube, command, show=self.show_progress,
-            progress_collector=progress_collector
+            progress_collector=self.progress_collector
         )
         exit_code = max(exit_code, exit_code_)
         output += output_
@@ -199,7 +209,6 @@ class QubeConnection:
                     else:
                         stderr += untrusted_line
                 else:
-                    progress_collector.put((self.qube,))
                     break
             proc.stderr.close()
 
