@@ -58,6 +58,7 @@ class UpdateManager:
 
         pool = multiprocessing.Pool(self.max_concurrency)
         show_progress = not self.quiet and not self.no_progress
+        SimpleTerminalBar.reinit_class()
         progress_output = SimpleTerminalBar \
             if agent_args.just_print_progress else tqdm
         progress_bar = MultipleUpdateMultipleProgressBar(
@@ -104,11 +105,11 @@ class TerminalMultiBar:
 
 
 class SimpleTerminalBar:
-    terminalMultiBar = TerminalMultiBar()
+    PARENT_MULTI_BAR = None
 
     def __init__(self, total, position, desc):
-        assert position == len(SimpleTerminalBar.terminalMultiBar.progresses)
-        SimpleTerminalBar.terminalMultiBar.progresses.append(self)
+        assert position == len(SimpleTerminalBar.PARENT_MULTI_BAR.progresses)
+        SimpleTerminalBar.PARENT_MULTI_BAR.progresses.append(self)
         self.desc = desc
         self.progress = 0
         self.total = total
@@ -118,10 +119,14 @@ class SimpleTerminalBar:
 
     def update(self, progress):
         self.progress += progress
-        SimpleTerminalBar.terminalMultiBar.print()
+        SimpleTerminalBar.PARENT_MULTI_BAR.print()
 
     def close(self):
         pass
+
+    @staticmethod
+    def reinit_class():
+        SimpleTerminalBar.PARENT_MULTI_BAR = TerminalMultiBar()
 
 
 class MultipleUpdateMultipleProgressBar:
@@ -240,7 +245,8 @@ class UpdateAgentManager:
         self.qube = qube
         self.app = app
 
-        self.log, self.log_handler, log_level, self.log_path, self.log_formatter = init_logs(
+        (self.log, self.log_handler, log_level,
+         self.log_path, self.log_formatter) = init_logs(
             directory=UpdateAgentManager.LOGPATH,
             file=f'update-{qube.name}.log',
             format_=UpdateAgentManager.FORMAT_LOG,
