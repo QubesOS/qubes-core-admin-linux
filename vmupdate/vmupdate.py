@@ -144,6 +144,10 @@ def smart_targeting(app, args):
 def stale_update_info(vm, args):
     today = datetime.today()
     try:
+        if not ('qrexec' in vm.features.keys()
+                and vm.features.get('os', '') == 'Linux'):
+            return False
+
         last_update_str = vm.features.check_with_template(
             'last-updates-check',
             datetime.fromtimestamp(0).strftime('%Y-%m-%d %H:%M:%S')
@@ -152,7 +156,7 @@ def stale_update_info(vm, args):
         if (today - last_update).days > args.update_if_stale:
             return True
     except qubesadmin.exc.QubesDaemonCommunicationError:
-        return True
+        pass
     return False
 
 
