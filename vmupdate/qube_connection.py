@@ -25,6 +25,7 @@ import tempfile
 from os.path import join
 from subprocess import Popen
 from subprocess import CalledProcessError
+from typing import Optional, List, Tuple
 
 import qubesadmin
 from vmupdate.agent.source.args import AgentArgs
@@ -56,7 +57,7 @@ class QubeConnection:
         self.cleanup = cleanup
         self.logger = logger
         self.show_progress = show_progress
-        self.progress_collector = progress_collector
+        self.progress_collector: Optional = progress_collector
         self._initially_running = None
         self.__connected = False
 
@@ -66,7 +67,16 @@ class QubeConnection:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.progress_collector.put((self.qube,))
+        """
+        Do cleanup.
+
+        1. If a progress collector is provided, send a signal that the update
+           has been completed.
+        2. Delete the uploaded files from the updated qube.
+        3. Shut down qube if it wasn't running before the update.
+        """
+        if self.progress_collector is not None:
+            self.progress_collector.put((self.qube,))
 
         if self.cleanup:
             self.logger.info('Remove %s', self.dest_dir)
@@ -79,7 +89,7 @@ class QubeConnection:
 
         self.__connected = False
 
-    def transfer_agent(self, src_dir):
+    def transfer_agent(self, src_dir: str) -> Tuple[int, List[str]]:
         """
         Copy a directory content to the workdir in the qube.
 
@@ -137,13 +147,15 @@ class QubeConnection:
 
         return ret_code, output
 
-    def run_entrypoint(self, entrypoint_path, agent_args):
+    def run_entrypoint(
+            self, entrypoint_path: str, agent_args
+    ) -> Tuple[int, List[str]]:
         """
         Run a script in the qube.
 
-        :param entrypoint_path: str: path to the entrypoint.py in the qube
+        :param entrypoint_path: path to the entrypoint.py in the qube
         :param agent_args: args for agent entrypoint
-        :return: Tuple[int, str]: return code and output of the script
+        :return: return code and output of the script
         """
         # make sure entrypoint is executable
         command = ['chmod', 'u+x', entrypoint_path]
@@ -152,15 +164,13 @@ class QubeConnection:
         # run entrypoint
         command = [entrypoint_path, *AgentArgs.to_cli_args(agent_args)]
         exit_code_, output_ = self._run_shell_command_in_qube(
-            self.qube, command, show=self.show_progress,
-            progress_collector=self.progress_collector
-        )
+            self.qube, command, show=self.show_progress)
         exit_code = max(exit_code, exit_code_)
         output += output_
 
         return exit_code, output
 
-    def read_logs(self):
+    def read_logs(self) -> Tuple[int, List[str]]:
         """
         Read vm logs file.
         """
@@ -170,64 +180,94 @@ class QubeConnection:
         return exit_code, output
 
     def _run_shell_command_in_qube(
-            self, target, command, show=False, progress_collector=None):
+            self, target, command: List[str], show: bool = False
+    ) -> Tuple[int, List[str]]:
         self.logger.debug("run command in %s: %s",
                           target.name, " ".join(command))
         if not show:
-            try:
-                untrusted_stdout_and_stderr = target.run_with_args(
-                    *command, user='root'
-                )
-                ret_code = 0
-            except CalledProcessError as err:
-                self.logger.error(str(err))
-                ret_code = err.returncode
-                untrusted_stdout_and_stderr = (b"", b"")
+            ret_code, untrusted_stdout_and_stderr = \
+                self._run_command_and_wait_for_output(target, command)
         else:
-            assert progress_collector is not None
-            proc = target.run_service(
-                'qubes.VMExec+' + qubesadmin.utils.encode_for_vmexec(command),
-                user='root')
-            stdout = b""
-            stderr = b""
-
-            progress_finished = False
-            for untrusted_line in iter(proc.stderr.readline, ''):
-                if untrusted_line:
-                    if not progress_finished:
-                        line = QubeConnection._string_sanitization(
-                            untrusted_line.decode().rstrip())
-                        try:
-                            progress = float(line)
-                        except ValueError:
-                            stderr += untrusted_line
-                            continue
-
-                        if progress == 100.:
-                            progress_finished = True
-                        progress_collector.put((self.qube, progress))
-                    else:
-                        stderr += untrusted_line
-                else:
-                    break
-            proc.stderr.close()
-
-            for untrusted_line in iter(proc.stdout.readline, ''):
-                if untrusted_line:
-                    stdout += untrusted_line
-                else:
-                    break
-            proc.stdout.close()
-
-            proc.wait()
-            untrusted_stdout_and_stderr = (stdout, stderr)
-            ret_code = proc.returncode
+            assert self.progress_collector is not None
+            ret_code, untrusted_stdout_and_stderr = \
+                self._run_command_and_actively_report_progress(
+                    target, command)
 
         return ret_code, QubeConnection._collect_output(
             *untrusted_stdout_and_stderr)
 
+    def _run_command_and_wait_for_output(
+            self, target, command: List[str]
+    ) -> Tuple[int, List[str]]:
+        try:
+            untrusted_stdout_and_stderr = target.run_with_args(
+                *command, user='root'
+            )
+            ret_code = 0
+        except CalledProcessError as err:
+            self.logger.error(str(err))
+            ret_code = err.returncode
+            untrusted_stdout_and_stderr = (b"", b"")
+        return ret_code, untrusted_stdout_and_stderr
+
+    def _run_command_and_actively_report_progress(
+            self, target, command: List[str]
+    ) -> Tuple[int, Tuple[bytes, bytes]]:
+        proc = target.run_service(
+            'qubes.VMExec+' + qubesadmin.utils.encode_for_vmexec(command),
+            user='root')
+
+        stderr = self._collect_stderr(proc)
+        stdout = self._collect_stdout(proc)
+
+        proc.wait()
+        untrusted_stdout_and_stderr = (stdout, stderr)
+        ret_code = proc.returncode
+
+        return ret_code, untrusted_stdout_and_stderr
+
+    def _collect_stderr(self, proc) -> bytes:
+        stderr = b""
+        progress_finished = False
+        for untrusted_line in iter(proc.stderr.readline, ''):
+            if untrusted_line:
+                if not progress_finished:
+                    line = QubeConnection._string_sanitization(
+                        untrusted_line.decode().rstrip())
+                    try:
+                        progress = float(line)
+                    except ValueError:
+                        stderr += untrusted_line
+                        continue
+
+                    if progress == 100.:
+                        progress_finished = True
+                    self.progress_collector.put((self.qube, progress))
+                else:
+                    stderr += untrusted_line
+            else:
+                break
+        proc.stderr.close()
+
+        return stderr
+
     @staticmethod
-    def _collect_output(untrusted_stdout, untrusted_stderr):
+    def _collect_stdout(proc) -> bytes:
+        stdout = b""
+
+        for untrusted_line in iter(proc.stdout.readline, ''):
+            if untrusted_line:
+                stdout += untrusted_line
+            else:
+                break
+        proc.stdout.close()
+
+        return stdout
+
+    @staticmethod
+    def _collect_output(
+            untrusted_stdout: bytes, untrusted_stderr: bytes
+    ) -> List[str]:
         untrusted_stdout = untrusted_stdout.decode('ascii', errors='ignore') + \
                            untrusted_stderr.decode('ascii', errors='ignore')
 
