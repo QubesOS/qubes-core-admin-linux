@@ -21,15 +21,17 @@
 
 import os
 import shutil
+import signal
 import tempfile
 from os.path import join
 from subprocess import Popen
 from subprocess import CalledProcessError
-from typing import Optional, List, Tuple
+from typing import List, Tuple
 
 import qubesadmin
 from vmupdate.agent.source.args import AgentArgs
 from vmupdate.agent.source.log_congfig import LOGPATH, LOG_FILE
+from vmupdate.agent.source.status import StatusInfo, FinalStatus
 
 
 class QubeConnection:
@@ -50,14 +52,15 @@ class QubeConnection:
             cleanup,
             logger,
             show_progress,
-            progress_collector
+            status_notifier
     ):
         self.qube = qube
         self.dest_dir = dest_dir
         self.cleanup = cleanup
         self.logger = logger
         self.show_progress = show_progress
-        self.progress_collector: Optional = progress_collector
+        self.status_notifier = status_notifier
+        self.status_notified = False
         self._initially_running = None
         self.__connected = False
 
@@ -75,8 +78,9 @@ class QubeConnection:
         2. Delete the uploaded files from the updated qube.
         3. Shut down qube if it wasn't running before the update.
         """
-        if self.progress_collector is not None:
-            self.progress_collector.put((self.qube,))
+        if not self.status_notified:
+            self.status_notifier.put(
+                StatusInfo.done(self.qube, FinalStatus.SUCCESS))
 
         if self.cleanup:
             self.logger.info('Remove %s', self.dest_dir)
@@ -188,7 +192,6 @@ class QubeConnection:
             ret_code, untrusted_stdout_and_stderr = \
                 self._run_command_and_wait_for_output(target, command)
         else:
-            assert self.progress_collector is not None
             ret_code, untrusted_stdout_and_stderr = \
                 self._run_command_and_actively_report_progress(
                     target, command)
@@ -205,9 +208,15 @@ class QubeConnection:
             )
             ret_code = 0
         except CalledProcessError as err:
-            self.logger.error(str(err))
-            ret_code = err.returncode
-            untrusted_stdout_and_stderr = (b"", b"")
+            if err.returncode == 100:
+                self.status_notifier.put(
+                    StatusInfo.done(self.qube, FinalStatus.NO_UPDATES))
+                self.status_notified = True
+                ret_code = 0
+            else:
+                self.logger.error(str(err))
+                ret_code = err.returncode
+            untrusted_stdout_and_stderr = (err.output, err.output)
         return ret_code, untrusted_stdout_and_stderr
 
     def _run_command_and_actively_report_progress(
@@ -215,7 +224,9 @@ class QubeConnection:
     ) -> Tuple[int, Tuple[bytes, bytes]]:
         proc = target.run_service(
             'qubes.VMExec+' + qubesadmin.utils.encode_for_vmexec(command),
-            user='root')
+            user='root',
+            preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_IGN)
+        )
 
         stderr = self._collect_stderr(proc)
         stdout = self._collect_stdout(proc)
@@ -223,6 +234,11 @@ class QubeConnection:
         proc.wait()
         untrusted_stdout_and_stderr = (stdout, stderr)
         ret_code = proc.returncode
+        if ret_code == 100:
+            self.status_notifier.put(
+                StatusInfo.done(self.qube, FinalStatus.NO_UPDATES))
+            self.status_notified = True
+            ret_code = 0
 
         return ret_code, untrusted_stdout_and_stderr
 
@@ -242,7 +258,8 @@ class QubeConnection:
 
                     if progress == 100.:
                         progress_finished = True
-                    self.progress_collector.put((self.qube, progress))
+                    self.status_notifier.put(
+                        StatusInfo.pending(self.qube, progress))
                 else:
                     stderr += untrusted_line
             else:

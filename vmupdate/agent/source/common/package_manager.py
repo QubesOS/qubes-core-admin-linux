@@ -29,7 +29,8 @@ from .process_result import ProcessResult
 class PackageManager:
     def __init__(self, log_handler, log_level):
         self.package_manager: Optional[str] = None
-        self.log = logging.getLogger(f'vm-update.agent.{self.__class__.__name__}')
+        self.log = logging.getLogger(
+            f'vm-update.agent.{self.__class__.__name__}')
         self.log.setLevel(log_level)
         self.log.addHandler(log_handler)
         self.log.propagate = False
@@ -49,7 +50,6 @@ class PackageManager:
         :param hard_fail: if refresh or installing requirements fails,
                           stop and fail
         :param remove_obsolete: remove obsolete packages
-        :param requirements: packages versions required before full upgrade
         :param print_streams: dump captured output to std streams
         :return: return code
         """
@@ -100,6 +100,9 @@ class PackageManager:
 
         changes = PackageManager.compare_packages(old=curr_pkg, new=new_pkg)
         self._log_changes(changes)
+
+        if not result.code and not (changes["installed"] or changes["updated"]):
+            result.code = 100  # Nothing to upgrade
 
         return result
 
