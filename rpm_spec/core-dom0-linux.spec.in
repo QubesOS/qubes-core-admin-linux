@@ -22,8 +22,6 @@
 #
 #
 
-%{!?python_sitearch: %define python_sitearch %(%{__python} -c "from distutils.sysconfig import get_python_lib; print get_python_lib(1)")}
-
 %define _dracutmoddir	/usr/lib/dracut/modules.d
 
 Name:		qubes-core-dom0-linux
@@ -267,6 +265,8 @@ chmod -x /etc/grub.d/10_linux
 /etc/qubes-rpc/qubes.ReceiveUpdates
 %attr(0664,root,qubes) %config(noreplace) /etc/qubes/policy.d/90-default-linux.policy
 %attr(0770,root,qubes) %dir /var/lib/qubes/updates
+# vm updates, in addition to INSTALLED_FILES
+%dir %{python3_sitelib}/qubes_vmupdate-*.egg-info
 # Qrexec services
 /etc/qubes-rpc/qubes.repos.*
 /usr/lib/qubes/qubes-rpc/qubes.repos.*
