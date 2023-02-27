@@ -18,6 +18,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
 # USA.
+import sys
 
 import dnf
 from dnf.yum.rpmtrans import TransactionDisplay
@@ -77,7 +78,7 @@ class DNF(DNFCLI):
             self.base.resolve()
             trans = self.base.transaction
             if not trans:
-                print(100, flush=True)
+                print(100, flush=True, file=sys.stderr)
                 return ProcessResult(0, out="", err="Nothing to upgrade")
 
             with StreamRedirector(result):
