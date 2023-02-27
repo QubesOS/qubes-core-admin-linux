@@ -10,6 +10,8 @@ enable xdm.service
 disable systemd-timesyncd.service
 disable systemd-networkd.service
 disable systemd-resolved.service
+disable systemd-homed.service
+disable chronyd.service
 
 # Locally-running services
 enable lvm2-monitor.*
