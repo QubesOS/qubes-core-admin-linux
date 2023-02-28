@@ -29,6 +29,7 @@ from subprocess import CalledProcessError
 from typing import List, Tuple
 
 import qubesadmin
+from qubesadmin.exc import QubesException
 from vmupdate.agent.source.args import AgentArgs
 from vmupdate.agent.source.log_congfig import LOGPATH, LOG_FILE
 from vmupdate.agent.source.status import StatusInfo, FinalStatus
@@ -115,6 +116,7 @@ class QubeConnection:
         command = ['mkdir', '-p', self.dest_dir]
         exit_code, output = self._run_shell_command_in_qube(
             self.qube, command)
+        print(exit_code)
         if exit_code:
             return exit_code, output
 
@@ -217,6 +219,9 @@ class QubeConnection:
                 self.logger.error(str(err))
                 ret_code = err.returncode
             untrusted_stdout_and_stderr = (err.output, err.output)
+        except QubesException as err:
+            ret_code = 1
+            untrusted_stdout_and_stderr = ("", str(err))
         return ret_code, untrusted_stdout_and_stderr
 
     def _run_command_and_actively_report_progress(

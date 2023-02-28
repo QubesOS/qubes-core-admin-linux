@@ -36,18 +36,20 @@ class AgentArgs:
         "leave-obsolete": {"action": 'store_true',
                            "help": 'Do not remove obsolete packages during '
                                    'upgrading'},
-        "no-progress": {"action": "store_true",
-                        "help": "Do not show upgrading progress."},
-        "just-print-progress": {"action": "store_true",
-                                "help": "Print progress line by line."}
     }
-    EXCLUSIVE_OPTIONS = {
+    EXCLUSIVE_OPTIONS_1 = {
         "show-output": {"action": 'store_true',
                         "help": 'Show output of management commands'},
         "quiet": {"action": 'store_true',
                   "help": 'Do not print anything to stdout'}
     }
-    ALL_OPTIONS = {**OPTIONS, **EXCLUSIVE_OPTIONS}
+    EXCLUSIVE_OPTIONS_2 = {
+        "no-progress": {"action": "store_true",
+                        "help": "Do not show upgrading progress."},
+        "just-print-progress": {"action": "store_true",
+                                "help": "Print progress line by line."}
+    }
+    ALL_OPTIONS = {**OPTIONS, **EXCLUSIVE_OPTIONS_1}
 
     @staticmethod
     def add_arguments(parser):
@@ -57,8 +59,11 @@ class AgentArgs:
         for arg, properties in AgentArgs.OPTIONS.items():
             parser.add_argument('--' + arg, **properties)
         verbosity = parser.add_mutually_exclusive_group()
-        for arg, properties in AgentArgs.EXCLUSIVE_OPTIONS.items():
+        for arg, properties in AgentArgs.EXCLUSIVE_OPTIONS_1.items():
             verbosity.add_argument('--' + arg, **properties)
+        progress_reporting = parser.add_mutually_exclusive_group()
+        for arg, properties in AgentArgs.EXCLUSIVE_OPTIONS_2.items():
+            progress_reporting.add_argument('--' + arg, **properties)
 
     @staticmethod
     def to_cli_args(args):

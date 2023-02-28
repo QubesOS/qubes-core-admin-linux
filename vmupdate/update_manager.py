@@ -342,7 +342,7 @@ class UpdateAgentManager:
             ret_code, output = qconn.transfer_agent(src_dir)
             if ret_code:
                 self.log.error('Qube communication error code: %i', ret_code)
-                status_notifier.put(
+                qconn.status_notifier.put(
                     StatusInfo.done(self.qube, FinalStatus.ERROR))
                 qconn.status_notified = True
                 return ret_code, output
@@ -357,6 +357,10 @@ class UpdateAgentManager:
                 "The agent is starting the task in qube: %s", self.qube.name)
             ret_code_, output = qconn.run_entrypoint(
                 dest_agent, agent_args)
+            if ret_code:
+                qconn.status_notifier.put(
+                    StatusInfo.done(self.qube, FinalStatus.ERROR))
+                qconn.status_notified = True
             ret_code = max(ret_code, ret_code_)
 
             ret_code_logs, logs = qconn.read_logs()

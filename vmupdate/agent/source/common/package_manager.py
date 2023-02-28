@@ -103,6 +103,7 @@ class PackageManager:
 
         if not result.code and not (changes["installed"] or changes["updated"]):
             result.code = 100  # Nothing to upgrade
+            print()
 
         return result
 
