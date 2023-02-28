@@ -20,6 +20,7 @@
 # USA.
 
 from copy import deepcopy
+from typing import Union
 
 
 class ProcessResult:
@@ -30,9 +31,34 @@ class ProcessResult:
 
     @classmethod
     def process_communicate(cls, proc):
-        out, err = proc.communicate()
-        code = proc.returncode
-        return cls(code, out.decode(), err.decode())
+        result = cls.from_untrusted_out_err(*proc.communicate())
+        result.code = proc.returncode
+        return result
+
+    @classmethod
+    def from_untrusted_out_err(
+            cls,
+            untrusted_out: Union[str, bytes],
+            untrusted_err: Union[str, bytes] = ""
+    ):
+        untrusted_out_bytes: bytes = untrusted_out.encode() \
+            if isinstance(untrusted_out, str) else untrusted_out
+        untrusted_err_bytes: bytes = untrusted_err.encode() \
+            if isinstance(untrusted_err, str) else untrusted_err
+        out = ProcessResult.sanitize_output(untrusted_out_bytes)
+        err = ProcessResult.sanitize_output(untrusted_err_bytes)
+
+        return cls(0, out, err)
+
+    def sanitize(self):
+        self.out = self.sanitize_output(self.out.encode())
+        self.err = self.sanitize_output(self.err.encode())
+
+    @staticmethod
+    def sanitize_output(untrusted_bytes: bytes) -> str:
+        untrusted_str = untrusted_bytes.decode('ascii', errors='ignore')
+        return ''.join([c for c in untrusted_str
+                        if 0x20 <= ord(c) <= 0x7e or c == '\n'])
 
     def __add__(self, other):
         new = deepcopy(self)
@@ -48,6 +74,12 @@ class ProcessResult:
         self.out += other.out
         self.err += other.err
         return self
+
+    def __bool__(self):
+        return bool(self.code)
+
+    def __repr__(self):
+        return f"{self.code}; {self.out}; {self.err}"
 
     def error_from_messages(self):
         out_lines = (self.out + self.err).splitlines()

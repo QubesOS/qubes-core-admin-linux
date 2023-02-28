@@ -28,7 +28,7 @@ import queue
 import logging
 import multiprocessing
 from os.path import join
-from typing import Optional
+from typing import Optional, Tuple
 
 from tqdm import tqdm
 
@@ -37,6 +37,7 @@ import qubesadmin.exc
 from .agent.source.status import StatusInfo, FinalStatus, Status
 from .qube_connection import QubeConnection
 from vmupdate.agent.source.log_congfig import init_logs
+from vmupdate.agent.source.common.process_result import ProcessResult
 
 
 class UpdateManager:
@@ -92,14 +93,10 @@ class UpdateManager:
 
         :param result_tuple: tuple(qube_name, ret_code, result)
         """
-        qube_name, ret_code, result = result_tuple
-        self.ret_code = max(self.ret_code, ret_code)
-        if self.show_output and isinstance(result, list):
-            sys.stdout.write(qube_name + ":")
-            sys.stdout.write('\n'.join(['  ' + line for line in result]))
-            sys.stdout.write('\n')
-        elif not self.quiet and self.no_progress:
-            print(qube_name + ": " + result)
+        qube_name, result = result_tuple
+        self.ret_code = max(self.ret_code, result.code)
+        if not self.quiet and self.no_progress:
+            print(qube_name + ": " + result.out)
 
 
 class TerminalMultiBar:
@@ -240,7 +237,8 @@ class MultipleUpdateMultipleProgressBar:
 
 
 def update_qube(
-        qname, agent_args, show_progress, status_notifier, termination):
+        qname, agent_args, show_progress, status_notifier, termination
+) -> Tuple[str, ProcessResult]:
     """
     Create and run `UpdateAgentManager` for qube.
 
@@ -255,11 +253,11 @@ def update_qube(
     try:
         qube = app.domains[qname]
     except KeyError:
-        return qname, 2, "ERROR (qube not found)"
+        return qname, ProcessResult(2, "ERROR (qube not found)")
 
     if termination.value:
         status_notifier.put(StatusInfo.done(qube, FinalStatus.CANCELLED))
-        return qname, 130, "Canceled"
+        return qname, ProcessResult(130, "Canceled")
     status_notifier.put(StatusInfo.pending(qube, 0))
 
     try:
@@ -269,14 +267,14 @@ def update_qube(
             agent_args=agent_args,
             show_progress=show_progress
         )
-        ret_code, result = runner.run_agent(
+        result = runner.run_agent(
             agent_args=agent_args,
             status_notifier=status_notifier,
             termination=termination
         )
     except Exception as exc:  # pylint: disable=broad-except
-        return qname, 1, f"ERROR (exception {str(exc)})"
-    return qube.name, ret_code, result
+        return qname, ProcessResult(1, f"ERROR (exception {str(exc)})")
+    return qube.name, result
 
 
 class UpdateAgentManager:
@@ -306,23 +304,26 @@ class UpdateAgentManager:
         self.cleanup = not agent_args.no_cleanup
         self.show_progress = show_progress
 
-    def run_agent(self, agent_args, status_notifier, termination):
+    def run_agent(
+            self, agent_args, status_notifier, termination
+    ) -> ProcessResult:
         """
         Copy agent file to dest vm, run entrypoint, collect output and logs.
         """
-        ret_code, output = self._run_agent(
+        result = self._run_agent(
             agent_args, status_notifier, termination)
+        output = result.out.split("\n") + result.err.split("\n")
         for line in output:
             self.log.debug('agent output: %s', line)
-        self.log.info('agent exit code: %d', ret_code)
-        if agent_args.show_output and output:
-            return_data = output
-        else:
-            return_data = "OK" if ret_code == 0 else \
-                f"ERROR (exit code {ret_code}, details in {self.log_path})"
-        return ret_code, return_data
+        self.log.info('agent exit code: %d', result.code)
+        if not agent_args.show_output or not output:
+            result.out = "OK" if result.code == 0 else \
+                f"ERROR (exit code {result.code}, details in {self.log_path})"
+        return result
 
-    def _run_agent(self, agent_args, status_notifier, termination):
+    def _run_agent(
+            self, agent_args, status_notifier, termination
+    ) -> ProcessResult:
         self.log.info('Running update agent for %s', self.qube.name)
         dest_dir = UpdateAgentManager.WORKDIR
         dest_agent = os.path.join(dest_dir, UpdateAgentManager.ENTRYPOINT)
@@ -339,40 +340,38 @@ class UpdateAgentManager:
         ) as qconn:
             self.log.info(
                 "Transferring files to destination qube: %s", self.qube.name)
-            ret_code, output = qconn.transfer_agent(src_dir)
-            if ret_code:
-                self.log.error('Qube communication error code: %i', ret_code)
+            result = qconn.transfer_agent(src_dir)
+            if result:
+                self.log.error('Qube communication error code: %i', result.code)
                 qconn.status_notifier.put(
                     StatusInfo.done(self.qube, FinalStatus.ERROR))
                 qconn.status_notified = True
-                return ret_code, output
+                return result
 
             if termination.value:
                 status_notifier.put(
                     StatusInfo.done(self.qube, FinalStatus.CANCELLED))
                 qconn.status_notified = True
-                return 130, "Cancelled"
+                return ProcessResult(130, "", "Cancelled")
 
             self.log.info(
                 "The agent is starting the task in qube: %s", self.qube.name)
-            ret_code_, output = qconn.run_entrypoint(
-                dest_agent, agent_args)
-            if ret_code:
+            result += qconn.run_entrypoint(dest_agent, agent_args)
+            if result:
                 qconn.status_notifier.put(
                     StatusInfo.done(self.qube, FinalStatus.ERROR))
                 qconn.status_notified = True
-            ret_code = max(ret_code, ret_code_)
 
-            ret_code_logs, logs = qconn.read_logs()
-            if ret_code_logs:
+            result_logs = qconn.read_logs()
+            if result_logs:
                 self.log.error(
                     "Problem with collecting logs from %s, return code: %i",
-                    self.qube.name, ret_code_logs)
+                    self.qube.name, result_logs.code)
             # agent logs already have timestamp
             self.log_handler.setFormatter(logging.Formatter('%(message)s'))
             # critical -> always write agent logs
-            for log_line in logs:
+            for log_line in result.out.split("\n"):
                 self.log.critical("%s", log_line)
             self.log_handler.setFormatter(self.log_formatter)
 
-        return ret_code, output
+        return result

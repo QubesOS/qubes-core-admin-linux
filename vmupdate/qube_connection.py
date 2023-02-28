@@ -26,13 +26,13 @@ import tempfile
 from os.path import join
 from subprocess import Popen
 from subprocess import CalledProcessError
-from typing import List, Tuple
+from typing import List
 
 import qubesadmin
-from qubesadmin.exc import QubesException
 from vmupdate.agent.source.args import AgentArgs
 from vmupdate.agent.source.log_congfig import LOGPATH, LOG_FILE
 from vmupdate.agent.source.status import StatusInfo, FinalStatus
+from vmupdate.agent.source.common.process_result import ProcessResult
 
 
 class QubeConnection:
@@ -85,8 +85,12 @@ class QubeConnection:
 
         if self.cleanup:
             self.logger.info('Remove %s', self.dest_dir)
-            self._run_shell_command_in_qube(
-                self.qube, ['rm', '-r', self.dest_dir])
+            try:
+                self._run_shell_command_in_qube(
+                    self.qube, ['rm', '-r', self.dest_dir])
+            except Exception as err:
+                self.logger.error('Cannot remove %s, because of error: %s',
+                                  self.dest_dir, str(err))
 
         if self.qube.is_running() and not self._initially_running:
             self.logger.info('Shutdown %s', self.qube.name)
@@ -94,7 +98,7 @@ class QubeConnection:
 
         self.__connected = False
 
-    def transfer_agent(self, src_dir: str) -> Tuple[int, List[str]]:
+    def transfer_agent(self, src_dir: str) -> ProcessResult:
         """
         Copy a directory content to the workdir in the qube.
 
@@ -114,27 +118,19 @@ class QubeConnection:
                             base_dir=base_dir)
 
         command = ['mkdir', '-p', self.dest_dir]
-        exit_code, output = self._run_shell_command_in_qube(
-            self.qube, command)
-        print(exit_code)
-        if exit_code:
-            return exit_code, output
+        result = self._run_shell_command_in_qube(self.qube, command)
+        if result:
+            return result
 
-        exit_code_, output_ = self._copy_file_from_dom0(src_arch, dest_arch)
-        exit_code = max(exit_code, exit_code_)
-        output += output_
-        if exit_code:
-            return exit_code, output
+        result += self._copy_file_from_dom0(src_arch, dest_arch)
+        if result:
+            return result
 
         command = ["tar", "-xzf", dest_arch, "-C", self.dest_dir]
-        exit_code_, output_ = self._run_shell_command_in_qube(
-            self.qube, command)
-        exit_code = max(exit_code, exit_code_)
-        output += output_
+        result += self._run_shell_command_in_qube(self.qube, command)
+        return result
 
-        return exit_code, output
-
-    def _copy_file_from_dom0(self, src, dest):
+    def _copy_file_from_dom0(self, src, dest) -> ProcessResult:
         qvm_run = ["qvm-run", "--user=root", "--pass-io", self.qube.name]
         write_dest = ["cat", ">", dest]
         command = [*qvm_run, " ".join(write_dest)]
@@ -143,19 +139,17 @@ class QubeConnection:
             with open(src, 'rb') as file:
                 proc = Popen(command, stdin=file)
                 proc.communicate()
-                ret_code = proc.returncode
-            if ret_code:
-                raise OSError(f"Command returns code: {ret_code}")
-            output = ""
+                result = ProcessResult(proc.returncode)
+            if result.code:
+                raise OSError(f"Command returns code: {result.code}")
         except OSError as exc:
-            ret_code = 1
-            output = str(exc)
+            result = ProcessResult(1, str(exc))
 
-        return ret_code, output
+        return result
 
     def run_entrypoint(
             self, entrypoint_path: str, agent_args
-    ) -> Tuple[int, List[str]]:
+    ) -> ProcessResult:
         """
         Run a script in the qube.
 
@@ -165,50 +159,44 @@ class QubeConnection:
         """
         # make sure entrypoint is executable
         command = ['chmod', 'u+x', entrypoint_path]
-        exit_code, output = self._run_shell_command_in_qube(self.qube, command)
+        result = self._run_shell_command_in_qube(self.qube, command)
 
         # run entrypoint
         command = [entrypoint_path, *AgentArgs.to_cli_args(agent_args)]
-        exit_code_, output_ = self._run_shell_command_in_qube(
+        result += self._run_shell_command_in_qube(
             self.qube, command, show=self.show_progress)
-        exit_code = max(exit_code, exit_code_)
-        output += output_
 
-        return exit_code, output
+        return result
 
-    def read_logs(self) -> Tuple[int, List[str]]:
+    def read_logs(self) -> ProcessResult:
         """
         Read vm logs file.
         """
         command = ['cat',
                    str(join(LOGPATH, LOG_FILE))]
-        exit_code, output = self._run_shell_command_in_qube(self.qube, command)
-        return exit_code, output
+        result = self._run_shell_command_in_qube(self.qube, command)
+        return result
 
     def _run_shell_command_in_qube(
             self, target, command: List[str], show: bool = False
-    ) -> Tuple[int, List[str]]:
+    ) -> ProcessResult:
         self.logger.debug("run command in %s: %s",
                           target.name, " ".join(command))
         if not show:
-            ret_code, untrusted_stdout_and_stderr = \
-                self._run_command_and_wait_for_output(target, command)
+            return self._run_command_and_wait_for_output(target, command)
         else:
-            ret_code, untrusted_stdout_and_stderr = \
-                self._run_command_and_actively_report_progress(
+            return self._run_command_and_actively_report_progress(
                     target, command)
-
-        return ret_code, QubeConnection._collect_output(
-            *untrusted_stdout_and_stderr)
 
     def _run_command_and_wait_for_output(
             self, target, command: List[str]
-    ) -> Tuple[int, List[str]]:
+    ) -> ProcessResult:
         try:
             untrusted_stdout_and_stderr = target.run_with_args(
                 *command, user='root'
             )
-            ret_code = 0
+            result = ProcessResult.from_untrusted_out_err(
+                *untrusted_stdout_and_stderr)
         except CalledProcessError as err:
             if err.returncode == 100:
                 self.status_notifier.put(
@@ -218,15 +206,16 @@ class QubeConnection:
             else:
                 self.logger.error(str(err))
                 ret_code = err.returncode
-            untrusted_stdout_and_stderr = (err.output, err.output)
-        except QubesException as err:
-            ret_code = 1
-            untrusted_stdout_and_stderr = ("", str(err))
-        return ret_code, untrusted_stdout_and_stderr
+            result = ProcessResult.from_untrusted_out_err(
+                err.output, err.output)
+            result.code = ret_code
+        except Exception as err:
+            result = ProcessResult(1, "", str(err))
+        return result
 
     def _run_command_and_actively_report_progress(
             self, target, command: List[str]
-    ) -> Tuple[int, Tuple[bytes, bytes]]:
+    ) -> ProcessResult:
         proc = target.run_service(
             'qubes.VMExec+' + qubesadmin.utils.encode_for_vmexec(command),
             user='root',
@@ -237,15 +226,14 @@ class QubeConnection:
         stdout = self._collect_stdout(proc)
 
         proc.wait()
-        untrusted_stdout_and_stderr = (stdout, stderr)
-        ret_code = proc.returncode
-        if ret_code == 100:
+        result = ProcessResult.from_untrusted_out_err(stdout, stderr)
+        result.code = proc.returncode
+        if result.code == 100:
             self.status_notifier.put(
                 StatusInfo.done(self.qube, FinalStatus.NO_UPDATES))
             self.status_notified = True
-            ret_code = 0
-
-        return ret_code, untrusted_stdout_and_stderr
+            result.code = 0
+        return result
 
     def _collect_stderr(self, proc) -> bytes:
         stderr = b""
@@ -253,8 +241,7 @@ class QubeConnection:
         for untrusted_line in iter(proc.stderr.readline, ''):
             if untrusted_line:
                 if not progress_finished:
-                    line = QubeConnection._string_sanitization(
-                        untrusted_line.decode().rstrip())
+                    line = ProcessResult.sanitize_output(untrusted_line)
                     try:
                         progress = float(line)
                     except ValueError:
@@ -266,7 +253,7 @@ class QubeConnection:
                     self.status_notifier.put(
                         StatusInfo.pending(self.qube, progress))
                 else:
-                    stderr += untrusted_line
+                    stderr += untrusted_line + b'\n'
             else:
                 break
         proc.stderr.close()
@@ -285,22 +272,3 @@ class QubeConnection:
         proc.stdout.close()
 
         return stdout
-
-    @staticmethod
-    def _collect_output(
-            untrusted_stdout: bytes, untrusted_stderr: bytes
-    ) -> List[str]:
-        untrusted_stdout = untrusted_stdout.decode('ascii', errors='ignore') + \
-                           untrusted_stderr.decode('ascii', errors='ignore')
-
-        # removing control characters
-        stdout_lines = [QubeConnection._string_sanitization(line)
-                        for line in untrusted_stdout.splitlines()]
-        return stdout_lines
-
-    @staticmethod
-    def _string_sanitization(line: str) -> str:
-        """
-        Removing control characters
-        """
-        return ''.join([c for c in line if 0x20 <= ord(c) <= 0x7e])
