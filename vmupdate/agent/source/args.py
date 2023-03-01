@@ -49,7 +49,7 @@ class AgentArgs:
         "just-print-progress": {"action": "store_true",
                                 "help": "Print progress line by line."}
     }
-    ALL_OPTIONS = {**OPTIONS, **EXCLUSIVE_OPTIONS_1}
+    ALL_OPTIONS = {**OPTIONS, **EXCLUSIVE_OPTIONS_1, **EXCLUSIVE_OPTIONS_2}
 
     @staticmethod
     def add_arguments(parser):

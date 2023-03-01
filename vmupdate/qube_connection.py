@@ -60,7 +60,7 @@ class QubeConnection:
         self.logger = logger
         self.show_progress = show_progress
         self.status_notifier = status_notifier
-        self.status_notified = False
+        self.status = FinalStatus.ERROR
         self._initially_running = None
         self.__connected = False
 
@@ -78,9 +78,7 @@ class QubeConnection:
         2. Delete the uploaded files from the updated qube.
         3. Shut down qube if it wasn't running before the update.
         """
-        if not self.status_notified:
-            self.status_notifier.put(
-                StatusInfo.done(self.qube, FinalStatus.SUCCESS))
+        self.status_notifier.put(StatusInfo.done(self.qube, self.status))
 
         if self.cleanup:
             self.logger.info('Remove %s', self.dest_dir)
@@ -199,9 +197,7 @@ class QubeConnection:
                 *untrusted_stdout_and_stderr)
         except CalledProcessError as err:
             if err.returncode == 100:
-                self.status_notifier.put(
-                    StatusInfo.done(self.qube, FinalStatus.NO_UPDATES))
-                self.status_notified = True
+                self.status = FinalStatus.NO_UPDATES
                 ret_code = 0
             else:
                 self.logger.error(str(err))
@@ -229,9 +225,7 @@ class QubeConnection:
         result = ProcessResult.from_untrusted_out_err(stdout, stderr)
         result.code = proc.returncode
         if result.code == 100:
-            self.status_notifier.put(
-                StatusInfo.done(self.qube, FinalStatus.NO_UPDATES))
-            self.status_notified = True
+            self.status = FinalStatus.NO_UPDATES
             result.code = 0
         return result
 

@@ -18,7 +18,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
 # USA.
-
+import io
 import logging
 import subprocess
 import sys
@@ -55,9 +55,12 @@ class PackageManager:
         """
         result = self._upgrade(
             refresh, hard_fail, remove_obsolete, self.requirements)
+        self._log_output("agent", result)
         if print_streams:
-            print(result.out, flush=True)
-            print(result.err, file=sys.stderr, flush=True)
+            if result.out:
+                print(result.out, flush=True)
+            if result.err:
+                print(result.err, file=sys.stderr, flush=True)
         return result.code
 
     def _upgrade(
@@ -70,7 +73,6 @@ class PackageManager:
         result = ProcessResult()
         if refresh:
             result_refresh = self.refresh(hard_fail)
-            self._log_output("refresh", result_refresh)
             result += result_refresh
             if result.code != 0:
                 self.log.warning("Refreshing failed.")
@@ -83,7 +85,6 @@ class PackageManager:
 
         if requirements:
             result_install = self.install_requirements(requirements, curr_pkg)
-            self._log_output("install requirements", result_install)
             result += result_install
             if result.code != 0:
                 self.log.warning("Installing requirements failed.")
@@ -93,17 +94,16 @@ class PackageManager:
                     return result
 
         result_upgrade = self.upgrade_internal(remove_obsolete)
-        self._log_output("upgrade", result_upgrade)
         result += result_upgrade
 
         new_pkg = self.get_packages()
 
         changes = PackageManager.compare_packages(old=curr_pkg, new=new_pkg)
-        self._log_changes(changes)
+        summary = self._print_changes(changes)
+        result.out += "\n" + summary
 
         if not result.code and not (changes["installed"] or changes["updated"]):
             result.code = 100  # Nothing to upgrade
-            print()
 
         return result
 
@@ -166,7 +166,6 @@ class PackageManager:
         Run command and wait.
 
         :param command: command to execute
-        :return: (exit_code, stdout, stderr)
         """
         self.log.debug("run command: %s", " ".join(command))
         with subprocess.Popen(command,
@@ -193,31 +192,41 @@ class PackageManager:
                             },
                 "removed": {pkg: old[pkg] for pkg in old if pkg not in new}}
 
-    def _log_changes(self, changes):
-        self.log.info("Installed packages:")
+    def _print_changes(self, changes):
+        result = ""
+        result += self._print_to_string("Installed packages:")
         if changes["installed"]:
             for pkg in changes["installed"]:
-                self.log.info("%s %s", pkg, changes["installed"][pkg])
+                result += self._print_to_string(pkg, changes["installed"][pkg])
         else:
-            self.log.info("None")
+            result += self._print_to_string("None")
 
-        self.log.info("Updated packages:")
+        result += self._print_to_string("Updated packages:")
         if changes["updated"]:
             for pkg in changes["updated"]:
-                self.log.info("%s %s->%s",
-                              pkg,
-                              changes["updated"][pkg]["old"],
-                              changes["updated"][pkg]["new"]
-                              )
+                result += self._print_to_string(
+                    pkg,
+                    str(changes["updated"][pkg]["old"])[2:-2]
+                    + " -> " +
+                    str(changes["updated"][pkg]["new"])[2:-2])
         else:
-            self.log.info("None")
+            result += self._print_to_string("None")
 
-        self.log.info("Removed packages:")
+        result += self._print_to_string("Removed packages:")
         if changes["removed"]:
             for pkg in changes["removed"]:
-                self.log.info("%s %s", pkg, changes["removed"][pkg])
+                result += self._print_to_string(pkg, changes["removed"][pkg])
         else:
-            self.log.info("None")
+            result += self._print_to_string("None")
+        return result
+
+    @staticmethod
+    def _print_to_string(*args, **kwargs):
+        strio = io.StringIO()
+        print(*args, file=strio, **kwargs)
+        result = strio.getvalue()
+        strio.close()
+        return result
 
     def refresh(self, hard_fail: bool) -> ProcessResult:
         """

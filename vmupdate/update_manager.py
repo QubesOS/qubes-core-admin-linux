@@ -51,6 +51,9 @@ class UpdateManager:
         self.show_output = args.show_output
         self.quiet = args.quiet
         self.no_progress = args.no_progress
+        self.just_print_progress = args.just_print_progress
+        self.buffered = not args.just_print_progress and not args.no_progress
+        self.buffer = ""
         self.cleanup = not args.no_cleanup
         self.ret_code = 0
 
@@ -64,7 +67,7 @@ class UpdateManager:
         show_progress = not self.quiet and not self.no_progress
         SimpleTerminalBar.reinit_class()
         progress_output = SimpleTerminalBar \
-            if agent_args.just_print_progress else tqdm
+            if self.just_print_progress else tqdm
         progress_bar = MultipleUpdateMultipleProgressBar(
             dummy=not show_progress,
             output=progress_output,
@@ -84,19 +87,30 @@ class UpdateManager:
         progress_bar.feeding()
         progress_bar.pool.join()
         progress_bar.close()
+        if self.buffer:
+            print(self.buffer)
 
         return self.ret_code
 
-    def collect_result(self, result_tuple):
+    def collect_result(self, result_tuple: Tuple[str, ProcessResult]):
         """
         Callback method to process `update_qube` output.
-
-        :param result_tuple: tuple(qube_name, ret_code, result)
         """
         qube_name, result = result_tuple
         self.ret_code = max(self.ret_code, result.code)
-        if not self.quiet and self.no_progress:
-            print(qube_name + ": " + result.out + result.err)
+        if self.show_output:
+            for line in result.out.split('\n'):
+                self.print(qube_name + ":out:", line)
+            for line in result.err.split('\n'):
+                self.print(qube_name + ":err:", line)
+        elif not self.quiet and self.no_progress:
+            self.print(result.out)
+
+    def print(self, *args):
+        if self.buffered:
+            self.buffer += ' '.join(args) + '\n'
+        else:
+            print(*args)
 
 
 class TerminalMultiBar:
@@ -141,6 +155,7 @@ class SimpleTerminalBar:
         SimpleTerminalBar.PARENT_MULTI_BAR.print()
 
     def close(self):
+        """Implementation of tqdm API"""
         pass
 
     @staticmethod
@@ -343,24 +358,17 @@ class UpdateAgentManager:
             result = qconn.transfer_agent(src_dir)
             if result:
                 self.log.error('Qube communication error code: %i', result.code)
-                qconn.status_notifier.put(
-                    StatusInfo.done(self.qube, FinalStatus.ERROR))
-                qconn.status_notified = True
                 return result
 
             if termination.value:
-                status_notifier.put(
-                    StatusInfo.done(self.qube, FinalStatus.CANCELLED))
-                qconn.status_notified = True
+                qconn.status = FinalStatus.CANCELLED
                 return ProcessResult(130, "", "Cancelled")
 
             self.log.info(
                 "The agent is starting the task in qube: %s", self.qube.name)
             result += qconn.run_entrypoint(dest_agent, agent_args)
-            if result:
-                qconn.status_notifier.put(
-                    StatusInfo.done(self.qube, FinalStatus.ERROR))
-                qconn.status_notified = True
+            if not result and qconn.status != FinalStatus.NO_UPDATES:
+                qconn.status = FinalStatus.SUCCESS
 
             result_logs = qconn.read_logs()
             if result_logs:
@@ -371,7 +379,8 @@ class UpdateAgentManager:
             self.log_handler.setFormatter(logging.Formatter('%(message)s'))
             # critical -> always write agent logs
             for log_line in result_logs.out.split("\n"):
-                self.log.critical("%s", log_line)
+                if log_line:
+                    self.log.critical("%s", log_line)
             self.log_handler.setFormatter(self.log_formatter)
 
         return result
