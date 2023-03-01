@@ -33,7 +33,8 @@ def init_logs(
         file=LOG_FILE,
         format_=FORMAT_LOG,
         level="INFO",
-        truncate_file=False
+        truncate_file=False,
+        qname=None,
 ):
     Path(directory).mkdir(parents=True, exist_ok=True)
     log_path = os.path.join(directory, file)
@@ -48,7 +49,10 @@ def init_logs(
     log_formatter = logging.Formatter(format_)
     log_handler.setFormatter(log_formatter)
 
-    log = logging.getLogger('vm-update.agent.PackageManager')
+    if qname is not None:
+        log = logging.getLogger(qname)
+    else:
+        log = logging.getLogger('vm-update.agent.PackageManager')
     log.addHandler(log_handler)
     log.propagate = False
     try:

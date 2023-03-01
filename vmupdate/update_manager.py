@@ -298,6 +298,7 @@ class UpdateAgentManager:
             format_=UpdateAgentManager.FORMAT_LOG,
             level=agent_args.log,
             truncate_file=False,
+            qname=qube.name,
         )
 
         self.cleanup = not agent_args.no_cleanup
