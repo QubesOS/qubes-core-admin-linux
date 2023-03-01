@@ -96,7 +96,7 @@ class UpdateManager:
         qube_name, result = result_tuple
         self.ret_code = max(self.ret_code, result.code)
         if not self.quiet and self.no_progress:
-            print(qube_name + ": " + result.out)
+            print(qube_name + ": " + result.out + result.err)
 
 
 class TerminalMultiBar:
@@ -128,7 +128,7 @@ class SimpleTerminalBar:
                       FinalStatus.NO_UPDATES.value):
             info = status.replace(" ", "_")
             status = "done"
-        if status == Status.PENDING.value:
+        if status == Status.UPDATING.value:
             info = self.progress
         return f"{name} {status} {info}"
 
@@ -183,7 +183,7 @@ class MultipleUpdateMultipleProgressBar:
         self.progresses[qname] = 0
         self.progress_bars[qname] = self.output_class(
             total=100, position=len(self.progress_bars),
-            desc=f"{qname} ({Status.WAIT.value})"
+            desc=f"{qname} ({Status.PENDING.value})"
         )
 
     def feeding(self):
@@ -208,7 +208,7 @@ class MultipleUpdateMultipleProgressBar:
                     status_name = feed.info.value
                 self.progress_bars[feed.qname].set_description(
                     f"{feed.qname} ({status_name})")
-                if feed.status == Status.PENDING:
+                if feed.status == Status.UPDATING:
                     self._update(feed.qname, feed.info)
             except queue.Empty:
                 pass
@@ -220,7 +220,6 @@ class MultipleUpdateMultipleProgressBar:
         self.progresses[qname] += progress
 
     def signal_handler_during_feeding(self, _sig, _frame):
-        print('Waiting for running updates to finish...')
         self.termination.value = True
 
     def close(self):
@@ -258,7 +257,7 @@ def update_qube(
     if termination.value:
         status_notifier.put(StatusInfo.done(qube, FinalStatus.CANCELLED))
         return qname, ProcessResult(130, "Canceled")
-    status_notifier.put(StatusInfo.pending(qube, 0))
+    status_notifier.put(StatusInfo.updating(qube, 0))
 
     try:
         runner = UpdateAgentManager(
@@ -370,7 +369,7 @@ class UpdateAgentManager:
             # agent logs already have timestamp
             self.log_handler.setFormatter(logging.Formatter('%(message)s'))
             # critical -> always write agent logs
-            for log_line in result.out.split("\n"):
+            for log_line in result_logs.out.split("\n"):
                 self.log.critical("%s", log_line)
             self.log_handler.setFormatter(self.log_formatter)
 

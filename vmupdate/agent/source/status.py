@@ -22,8 +22,8 @@ from enum import Enum
 
 
 class Status(Enum):
-    WAIT = "wait"
     PENDING = "pending"
+    UPDATING = "updating"
     DONE = "done"
 
 
@@ -41,12 +41,12 @@ class StatusInfo:
         self.info = info
 
     @staticmethod
-    def wait(qube):
-        return StatusInfo(qube, Status.WAIT, info=None)
+    def pending(qube):
+        return StatusInfo(qube, Status.PENDING, info=None)
 
     @staticmethod
-    def pending(qube, percent: float):
-        return StatusInfo(qube, Status.PENDING, info=percent)
+    def updating(qube, percent: float):
+        return StatusInfo(qube, Status.UPDATING, info=percent)
 
     @staticmethod
     def done(qube, status: FinalStatus):

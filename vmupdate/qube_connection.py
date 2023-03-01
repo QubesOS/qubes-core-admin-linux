@@ -24,7 +24,6 @@ import shutil
 import signal
 import tempfile
 from os.path import join
-from subprocess import Popen
 from subprocess import CalledProcessError
 from typing import List
 
@@ -131,15 +130,16 @@ class QubeConnection:
         return result
 
     def _copy_file_from_dom0(self, src, dest) -> ProcessResult:
-        qvm_run = ["qvm-run", "--user=root", "--pass-io", self.qube.name]
         write_dest = ["cat", ">", dest]
-        command = [*qvm_run, " ".join(write_dest)]
-        self.logger.debug("run command: %s < %s", " ".join(command), src)
+        command = " ".join(write_dest)
+        self.logger.debug("run command: %s < %s", command, src)
         try:
             with open(src, 'rb') as file:
-                proc = Popen(command, stdin=file)
-                proc.communicate()
-                result = ProcessResult(proc.returncode)
+                untrusted_stdout_and_stderr = self.qube.run(
+                    command, user='root', input=file.read()
+                )
+                result = ProcessResult.from_untrusted_out_err(
+                    *untrusted_stdout_and_stderr)
             if result.code:
                 raise OSError(f"Command returns code: {result.code}")
         except OSError as exc:
@@ -251,7 +251,7 @@ class QubeConnection:
                     if progress == 100.:
                         progress_finished = True
                     self.status_notifier.put(
-                        StatusInfo.pending(self.qube, progress))
+                        StatusInfo.updating(self.qube, progress))
                 else:
                     stderr += untrusted_line + b'\n'
             else:
