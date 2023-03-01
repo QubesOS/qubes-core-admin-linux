@@ -26,14 +26,13 @@ if [ "$1" = "--help" ]; then
     echo ""
     echo "Usage: $0 [--clean] [--check-only] [--gui] [<pkg list>]"
     echo "    --clean      clean dnf cache before doing anything"
-    echo "    --check-only only check for updates (no install); implies --console"
-    echo "    --gui        use gpk-update-viewer for update selection, conflicts with --console"
+    echo "    --check-only only check for updates (no install)"
+    echo "    --gui        use gpk-update-viewer for update selection"
     echo "    --action=... use specific dnf action, instead of automatic install/update"
     echo "    --force-xen-upgrade  force major Xen upgrade even if some qubes are running"
-    echo "    --console    do not open an xterm in the UpdateVM; use this if"
-    echo "                 there are GUI problems"
-    echo "    --show-output  with --console, show the output of the UpdateVM"
-    echo "    --preserve-terminal  keep the UpdateVM's terminal running until closed manually"
+    echo "    --console    does nothing; ignored for backward compatibility"
+    echo "    --show-output  does nothing; ignored for backward compatibility"
+    echo "    --preserve-terminal  does nothing; ignored for backward compatibility"
     echo "    <pkg list>   download (and install if run by root) new packages"
     echo "                 in dom0 instead of updating"
     echo "    --           mark end of options"
@@ -43,15 +42,12 @@ if [ "$1" = "--help" ]; then
     exit
 fi
 
-exit_cmd='&& exit'
 PKGS=()
 YUM_OPTS=()
 UPDATEVM_OPTS=()
 QVMTEMPLATE_OPTS=()
 GUI=
 CHECK_ONLY=
-SHOW_OUTPUT=0
-CONSOLE=0
 CLEAN=
 TEMPLATE=
 TEMPLATE_BACKUP=
@@ -78,17 +74,17 @@ while [ $# -gt 0 ]; do
             UPDATEVM_OPTS+=( "$1" )
             ;;
         --show-output)
-            SHOW_OUTPUT=1
+            # ignore
             ;;
         --check-only)
             CHECK_ONLY=1
             UPDATEVM_OPTS+=( "$1" )
             ;;
         --preserve-terminal)
-            exit_cmd=
+            # ignore
             ;;
         --console)
-            CONSOLE=1
+            # ignore
             ;;
         --force-xen-upgrade)
             FORCE_XEN_UPGRADE=1
@@ -119,27 +115,16 @@ while [ $# -gt 0 ]; do
     shift
 done
 
-if [[ "$GUI" = 1 ]]; then
-    if [[ "$CONSOLE" = 1 ]] || [[ "$SHOW_OUTPUT" = 1 ]]; then
-        echo 'Cannot use --gui with --console or --show-output'>&2
-        exit 1
-    fi
-elif [[ -z "${DISPLAY-}" ]]; then
-    CONSOLE=1
-fi
-
 REMOTE_ONLY= may_clobber_template=0
 case ${YUM_ACTION=upgrade} in
 (reinstall|erase|remove|upgrade|upgrade-to|downgrade) may_clobber_template=1;;
 (list|search)
-    REMOTE_ONLY=1 exit_cmd=
-    if [[ "$CONSOLE" = 1 ]]; then SHOW_OUTPUT=1; fi
+    REMOTE_ONLY=1
     ;;
 esac
 
 if [ "$CHECK_ONLY" == "1" ]; then
     REMOTE_ONLY=1
-    CONSOLE=1
 fi
 
 # Redirect operations on templates to qvm-template command
@@ -242,36 +227,17 @@ CMD="/usr/lib/qubes/qubes-download-dom0-updates.sh --doit --nogui"
 # by the following is.
 for i in "${UPDATEVM_OPTS[@]}"; do CMD+=" '${i//\'/\'\\\'\'}'"; done
 
-QVMRUN_OPTS=(--quiet --filter-escape-chars)
-# If we are running in a terminal, run the command in its own terminal in the UpdateVM.
-if [[ "$CONSOLE" = 1 ]]; then
-    QVMRUN_OPTS+=(--nogui)
-    if [[ "$SHOW_OUTPUT" = 1 ]]; then
-        QVMRUN_OPTS+=(--pass-io)
-        if [[ -t 1 ]] && [[ -t 2 ]]; then
-            # Use ‘script’ to emulate a TTY, so that we get status bars and other
-            # progress output.  Since stdout and stderr are both terminals, qvm-run
-            # will automatically sanitize them, but we explicitly tell it to anyway
-            # as a precaution.
-            #
-            # We MUST NOT use ‘exec script’ here.  That causes ‘script’ to
-            # inherit the child processes of the shell.  ‘script’ mishandles
-            # this and enters an infinite loop.
-            CMD="script --quiet --return --command '${CMD//\'/\'\\\'\'}'"
-        fi
-    fi
-elif [[ "$GUI" = 1 ]] || [[ -t 1 ]] || [[ -t 2 ]]; then
-    # In GUI mode, or in a terminal without --console, spawn an xterm to display
-    # the output of the remote command.
-    CMD="xterm -e /bin/sh -c '"'if "$@" '"$exit_cmd"'; then
-    status=0 prompt=succeeded
-else
-    status=$? prompt="failed with code $?"
-fi
-read -p "Fetching updates $prompt; press Enter to exit" q
-exit "$status"'"' sh $CMD"
-else
-    QVMRUN_OPTS=(--nogui)
+QVMRUN_OPTS=(--quiet --filter-escape-chars --nogui --pass-io)
+if [[ -t 1 ]] && [[ -t 2 ]]; then
+    # Use ‘script’ to emulate a TTY, so that we get status bars and other
+    # progress output.  Since stdout and stderr are both terminals, qvm-run
+    # will automatically sanitize them, but we explicitly tell it to anyway
+    # as a precaution.
+    #
+    # We MUST NOT use ‘exec script’ here.  That causes ‘script’ to
+    # inherit the child processes of the shell.  ‘script’ mishandles
+    # this and enters an infinite loop.
+    CMD="script --quiet --return --command '${CMD//\'/\'\\\'\'}'"
 fi
 
 qvm-run "${QVMRUN_OPTS[@]}" -- "$UPDATEVM" "$CMD" < /dev/null
