@@ -108,7 +108,7 @@ def get_targets(args, app):
         if len(names) != len(targets):
             target_names = {q.name for q in targets}
             unknowns = set(names) - target_names
-            plural = len(unknowns) > 1
+            plural = len(unknowns) != 1
             raise ArgumentError(
                 f"Unknown qube name{'s' if plural else ''}"
                 f": {', '.join(unknowns) if plural else ''.join(unknowns)}"
@@ -177,7 +177,8 @@ def restart_app_vms(args, templates):
     if not args.restart:
         return
 
-    templates_to_shutdown = [template for template in templates
+    templates_to_shutdown = [template
+                             for template in templates
                              if template.is_running()]
     if args.dry_run:
         print("Following templates will be shutdown:",

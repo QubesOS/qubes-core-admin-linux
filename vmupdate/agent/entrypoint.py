@@ -40,7 +40,6 @@ def parse_args(args):
     return args
 
 
-
 def get_package_manager(os_data, log, log_handler, log_level, no_progress):
     """
     Returns instance of `PackageManager`.
@@ -81,9 +80,8 @@ def get_package_manager(os_data, log, log_handler, log_level, no_progress):
     return pkg_mng
 
 
-
 if __name__ == '__main__':
     try:
         sys.exit(main())
     except RuntimeError:
-        sys.exit(99)
+        sys.exit(1)

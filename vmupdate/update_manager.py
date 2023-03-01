@@ -22,17 +22,22 @@
 # USA.
 
 import os
+import signal
 import sys
 import queue
 import logging
 import multiprocessing
 from os.path import join
+from typing import Optional, Tuple
+
 from tqdm import tqdm
 
 import qubesadmin.vm
 import qubesadmin.exc
+from .agent.source.status import StatusInfo, FinalStatus, Status
 from .qube_connection import QubeConnection
 from vmupdate.agent.source.log_congfig import init_logs
+from vmupdate.agent.source.common.process_result import ProcessResult
 
 
 class UpdateManager:
@@ -56,25 +61,28 @@ class UpdateManager:
         if not self.qubes:
             return 0
 
-        pool = multiprocessing.Pool(self.max_concurrency)
         show_progress = not self.quiet and not self.no_progress
         SimpleTerminalBar.reinit_class()
         progress_output = SimpleTerminalBar \
             if agent_args.just_print_progress else tqdm
         progress_bar = MultipleUpdateMultipleProgressBar(
-            dummy=not show_progress, output=progress_output)
+            dummy=not show_progress,
+            output=progress_output,
+            max_concurrency=self.max_concurrency
+        )
 
         for qube in self.qubes:
             progress_bar.add_bar(qube.name)
-            pool.apply_async(
+            progress_bar.pool.apply_async(
                 update_qube,
-                (qube.name, agent_args, show_progress, progress_bar.queue),
+                (qube.name, agent_args, show_progress,
+                 progress_bar.status_notifier, progress_bar.termination),
                 callback=self.collect_result, error_callback=print
             )
 
-        pool.close()
+        progress_bar.pool.close()
         progress_bar.feeding()
-        pool.join()
+        progress_bar.pool.join()
         progress_bar.close()
 
         return self.ret_code
@@ -85,14 +93,10 @@ class UpdateManager:
 
         :param result_tuple: tuple(qube_name, ret_code, result)
         """
-        qube_name, ret_code, result = result_tuple
-        self.ret_code = max(self.ret_code, ret_code)
-        if self.show_output and isinstance(result, list):
-            sys.stdout.write(qube_name + ":")
-            sys.stdout.write('\n'.join(['  ' + line for line in result]))
-            sys.stdout.write('\n')
-        elif not self.quiet and self.no_progress:
-            print(qube_name + ": " + result)
+        qube_name, result = result_tuple
+        self.ret_code = max(self.ret_code, result.code)
+        if not self.quiet and self.no_progress:
+            print(qube_name + ": " + result.out + result.err)
 
 
 class TerminalMultiBar:
@@ -115,10 +119,25 @@ class SimpleTerminalBar:
         self.total = total
 
     def __str__(self):
-        return self.desc + " " + str(self.progress)
+        info = None
+        name, status = self.desc.split(' ', 1)
+        status = status[1:-1]  # remove brackets
+        if status in (FinalStatus.SUCCESS.value,
+                      FinalStatus.ERROR.value,
+                      FinalStatus.CANCELLED.value,
+                      FinalStatus.NO_UPDATES.value):
+            info = status.replace(" ", "_")
+            status = "done"
+        if status == Status.UPDATING.value:
+            info = self.progress
+        return f"{name} {status} {info}"
 
     def update(self, progress):
         self.progress += progress
+        SimpleTerminalBar.PARENT_MULTI_BAR.print()
+
+    def set_description(self, desc: str):
+        self.desc = desc
         SimpleTerminalBar.PARENT_MULTI_BAR.print()
 
     def close(self):
@@ -134,14 +153,22 @@ class MultipleUpdateMultipleProgressBar:
     Show update info for each qube in the terminal.
     """
 
-    def __init__(self, dummy, output):
+    def __init__(self, dummy, output, max_concurrency):
         self.dummy = dummy
-        if self.dummy:
-            self.manager = None
-            self.queue = None
-        else:
-            self.manager = multiprocessing.Manager()
-            self.queue = self.manager.Queue()
+
+        self.manager = multiprocessing.Manager()
+        self.termination = self.manager.Value('b', False)
+        self.status_notifier = self.manager.Queue()
+
+        # save original signal handler for SIGINT
+        self.original_sigint_handler = signal.getsignal(signal.SIGINT)
+        # set SIGINT handler to ignore, it will be inherited by processes
+        # in pool
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        self.pool = multiprocessing.Pool(max_concurrency)
+        # set SIGINT handler to gracefully termination
+        signal.signal(signal.SIGINT, self.signal_handler_during_feeding)
+
         self.progresses = {}
         self.progress_bars = {}
         self.output_class = output
@@ -155,15 +182,15 @@ class MultipleUpdateMultipleProgressBar:
 
         self.progresses[qname] = 0
         self.progress_bars[qname] = self.output_class(
-            total=100, position=len(self.progress_bars), desc=qname
+            total=100, position=len(self.progress_bars),
+            desc=f"{qname} ({Status.PENDING.value})"
         )
 
     def feeding(self):
         """
         Consume info from queues and update progress bars.
 
-        The loop is terminated when `QubeConnection.TERMINATOR` for all queues
-        is consumed.
+        The loop is terminated when status `done` for all qubes is consumed.
         """
         if self.dummy:
             return
@@ -171,14 +198,18 @@ class MultipleUpdateMultipleProgressBar:
         left_to_finish = len(self.progresses)
         while left_to_finish:
             try:
-                feed = self.queue.get(block=True)
-                if len(feed) == 1:
+                feed: Optional[StatusInfo] = \
+                    self.status_notifier.get(block=True)
+                if feed is None:
+                    continue
+                status_name = feed.status.value
+                if feed.status == Status.DONE:
                     left_to_finish -= 1
-                elif len(feed) == 2:
-                    self._update(*feed)
-                else:
-                    raise RuntimeError(
-                        f"Unexpected number of elements in queue item: {feed}")
+                    status_name = feed.info.value
+                self.progress_bars[feed.qname].set_description(
+                    f"{feed.qname} ({status_name})")
+                if feed.status == Status.UPDATING:
+                    self._update(feed.qname, feed.info)
             except queue.Empty:
                 pass
 
@@ -188,10 +219,15 @@ class MultipleUpdateMultipleProgressBar:
         self.progress_bars[qname].update(progress)
         self.progresses[qname] += progress
 
+    def signal_handler_during_feeding(self, _sig, _frame):
+        self.termination.value = True
+
     def close(self):
         """
         This method should be called after `multiprocessing.Pool.join`
         """
+        signal.signal(signal.SIGINT, self.original_sigint_handler)
+
         if self.dummy:
             return
 
@@ -199,21 +235,30 @@ class MultipleUpdateMultipleProgressBar:
             pbar.close()
 
 
-def update_qube(qname, agent_args, show_progress, progress_collector):
+def update_qube(
+        qname, agent_args, show_progress, status_notifier, termination
+) -> Tuple[str, ProcessResult]:
     """
     Create and run `UpdateAgentManager` for qube.
 
     :param qname: name of qube
     :param agent_args: args for agent entrypoint
     :param show_progress: if progress should be printed in real time
-    :param progress_collector: object to be fed with the progress data
+    :param status_notifier: object to be fed with the progress data
+    :param termination: signal to gracefully terminate subprocess
     :return:
     """
     app = qubesadmin.Qubes()
     try:
         qube = app.domains[qname]
     except KeyError:
-        return qname, 2, "ERROR (qube not found)"
+        return qname, ProcessResult(2, "ERROR (qube not found)")
+
+    if termination.value:
+        status_notifier.put(StatusInfo.done(qube, FinalStatus.CANCELLED))
+        return qname, ProcessResult(130, "Canceled")
+    status_notifier.put(StatusInfo.updating(qube, 0))
+
     try:
         runner = UpdateAgentManager(
             app,
@@ -221,13 +266,14 @@ def update_qube(qname, agent_args, show_progress, progress_collector):
             agent_args=agent_args,
             show_progress=show_progress
         )
-        ret_code, result = runner.run_agent(
+        result = runner.run_agent(
             agent_args=agent_args,
-            progress_collector=progress_collector
+            status_notifier=status_notifier,
+            termination=termination
         )
     except Exception as exc:  # pylint: disable=broad-except
-        return qname, 1, f"ERROR (exception {str(exc)})"
-    return qube.name, ret_code, result
+        return qname, ProcessResult(1, f"ERROR (exception {str(exc)})")
+    return qube.name, result
 
 
 class UpdateAgentManager:
@@ -252,27 +298,32 @@ class UpdateAgentManager:
             format_=UpdateAgentManager.FORMAT_LOG,
             level=agent_args.log,
             truncate_file=False,
+            qname=qube.name,
         )
 
         self.cleanup = not agent_args.no_cleanup
         self.show_progress = show_progress
 
-    def run_agent(self, agent_args, progress_collector):
+    def run_agent(
+            self, agent_args, status_notifier, termination
+    ) -> ProcessResult:
         """
         Copy agent file to dest vm, run entrypoint, collect output and logs.
         """
-        ret_code, output = self._run_agent(agent_args, progress_collector)
+        result = self._run_agent(
+            agent_args, status_notifier, termination)
+        output = result.out.split("\n") + result.err.split("\n")
         for line in output:
             self.log.debug('agent output: %s', line)
-        self.log.info('agent exit code: %d', ret_code)
-        if agent_args.show_output and output:
-            return_data = output
-        else:
-            return_data = "OK" if ret_code == 0 else \
-                f"ERROR (exit code {ret_code}, details in {self.log_path})"
-        return ret_code, return_data
+        self.log.info('agent exit code: %d', result.code)
+        if not agent_args.show_output or not output:
+            result.out = "OK" if result.code == 0 else \
+                f"ERROR (exit code {result.code}, details in {self.log_path})"
+        return result
 
-    def _run_agent(self, agent_args, progress_collector):
+    def _run_agent(
+            self, agent_args, status_notifier, termination
+    ) -> ProcessResult:
         self.log.info('Running update agent for %s', self.qube.name)
         dest_dir = UpdateAgentManager.WORKDIR
         dest_agent = os.path.join(dest_dir, UpdateAgentManager.ENTRYPOINT)
@@ -285,31 +336,42 @@ class UpdateAgentManager:
                 self.cleanup,
                 self.log,
                 self.show_progress,
-                progress_collector
+                status_notifier
         ) as qconn:
             self.log.info(
                 "Transferring files to destination qube: %s", self.qube.name)
-            ret_code, output = qconn.transfer_agent(src_dir)
-            if ret_code:
-                self.log.error('Qube communication error code: %i', ret_code)
-                return ret_code, output
+            result = qconn.transfer_agent(src_dir)
+            if result:
+                self.log.error('Qube communication error code: %i', result.code)
+                qconn.status_notifier.put(
+                    StatusInfo.done(self.qube, FinalStatus.ERROR))
+                qconn.status_notified = True
+                return result
+
+            if termination.value:
+                status_notifier.put(
+                    StatusInfo.done(self.qube, FinalStatus.CANCELLED))
+                qconn.status_notified = True
+                return ProcessResult(130, "", "Cancelled")
 
             self.log.info(
                 "The agent is starting the task in qube: %s", self.qube.name)
-            ret_code_, output = qconn.run_entrypoint(
-                dest_agent, agent_args)
-            ret_code = max(ret_code, ret_code_)
+            result += qconn.run_entrypoint(dest_agent, agent_args)
+            if result:
+                qconn.status_notifier.put(
+                    StatusInfo.done(self.qube, FinalStatus.ERROR))
+                qconn.status_notified = True
 
-            ret_code_logs, logs = qconn.read_logs()
-            if ret_code_logs:
+            result_logs = qconn.read_logs()
+            if result_logs:
                 self.log.error(
                     "Problem with collecting logs from %s, return code: %i",
-                    self.qube.name, ret_code_logs)
+                    self.qube.name, result_logs.code)
             # agent logs already have timestamp
             self.log_handler.setFormatter(logging.Formatter('%(message)s'))
             # critical -> always write agent logs
-            for log_line in logs:
+            for log_line in result_logs.out.split("\n"):
                 self.log.critical("%s", log_line)
             self.log_handler.setFormatter(self.log_formatter)
 
-        return ret_code, output
+        return result

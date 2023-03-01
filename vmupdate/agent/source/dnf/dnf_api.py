@@ -79,7 +79,7 @@ class DNF(DNFCLI):
             trans = self.base.transaction
             if not trans:
                 print(100, flush=True, file=sys.stderr)
-                return ProcessResult(0, out="", err="Nothing to upgrade")
+                return ProcessResult(0, out="", err="")
 
             with StreamRedirector(result):
                 self.base.download_packages(
