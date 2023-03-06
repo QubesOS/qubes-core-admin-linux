@@ -53,7 +53,7 @@ Requires:	%{name}-kernel-install
 Requires:	xdotool
 Requires:	createrepo_c
 Requires:	rpm >= 4.14
-Requires:   systemd-udev
+Requires:	systemd-udev
 # Needed for USB in dom0
 Requires: usbguard
 # salt needs to pass --console --show-output options now
