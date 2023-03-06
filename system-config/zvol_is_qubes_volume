@@ -1,0 +1,19 @@
+#!/usr/bin/bash
+
+# Check for ZFS.
+zvol_id=/usr/lib/udev/zvol_id
+if ! test -x "$zvol_id" ; then zvol_id=/usr/local/lib/udev/zvol_id ; fi
+if ! test -x "$zvol_id" ; then echo 0 ; exit ; fi  # No ZFS.
+zfs=/usr/sbin/zfs
+if ! test -x "$zfs" ; then zfs=/usr/local/sbin/zfs ; fi
+if ! test -x "$zfs" ; then echo 0 ; exit ; fi  # No ZFS.
+
+# Do not deal with partitions.  volmode=dev ensures we don't get here.
+if [[ "$1" =~ p[0-9]$ ]] ; then echo 0 ; exit ; fi
+
+# Get the property that qvm-pool sets when creating root pool dataset.
+dataset=$("$zvol_id" "$1")
+if [ -z "$dataset" ] ; then echo 0 ; exit ; fi
+propval=$("$zfs" list -o org.qubes-os:part-of-qvm-pool -Hp "$dataset")
+if [ "$propval" == "true" ] ; then echo 1 ; exit ; fi
+echo 0
