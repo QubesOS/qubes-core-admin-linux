@@ -152,7 +152,7 @@ install -m 644 -D system-config/disable-lesspipe.sh $RPM_BUILD_ROOT/etc/profile.
 install -m 755 -D system-config/kernel-grub2.install $RPM_BUILD_ROOT/usr/lib/kernel/install.d/80-grub2.install
 install -m 755 -D system-config/kernel-xen-efi.install $RPM_BUILD_ROOT/usr/lib/kernel/install.d/90-xen-efi.install
 install -m 755 -D system-config/kernel-remove-bls.install $RPM_BUILD_ROOT/usr/lib/kernel/install.d/99-remove-bls.install
-install -m 755 -D system-config/zvol_is_qubes_volume $RPM_BUILD_ROOT%prefix/lib/udev
+install -m 755 -D system-config/zvol_is_qubes_volume $RPM_BUILD_ROOT%prefix/lib/udev/zvol_is_qubes_volume
 install -m 644 -D system-config/75-qubes-dom0.preset \
     $RPM_BUILD_ROOT%_presetdir/75-qubes-dom0.preset
 install -m 644 -D system-config/75-qubes-dom0-user.preset \
