@@ -1,0 +1,3 @@
+# Determine if a zvol is a Qubes volume, then ignore it.
+KERNEL=="zd[0-9]*", SUBSYSTEM=="block", ACTION=="add|change", PROGRAM=="/usr/lib/udev/zvol_is_qubes_volume $devnode", ENV{QUBES_IS_PART_OF_QVM_POOL}="%c"
+SUBSYSTEM=="block", ACTION=="add|change", ENV{QUBES_IS_PART_OF_QVM_POOL}=="1", ENV{DM_UDEV_DISABLE_DISK_RULES_FLAG}="1", ENV{UDEV_DISABLE_PERSISTENT_STORAGE_RULES_FLAG}="1"
