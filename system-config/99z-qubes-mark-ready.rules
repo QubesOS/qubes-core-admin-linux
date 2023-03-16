@@ -7,6 +7,9 @@ KERNEL=="loop*", ATTR{loop/backing_file}!="/var/lib/qubes/vm-kernels/*", ENV{SYS
 ENV{DM_LV_NAME}=="vm-*", ENV{SYSTEMD_READY}="1"
 ENV{DM_UUID}=="CRYPT-*", ENV{DM_NAME}!="swap|luks-*", ENV{SYSTEMD_READY}="1"
 
+# Tell udev that zvols are ready.
+KERNEL=="zd[0-9]*", SUBSYSTEM=="block", ACTION=="add|change", ENV{SYSTEMD_READY}="1"
+
 LABEL="qubes-rule-end"
 
 # vim: set ft=udevrules ff=unix fenc=utf-8:
