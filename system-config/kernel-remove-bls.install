@@ -19,3 +19,8 @@ if [[ $MACHINE_ID ]] && ( [[ -d /boot/efi/${MACHINE_ID} ]] || [[ -L /boot/efi/${
     # remove only when empty
     rmdir /boot/efi/loader/entries /boot/efi/loader || :
 fi
+if [[ $MACHINE_ID ]] && [[ -d /boot/loader/entries ]]; then
+    rm -f /boot/loader/entries/${MACHINE_ID}-*.conf
+    # remove only when empty
+    rmdir /boot/loader/entries /boot/loader || :
+fi
