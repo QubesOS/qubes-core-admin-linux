@@ -186,7 +186,7 @@ def restart_app_vms(args, templates):
         # we do not check if any volume is outdated, we expect it will be.
         to_restart = {vm
                       for template in templates
-                      for vm in template.appvms
+                      for vm in template.derived_vms
                       if vm.klass in ('AppVM', 'DispVM')
                       and vm.is_running()}
         print("Following qubes CAN be restarted:",
@@ -198,7 +198,7 @@ def restart_app_vms(args, templates):
 
     to_restart = {vm
                   for template in templates
-                  for vm in template.appvms
+                  for vm in template.derived_vms
                   if vm.klass in ('AppVM', 'DispVM')
                   and vm.is_running()
                   and any(vol.is_outdated() for vol in vm.volumes.values())}
