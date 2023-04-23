@@ -210,7 +210,7 @@ readonly dom0_updates_dir=/var/lib/qubes/dom0-updates
 rpmdb_path=$(rpm --eval '%{_dbpath}')
 rpmdb_path="${rpmdb_path#/}"
 qvm-run --nogui -q -u root -- "$UPDATEVM" "mkdir -m 775 -p -- '$dom0_updates_dir'" || exit 1
-qvm-run --nogui -q -u root -- "$UPDATEVM" "chown -R -- user:user '$dom0_updates_dir'" || exit 1
+qvm-run --nogui -q -u root -- "$UPDATEVM" "user=\$(qubesdb-read /default-user) && chown -R -- \"\$user:qubes\" '$dom0_updates_dir'" || exit 1
 qvm-run --nogui -q -- "$UPDATEVM" "rm -rf -- '$dom0_updates_dir/etc' '$dom0_updates_dir/$rpmdb_path'" || exit 1
 (cd / && exec tar -c -- $rpmdb_path etc/yum/vars etc/yum.repos.d etc/yum.conf etc/dnf/dnf.conf etc/pki/rpm-gpg/RPM-GPG-KEY-* 2>/dev/null) |
    qvm-run --nogui -q --pass-io -- "$UPDATEVM" "LC_MESSAGES=C tar -C '$dom0_updates_dir' -x &&
