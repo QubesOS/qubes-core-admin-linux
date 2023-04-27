@@ -1,13 +1,9 @@
 #!/bin/bash
 
-find_regex_in_args() {
-    local regex="${1}"
-    shift 1
-
-    for arg in "${@}"; do
-        if echo "${arg}" | grep -q -e "${regex}"; then
-            return 0
-        fi
+has_template () {
+    local arg
+    for arg; do
+        case $arg in (qubes-template-*) return 0;; esac
     done
 
     return 1
@@ -128,15 +124,18 @@ if [ "$CHECK_ONLY" == "1" ]; then
 fi
 
 # Redirect operations on templates to qvm-template command
-if find_regex_in_args '^qubes-template-' "${PKGS[@]}"; then
+if has_template "${PKGS[@]}"; then
     if [[ ${#PKGS[@]} -ne 1 ]]; then
         echo "ERROR: Specify only one package to reinstall template"
         exit 2
     fi
-    ONEPKG="$(echo "${PKGS[0]}" | sed -r 's/-[0-9]+(\.[0-9-]+)+(\.noarch)*$//')" # Remove version suffix
-    TEMPLATE=${ONEPKG#qubes-template-} # Remove prefix
-    echo "Redirecting to 'qvm-template ${YUM_ACTION=install} ${QVMTEMPLATE_OPTS[*]} $TEMPLATE'"
-    exec qvm-template "${YUM_ACTION=install}" "${QVMTEMPLATE_OPTS[@]}" "$TEMPLATE"
+    if [[ "${PKGS[0]}" =~ ^qubes-template-(.*)(-[0-9]+)(\.[0-9-]+)+(\.[0-9a-zA-Z_]+)?$ ]]; then
+        TEMPLATE=${BASH_REMATCH[1]}
+    else
+        TEMPLATE=${PKGS[0]#qubes-template-}
+    fi
+    echo "Redirecting to 'qvm-template $YUM_ACTION ${QVMTEMPLATE_OPTS[*]} $TEMPLATE'"
+    exec qvm-template "$YUM_ACTION" "${QVMTEMPLATE_OPTS[@]}" "$TEMPLATE"
 fi
 
 # since all the template handling is via qvm-template now, exclude all the templates
