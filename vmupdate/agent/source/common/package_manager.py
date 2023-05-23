@@ -71,15 +71,6 @@ class PackageManager:
             requirements: Optional[Dict[str, str]] = None
     ) -> ProcessResult:
         result = ProcessResult()
-        if refresh:
-            result_refresh = self.refresh(hard_fail)
-            result += result_refresh
-            if result.code != 0:
-                self.log.warning("Refreshing failed.")
-                if hard_fail:
-                    self.log.error("Exiting due to a refresh error. "
-                                   "Use --force-upgrade to upgrade anyway.")
-                    return result
 
         curr_pkg = self.get_packages()
 
@@ -90,6 +81,16 @@ class PackageManager:
                 self.log.warning("Installing requirements failed.")
                 if hard_fail:
                     self.log.error("Exiting due to a packages install error. "
+                                   "Use --force-upgrade to upgrade anyway.")
+                    return result
+
+        if refresh:
+            result_refresh = self.refresh(hard_fail)
+            result += result_refresh
+            if result.code != 0:
+                self.log.warning("Refreshing failed.")
+                if hard_fail:
+                    self.log.error("Exiting due to a refresh error. "
                                    "Use --force-upgrade to upgrade anyway.")
                     return result
 
