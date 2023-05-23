@@ -112,12 +112,12 @@ class PackageManager:
         log_as_error = bool(result.code)
         if result.out:
             out_lines = result.out.split("\n")
-            log = self.log.error if log_as_error else self.log.debug
+            log = self.log.error if log_as_error else self.log.info
             for out_line in out_lines:
                 log("%s out: %s", title, out_line)
         if result.err:
             err_lines = result.err.split("\n")
-            log = self.log.error if log_as_error else self.log.debug
+            log = self.log.error if log_as_error else self.log.info
             for err_line in err_lines:
                 log("%s err: %s", title, err_line)
 
