@@ -75,6 +75,9 @@ class DNF(DNFCLI):
         try:
             self.base.upgrade_all()
 
+            # fill empty `Command line` column in dnf history
+            self.base.cmds = ["qubes-vm-update"]
+
             self.base.resolve()
             trans = self.base.transaction
             if not trans:
