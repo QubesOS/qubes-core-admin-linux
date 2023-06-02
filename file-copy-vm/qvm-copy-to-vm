@@ -36,7 +36,7 @@ mkfifo -- "$RESPONSE"
 
 # can't use $@ with --localcmd, and $* would fail on whitespace
 /usr/lib/qubes/qfile-dom0-agent "$@" <"$RESPONSE" |
-qvm-run --pass-io --service -- "$VM" "qubes.Filecopy" >"$RESPONSE"
+qvm-run --no-gui --filter-escape-chars-stderr --pass-io --service -- "$VM" "qubes.Filecopy" >"$RESPONSE"
 
 if [ "${0##*/}" = "qvm-move-to-vm" ]; then
 	rm -rf -- "$@"
