@@ -6,6 +6,7 @@ import asyncio
 import sys
 import argparse
 from datetime import datetime
+from typing import Set
 
 import qubesadmin
 import qubesadmin.exc
@@ -87,24 +88,24 @@ def parse_args(args):
     return args
 
 
-def get_targets(args, app):
-    targets = []
+def get_targets(args, app) -> Set[qubesadmin.vm.QubesVM]:
+    targets = set()
     if args.templates:
-        targets += [vm for vm in app.domains.values()
-                    if vm.klass == 'TemplateVM']
+        targets.update(set([vm for vm in app.domains.values()
+                       if vm.klass == 'TemplateVM']))
     if args.standalones:
-        targets += [vm for vm in app.domains.values()
-                    if vm.klass == 'StandaloneVM']
+        targets.update(set([vm for vm in app.domains.values()
+                       if vm.klass == 'StandaloneVM']))
     if args.app:
-        targets += [vm for vm in app.domains.values()
-                    if vm.klass == 'AppVM']
+        targets.update(set([vm for vm in app.domains.values()
+                       if vm.klass == 'AppVM']))
     if args.all:
         # all but DispVMs
-        targets = [vm for vm in app.domains.values()
-                   if vm.klass != 'DispVM']
+        targets.update(set([vm for vm in app.domains.values()
+                      if vm.klass != 'DispVM']))
     elif args.targets:
         names = args.targets.split(',')
-        targets = [vm for vm in app.domains.values() if vm.name in names]
+        targets = set([vm for vm in app.domains.values() if vm.name in names])
         if len(names) != len(targets):
             target_names = {q.name for q in targets}
             unknowns = set(names) - target_names
@@ -114,17 +115,17 @@ def get_targets(args, app):
                 f": {', '.join(unknowns) if plural else ''.join(unknowns)}"
             )
     else:
-        targets += smart_targeting(app, args)
+        targets.update(smart_targeting(app, args))
 
     # remove skipped qubes and dom0 - not a target
     to_skip = args.skip.split(',')
-    targets = [vm for vm in targets
-               if vm.name != 'dom0' and vm.name not in to_skip]
+    targets = set([vm for vm in targets
+                   if vm.name != 'dom0' and vm.name not in to_skip])
     return targets
 
 
-def smart_targeting(app, args):
-    targets = []
+def smart_targeting(app, args) -> Set[qubesadmin.vm.QubesVM]:
+    targets = set()
     for vm in app.domains:
         if getattr(vm, 'updateable', False) and vm.klass != 'AdminVM':
             try:
@@ -136,7 +137,7 @@ def smart_targeting(app, args):
                 to_update = stale_update_info(vm, args)
 
             if to_update:
-                targets.append(vm)
+                targets.add(vm)
 
     return targets
 
