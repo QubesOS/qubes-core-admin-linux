@@ -318,6 +318,9 @@ elif [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
         if ! qvm-features dom0 updates-available '' 2>/dev/null; then
             echo "*** WARNING: cannot set feature 'updates-available'" >&2
         fi
+        if ! qvm-features dom0 last-update "$(date +'%Y-%m-%d %T')" 2>/dev/null; then
+            echo "*** WARNING: cannot set feature 'last-update'" >&2
+        fi
     fi
 else
     if ! qvm-features dom0 updates-available '' 2>/dev/null; then
