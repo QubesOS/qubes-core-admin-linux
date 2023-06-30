@@ -236,7 +236,7 @@ if [[ -t 1 ]] && [[ -t 2 ]]; then
     # We MUST NOT use ‘exec script’ here.  That causes ‘script’ to
     # inherit the child processes of the shell.  ‘script’ mishandles
     # this and enters an infinite loop.
-    CMD="script --quiet --return --command '${CMD//\'/\'\\\'\'}'"
+    CMD="script --quiet --return --command '${CMD//\'/\'\\\'\'}' /dev/null"
 fi
 
 qvm-run "${QVMRUN_OPTS[@]}" -- "$UPDATEVM" "$CMD" < /dev/null
