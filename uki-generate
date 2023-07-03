@@ -1,0 +1,48 @@
+#!/usr/bin/python3 -I
+import os
+import rpm
+import subprocess
+import sys
+from typing import List, Tuple
+
+def main(args):
+    alignment_mask = (1 << 21) - 1
+    if len(args) != 6:
+        print(f"Usage: uki-generate HYPERVISOR CONFIG KERNEL INITRAMFS OUTPUT", file=sys.stderr)
+        sys.exit(1)
+    _, hyp, cfg, kern, initramfs, out = args
+    if hyp[0] != '/':
+        hyp = './' + hyp
+    if out[0] != '/':
+        out = './' + out
+    def round_to_next(f: int) -> int:
+        max_address = (0xffffffffffffffff & ~alignment_mask)
+        if f > max_address:
+            print(f"Fatal error: Address overflow: {f} exceeds {max_address}", file=sys.stderr)
+            sys.exit(1)
+        return (f + alignment_mask) & ~alignment_mask
+    base_address = 0xffff82d042000000
+    kernel_vma = round_to_next(base_address + os.stat(cfg).st_size)
+    initramfs_vma = round_to_next(kernel_vma + os.stat(kern).st_size)
+    cmdline = [
+        "objcopy",
+        f"--section-alignment={alignment_mask + 1}",
+        "--remove-section=.gnu.*",
+        "--remove-section=.buildid",
+        "--strip-debug",
+        f"--add-section=.config={cfg}",
+        f"--change-section-vma=.config={base_address}",
+        f"--add-section=.kernel={kern}",
+        f"--change-section-vma=.kernel={kernel_vma}",
+        f"--add-section=.ramdisk={initramfs}",
+        f"--change-section-vma=.ramdisk={initramfs_vma}",
+        "--",
+        hyp,
+        out,
+    ]
+    subprocess.check_call(cmdline, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
+if __name__ == '__main__':
+    try:
+        main(sys.argv)
+    except subprocess.CalledProcessError as e:
+        sys.exit(e.returncode)
