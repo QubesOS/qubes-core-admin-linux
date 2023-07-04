@@ -91,21 +91,21 @@ def parse_args(args):
 def get_targets(args, app) -> Set[qubesadmin.vm.QubesVM]:
     targets = set()
     if args.templates:
-        targets.update(set([vm for vm in app.domains.values()
-                       if vm.klass == 'TemplateVM']))
+        targets.update([vm for vm in app.domains.values()
+                       if vm.klass == 'TemplateVM'])
     if args.standalones:
-        targets.update(set([vm for vm in app.domains.values()
-                       if vm.klass == 'StandaloneVM']))
+        targets.update([vm for vm in app.domains.values()
+                       if vm.klass == 'StandaloneVM'])
     if args.app:
-        targets.update(set([vm for vm in app.domains.values()
-                       if vm.klass == 'AppVM']))
+        targets.update([vm for vm in app.domains.values()
+                       if vm.klass == 'AppVM'])
     if args.all:
         # all but DispVMs
-        targets.update(set([vm for vm in app.domains.values()
-                      if vm.klass != 'DispVM']))
+        targets.update([vm for vm in app.domains.values()
+                      if vm.klass != 'DispVM'])
     elif args.targets:
         names = args.targets.split(',')
-        targets = set([vm for vm in app.domains.values() if vm.name in names])
+        targets = {vm for vm in app.domains.values() if vm.name in names}
         if len(names) != len(targets):
             target_names = {q.name for q in targets}
             unknowns = set(names) - target_names
@@ -119,8 +119,8 @@ def get_targets(args, app) -> Set[qubesadmin.vm.QubesVM]:
 
     # remove skipped qubes and dom0 - not a target
     to_skip = args.skip.split(',')
-    targets = set([vm for vm in targets
-                   if vm.name != 'dom0' and vm.name not in to_skip])
+    targets = {vm for vm in targets
+               if vm.name != 'dom0' and vm.name not in to_skip}
     return targets
 
 
