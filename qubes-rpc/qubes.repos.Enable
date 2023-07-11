@@ -7,6 +7,10 @@ import dnf
 import os
 import sys
 
+if os.getuid() != 0:
+    os.execl("/usr/bin/sudo", "sudo", "--non-interactive", "--", *sys.argv)
+    sys.exit(1)
+
 os.umask(0o022)
 
 base = dnf.Base()
