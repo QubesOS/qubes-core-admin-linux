@@ -4,14 +4,18 @@ if [ "$(qvm-features dom0 service.qubes-update-check || echo 1)" != 1 ]; then
     exit 0
 fi
 
-qvm-features dom0 last-updates-check "$(date +'%Y-%m-%d %T')"
-
-# If no updates available - exit here
-qubes-dom0-update --check-only >/dev/null && exit
+qubes-dom0-update --check-only >/dev/null
 RETCODE=$?
 
-if [ "$RETCODE" -ne 100 ]; then
+if [ "$RETCODE" -ne 100 ] && [ "$RETCODE" -ne 0 ]; then
     echo "ERROR: Error checking for updates" >&2
+    exit $RETCODE
+fi
+
+qvm-features dom0 last-updates-check "$(date +'%Y-%m-%d %T')"
+
+if [ "$RETCODE" -eq 0 ]; then
+    # If no updates available - exit here
     exit $RETCODE
 fi
 
