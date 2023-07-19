@@ -237,8 +237,8 @@ class QubeConnection:
     def _collect_stderr(self, proc) -> bytes:
         stderr = b""
         progress_finished = False
-        for untrusted_line in iter(proc.stderr.readline, ''):
-            if untrusted_line:
+        for untrusted_line in iter(proc.stderr.readline, None):
+            if untrusted_line is not None:
                 if not progress_finished:
                     line = ProcessResult.sanitize_output(untrusted_line)
                     try:
@@ -264,8 +264,8 @@ class QubeConnection:
     def _collect_stdout(self, proc) -> bytes:
         stdout = b""
 
-        for untrusted_line in iter(proc.stdout.readline, ''):
-            if untrusted_line:
+        for untrusted_line in iter(proc.stdout.readline, None):
+            if untrusted_line is not None:
                 stdout += untrusted_line
             elif proc.poll() is not None:
                 break
