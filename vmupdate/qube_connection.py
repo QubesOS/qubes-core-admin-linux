@@ -227,7 +227,7 @@ class QubeConnection:
             result = ProcessResult.from_untrusted_out_err(
                 future_out.result(), future_err.result())
 
-        result.code = proc.returncode
+        result.code = proc.wait()
         self.logger.debug("Agent process finished.")
         if result.code == 100:
             self.status = FinalStatus.NO_UPDATES
@@ -237,8 +237,8 @@ class QubeConnection:
     def _collect_stderr(self, proc) -> bytes:
         stderr = b""
         progress_finished = False
-        for untrusted_line in iter(proc.stderr.readline, None):
-            if untrusted_line is not None:
+        for untrusted_line in iter(proc.stderr.readline, b''):
+            if untrusted_line:
                 if not progress_finished:
                     line = ProcessResult.sanitize_output(untrusted_line)
                     try:
@@ -253,8 +253,6 @@ class QubeConnection:
                         StatusInfo.updating(self.qube, progress))
                 else:
                     stderr += untrusted_line + b'\n'
-            elif proc.poll() is not None:
-                break
 
         proc.stderr.close()
         self.logger.debug("Agent stderr closed.")
@@ -264,11 +262,9 @@ class QubeConnection:
     def _collect_stdout(self, proc) -> bytes:
         stdout = b""
 
-        for untrusted_line in iter(proc.stdout.readline, None):
+        for untrusted_line in iter(proc.stdout.readline, b''):
             if untrusted_line is not None:
                 stdout += untrusted_line
-            elif proc.poll() is not None:
-                break
 
         proc.stdout.close()
         self.logger.debug("Agent stdout closed.")
