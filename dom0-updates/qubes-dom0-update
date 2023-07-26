@@ -49,6 +49,7 @@ TEMPLATE=
 TEMPLATE_BACKUP=
 FORCE_XEN_UPGRADE=
 REBOOT_REQUIRED=
+DOWNLOADONLY=
 # Filter out some dnf options and collect packages list
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -60,6 +61,7 @@ while [ $# -gt 0 ]; do
         --downloadonly)
             YUM_OPTS+=( "${1}" )
             QVMTEMPLATE_OPTS+=( "$1" )
+            DOWNLOADONLY=1
             ;;
         --clean)
             CLEAN=1
@@ -294,7 +296,9 @@ if [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
                 fi
             fi
         fi
-        REBOOT_REQUIRED=1
+        if [ -z "$DOWNLOADONLY" ]; then
+            REBOOT_REQUIRED=1
+        fi
     fi
 fi
 
