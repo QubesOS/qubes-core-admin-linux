@@ -18,6 +18,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
 # USA.
+import argparse
 
 
 class AgentArgs:
@@ -47,7 +48,7 @@ class AgentArgs:
         "no-progress": {"action": "store_true",
                         "help": "Do not show upgrading progress."},
         "just-print-progress": {"action": "store_true",
-                                "help": "Print progress line by line."}
+                                "help": argparse.SUPPRESS}
     }
     ALL_OPTIONS = {**OPTIONS, **EXCLUSIVE_OPTIONS_1, **EXCLUSIVE_OPTIONS_2}
 

@@ -36,9 +36,9 @@ class DNF(DNFCLI):
         super().__init__(log_handler, log_level)
         self.base = dnf.Base()
         self.base.conf.read()  # load dnf.conf
-        update = FetchProgress(weight=0)  # % of total time
-        fetch = FetchProgress(weight=50)  # % of total time
-        upgrade = UpgradeProgress(weight=50)  # % of total time
+        update = FetchProgress(weight=0, log=self.log)  # % of total time
+        fetch = FetchProgress(weight=50, log=self.log)  # % of total time
+        upgrade = UpgradeProgress(weight=50, log=self.log)  # % of total time
         self.progress = ProgressReporter(update, fetch, upgrade)
 
     def refresh(self, hard_fail: bool) -> ProcessResult:
@@ -53,14 +53,20 @@ class DNF(DNFCLI):
         result = ProcessResult()
         try:
             with StreamRedirector(result):
+                self.log.debug("Refreshing available packages...")
                 # Repositories serve as sources of information about packages.
                 self.base.read_all_repos()
                 updated = self.base.update_cache()
                 # A sack is needed for querying.
                 self.base.fill_sack()
-            if not updated:
+            if updated:
+                self.log.debug("Cache refresh successful.")
+            else:
+                self.log.warning("Cache refresh failed.")
                 result += ProcessResult(1)
         except Exception as exc:
+            self.log.error(
+                "An error occurred while refreshing packages: %s", str(exc))
             result += ProcessResult(2, out="", err=str(exc))
 
         return result
@@ -73,6 +79,7 @@ class DNF(DNFCLI):
 
         result = ProcessResult()
         try:
+            self.log.debug("Performing package upgrade...")
             self.base.upgrade_all()
 
             # fill empty `Command line` column in dnf history
@@ -81,7 +88,7 @@ class DNF(DNFCLI):
             self.base.resolve()
             trans = self.base.transaction
             if not trans:
-                print(100, flush=True, file=sys.stderr)
+                self.log.info("No packages to upgrade, quitting.")
                 return ProcessResult(0, out="", err="")
 
             with StreamRedirector(result):
@@ -89,11 +96,15 @@ class DNF(DNFCLI):
                     trans.install_set,
                     progress=self.progress.fetch_progress
                 )
-                result += sign_check(self.base, trans.install_set)
+                result += sign_check(self.base, trans.install_set, self.log)
 
             if result.code == 0:
+                self.log.debug("Committing upgrade...")
                 self.base.do_transaction(self.progress.upgrade_progress)
+                self.log.debug("Package upgrade successful.")
         except Exception as exc:
+            self.log.error(
+                "An error occurred while upgrading packages: %s", str(exc))
             result += ProcessResult(3, out="", err=str(exc))
         finally:
             self.base.close()
@@ -101,10 +112,11 @@ class DNF(DNFCLI):
         return result
 
 
-def sign_check(base, packages) -> ProcessResult:
+def sign_check(base, packages, log) -> ProcessResult:
     """
     Check signature of packages.
     """
+    log.debug("Check signature of packages.")
     result = ProcessResult()
     for package in packages:
         ret_code, message = base.package_signature_check(package)
@@ -117,8 +129,8 @@ def sign_check(base, packages) -> ProcessResult:
 
 
 class FetchProgress(DownloadProgress, Progress):
-    def __init__(self, weight: int):
-        Progress.__init__(self, weight)
+    def __init__(self, weight: int, log):
+        Progress.__init__(self, weight, log)
         self.bytes_to_fetch = None
         self.bytes_fetched = 0
         self.package_bytes = {}
@@ -130,7 +142,7 @@ class FetchProgress(DownloadProgress, Progress):
         error message in case the outcome was an error.
 
         """
-        pass
+        self.log.info("Fetch ended.")
 
     def message(self, msg):
         print(msg, flush=True, file=self._stdout)
@@ -154,15 +166,16 @@ class FetchProgress(DownloadProgress, Progress):
         `total_size` total size of all files.
 
         """
+        self.log.info("Fetch started.")
         self.bytes_to_fetch = total_size
         self.package_bytes = {}
         self.notify_callback(0)
 
 
 class UpgradeProgress(TransactionDisplay, Progress):
-    def __init__(self, weight: int):
+    def __init__(self, weight: int, log):
         TransactionDisplay.__init__(self)
-        Progress.__init__(self, weight)
+        Progress.__init__(self, weight, log)
 
     def progress(self, _package, action, ti_done, ti_total, ts_done,
                  ts_total):

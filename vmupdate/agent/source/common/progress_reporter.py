@@ -29,6 +29,7 @@ class Progress:
     def __init__(
             self,
             weight: int,
+            log,
     ):
         self.weight = weight
         self._callback = None
@@ -37,6 +38,7 @@ class Progress:
         self._last_percent = None
         self._stdout = None
         self._stderr = None
+        self.log = log
 
     def init(
             self, start: float, stop: float,

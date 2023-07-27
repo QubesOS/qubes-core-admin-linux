@@ -19,15 +19,18 @@ def main(args=None):
     log.debug("Run entrypoint with args: %s", str(args))
     os_data = get_os_data()
 
+    log.debug("Selecting package manager.")
     pkg_mng = get_package_manager(
         os_data, log, log_handler, log_level, args.no_progress)
 
+    log.debug("Running upgrades.")
     return_code = pkg_mng.upgrade(refresh=not args.no_refresh,
                                   hard_fail=not args.force_upgrade,
                                   remove_obsolete=not args.leave_obsolete,
                                   print_streams=args.show_output
                                   )
 
+    log.debug("Notify dom0 about upgrades.")
     os.system("/usr/lib/qubes/upgrades-status-notify")
 
     return return_code

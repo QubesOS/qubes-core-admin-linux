@@ -18,11 +18,11 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
 # USA.
-
 import os
 import shutil
 import signal
 import tempfile
+import concurrent.futures
 from os.path import join
 from subprocess import CalledProcessError
 from typing import List
@@ -218,12 +218,17 @@ class QubeConnection:
             preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_IGN)
         )
 
-        stderr = self._collect_stderr(proc)
-        stdout = self._collect_stdout(proc)
+        self.logger.debug("Fetching agent process stdout/stderr.")
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            # Submit the methods to the executor
+            future_err = executor.submit(self._collect_stderr, proc=proc)
+            future_out = executor.submit(self._collect_stdout, proc=proc)
 
-        proc.wait()
-        result = ProcessResult.from_untrusted_out_err(stdout, stderr)
-        result.code = proc.returncode
+            result = ProcessResult.from_untrusted_out_err(
+                future_out.result(), future_err.result())
+
+        result.code = proc.wait()
+        self.logger.debug("Agent process finished.")
         if result.code == 100:
             self.status = FinalStatus.NO_UPDATES
             result.code = 0
@@ -232,7 +237,7 @@ class QubeConnection:
     def _collect_stderr(self, proc) -> bytes:
         stderr = b""
         progress_finished = False
-        for untrusted_line in iter(proc.stderr.readline, ''):
+        for untrusted_line in iter(proc.stderr.readline, b''):
             if untrusted_line:
                 if not progress_finished:
                     line = ProcessResult.sanitize_output(untrusted_line)
@@ -248,21 +253,20 @@ class QubeConnection:
                         StatusInfo.updating(self.qube, progress))
                 else:
                     stderr += untrusted_line + b'\n'
-            else:
-                break
+
         proc.stderr.close()
+        self.logger.debug("Agent stderr closed.")
 
         return stderr
 
-    @staticmethod
-    def _collect_stdout(proc) -> bytes:
+    def _collect_stdout(self, proc) -> bytes:
         stdout = b""
 
-        for untrusted_line in iter(proc.stdout.readline, ''):
-            if untrusted_line:
+        for untrusted_line in iter(proc.stdout.readline, b''):
+            if untrusted_line is not None:
                 stdout += untrusted_line
-            else:
-                break
+
         proc.stdout.close()
+        self.logger.debug("Agent stdout closed.")
 
         return stdout
