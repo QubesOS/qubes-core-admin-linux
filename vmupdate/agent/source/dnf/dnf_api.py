@@ -121,6 +121,17 @@ def sign_check(base, packages, log) -> ProcessResult:
     for package in packages:
         ret_code, message = base.package_signature_check(package)
         if ret_code != 0:
+            # Import key and re-try the check
+            try:
+                base.package_import_key(package, askcb=(lambda a, b, c: True))
+            except Exception as ex:
+                result += ProcessResult(ret_code, out="", err=str(ex))
+                continue
+            # base.package_import_key does verify package as a side effect, but
+            # do that explicitly anyway, in case the behavior would change
+            # (intentionally or not)
+            ret_code, message = base.package_signature_check(package)
+        if ret_code != 0:
             result += ProcessResult(ret_code, out="", err=message)
         else:
             result += ProcessResult(0, out=message, err="")
