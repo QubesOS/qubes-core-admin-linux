@@ -164,11 +164,11 @@ install -m 0644 system-config/dnf-protected-qubes-core-dom0.conf  \
         $RPM_BUILD_ROOT/etc/dnf/protected.d/qubes-core-dom0.conf
 
 # USBguard and PCIe device handling
-install -m 0700 -d -- "$RPM_BUILD_ROOT/etc/usbguard" \
+install -m 0755 -d -- "$RPM_BUILD_ROOT/etc/usbguard" \
         "$RPM_BUILD_ROOT/etc/usbguard/rules.d"
-install -m 0600 -- system-config/qubes-usbguard.conf \
+install -m 0644 -- system-config/qubes-usbguard.conf \
         "$RPM_BUILD_ROOT/etc/usbguard"
-install -m 0600 -- system-config/qubes-usb-rules.conf \
+install -m 0644 -- system-config/qubes-usb-rules.conf \
         "$RPM_BUILD_ROOT/etc/usbguard/rules.d/02-qubes.conf"
 install -D -m 0644 -- system-config/usbguard.service "$RPM_BUILD_ROOT%_unitdir/usbguard.service.d/30_qubes.conf"
 
@@ -283,8 +283,8 @@ chmod -x /etc/grub.d/10_linux
 %{_dracutmoddir}/90extra-modules/*
 %dir %{_dracutmoddir}/90qubes-udev
 %{_dracutmoddir}/90qubes-udev/*
-%attr(0600,root,root) /etc/usbguard/rules.d/02-qubes.conf
-%attr(0600,root,root) /etc/usbguard/qubes-usbguard.conf
+%config /etc/usbguard/rules.d/02-qubes.conf
+%config /etc/usbguard/qubes-usbguard.conf
 %_unitdir/usbguard.service.d/30_qubes.conf
 # file copy
 %_bindir/qvm-copy-to-vm
