@@ -162,6 +162,7 @@ install -m 644 -D system-config/99-qubes-default-disable.preset \
 install -d $RPM_BUILD_ROOT/etc/dnf/protected.d
 install -m 0644 system-config/dnf-protected-qubes-core-dom0.conf  \
         $RPM_BUILD_ROOT/etc/dnf/protected.d/qubes-core-dom0.conf
+install -m 0755 -D uki-generate "$RPM_BUILD_ROOT/usr/lib/qubes/"
 
 # USBguard and PCIe device handling
 install -m 0755 -d -- "$RPM_BUILD_ROOT/etc/usbguard" \
@@ -314,6 +315,7 @@ chmod -x /etc/grub.d/10_linux
 %_presetdir/99-qubes-default-disable.preset
 %_userpresetdir/75-qubes-dom0-user.preset
 /var/lib/qubes/.qubes-exclude-block-devices
+/usr/lib/qubes/uki-generate
 # Man
 %{_mandir}/man1/qvm-*.1*
 %{_mandir}/man1/qubes-*.1*
