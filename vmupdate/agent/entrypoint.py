@@ -73,9 +73,8 @@ def get_package_manager(os_data, log, log_handler, log_level, no_progress):
     elif os_data["os_family"] == "ArchLinux":
         from source.pacman.pacman_cli import PACMANCLI as PackageManager
     else:
-        print(os_data["os_family"])
         raise NotImplementedError(
-            "Only Debian and RedHat based OS is supported.")
+            "Only Debian, RedHat and ArchLinux based OS is supported.")
 
     requirements = {}
     for plugin in plugins.entrypoints:
