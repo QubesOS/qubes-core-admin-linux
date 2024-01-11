@@ -71,7 +71,8 @@ class UpdateManager:
         progress_bar = MultipleUpdateMultipleProgressBar(
             dummy=not show_progress,
             output=progress_output,
-            max_concurrency=self.max_concurrency
+            max_concurrency=self.max_concurrency,
+            printer=self.print if self.show_output else None
         )
 
         for qube in self.qubes:
@@ -110,7 +111,7 @@ class UpdateManager:
         if self.buffered:
             self.buffer += ' '.join(args) + '\n'
         else:
-            print(*args)
+            print(*args, file=sys.stdout, flush=True)
 
 
 class TerminalMultiBar:
@@ -168,7 +169,7 @@ class MultipleUpdateMultipleProgressBar:
     Show update info for each qube in the terminal.
     """
 
-    def __init__(self, dummy, output, max_concurrency):
+    def __init__(self, dummy, output, max_concurrency, printer: Optional):
         self.dummy = dummy
 
         self.manager = multiprocessing.Manager()
@@ -187,6 +188,7 @@ class MultipleUpdateMultipleProgressBar:
         self.progresses = {}
         self.progress_bars = {}
         self.output_class = output
+        self.print = printer
 
     def add_bar(self, qname: str):
         """
@@ -213,18 +215,21 @@ class MultipleUpdateMultipleProgressBar:
         left_to_finish = len(self.progresses)
         while left_to_finish:
             try:
-                feed: Optional[StatusInfo] = \
+                feed: Optional[StatusInfo, str] = \
                     self.status_notifier.get(block=True)
                 if feed is None:
                     continue
-                status_name = feed.status.value
-                if feed.status == Status.DONE:
-                    left_to_finish -= 1
-                    status_name = feed.info.value
-                self.progress_bars[feed.qname].set_description(
-                    f"{feed.qname} ({status_name})")
-                if feed.status == Status.UPDATING:
-                    self._update(feed.qname, feed.info)
+                elif isinstance(feed, StatusInfo):
+                    status_name = feed.status.value
+                    if feed.status == Status.DONE:
+                        left_to_finish -= 1
+                        status_name = feed.info.value
+                    self.progress_bars[feed.qname].set_description(
+                        f"{feed.qname} ({status_name})")
+                    if feed.status == Status.UPDATING:
+                        self._update(feed.qname, feed.info)
+                elif self.print is not None:
+                    self.print(str(feed))
             except queue.Empty:
                 pass
 

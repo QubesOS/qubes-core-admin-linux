@@ -60,7 +60,7 @@ class APTCLI(PackageManager):
         ]
         # EXAMPLE OUTPUT:
         # install ok installed qubes-core-agent 4.1.35-1+deb11u1
-        result = self.run_cmd(cmd)
+        result = self.run_cmd(cmd, realtime=False)
 
         packages = {}
         for line in result.out.splitlines():
