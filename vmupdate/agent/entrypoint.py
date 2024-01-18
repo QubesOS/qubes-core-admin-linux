@@ -70,9 +70,11 @@ def get_package_manager(os_data, log, log_handler, log_level, no_progress):
 
         if no_progress:
             from source.dnf.dnf_cli import DNFCLI as PackageManager
+    elif os_data["os_family"] == "ArchLinux":
+        from source.pacman.pacman_cli import PACMANCLI as PackageManager
     else:
         raise NotImplementedError(
-            "Only Debian and RedHat based OS is supported.")
+            "Only Debian, RedHat and ArchLinux based OS is supported.")
 
     requirements = {}
     for plugin in plugins.entrypoints:
@@ -86,5 +88,6 @@ def get_package_manager(os_data, log, log_handler, log_level, no_progress):
 if __name__ == '__main__':
     try:
         sys.exit(main())
-    except RuntimeError:
+    except RuntimeError as ex:
+        print(ex)
         sys.exit(1)

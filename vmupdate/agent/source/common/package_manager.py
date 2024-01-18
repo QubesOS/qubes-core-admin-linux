@@ -266,7 +266,7 @@ class PackageManager:
         Just run upgrade via CLI.
         """
         cmd = [self.package_manager,
-               "-y",
+               "--noconfirm" if self.package_manager == "pacman" else "-y",
                *self.get_action(remove_obsolete)]
 
         return self.run_cmd(cmd)

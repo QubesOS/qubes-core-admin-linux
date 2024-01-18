@@ -35,7 +35,7 @@ def get_os_data(logger: Optional = None) -> Dict[str, Any]:
     name: "Linux" or a string identifying the operating system,
     codename (optional): an operating system release code name,
     release (optional): packaging.version.Version,
-    os_family: "Unknown", "RedHat", "Debian".
+    os_family: "Unknown", "RedHat", "Debian", "ArchLinux".
     """
     data = {}
 
@@ -63,6 +63,9 @@ def get_os_data(logger: Optional = None) -> Dict[str, Any]:
 
     if 'rhel' in family or 'fedora' in family:
         data["os_family"] = 'RedHat'
+
+    if 'arch' in family:
+        data["os_family"] = 'ArchLinux'
 
     return data
 
