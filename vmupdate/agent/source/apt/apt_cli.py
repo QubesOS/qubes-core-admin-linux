@@ -45,6 +45,10 @@ class APTCLI(PackageManager):
         """
         cmd = [self.package_manager, "-q", "update"]
         result = self.run_cmd(cmd)
+        # 'apt-get update' reports error with exit code 100, but updater as a
+        # whole reserves it for "no updates"
+        if result.code == 100:
+            result.code = 1
         result.error_from_messages()
         return result
 
