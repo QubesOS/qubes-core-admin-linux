@@ -19,7 +19,6 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
 # USA.
 
-import shutil
 from typing import List
 
 from source.common.package_manager import PackageManager
@@ -38,17 +37,15 @@ class PACMANCLI(PackageManager):
         :param hard_fail: raise error if some repo is unavailable
         :return: (exit_code, stdout, stderr)
         """
-        cmd = [ self.package_manager,
-                "-Sy" ]
-        return  self.run_cmd(cmd)
+        cmd = [self.package_manager, "-Sy"]
+        return self.run_cmd(cmd)
 
     def get_packages(self):
         """
         Use pacman to return the installed packages and their versions.
         """
 
-        cmd = [ self.package_manager, 
-                "-Q" ]
+        cmd = [self.package_manager, "-Q"]
         # EXAMPLE OUTPUT:
         # qubes-vm-core 4.2.25-1
         result = self.run_cmd(cmd)
