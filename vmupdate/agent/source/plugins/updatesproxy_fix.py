@@ -32,6 +32,9 @@ def updatesproxy_fix(os_data, log, **kwargs):
     if os_data["os_family"] == "RedHat":
         rpc_filename = "/etc/qubes-rpc/qubes.UpdatesProxy"
         rpc_path = pathlib.Path(rpc_filename)
-        if "STDIO TCP:localhost:8082" in rpc_path.read_text():
-            with rpc_path.open("w") as f:
-                f.write("exec socat STDIO TCP4:127.0.0.1:8082\n")
+        # qubes.UpdatesProxy file doesn't exist on template without
+        # qubes-core-agent-networking package
+        if rpc_path.exists():
+            if "STDIO TCP:localhost:8082" in rpc_path.read_text():
+                with rpc_path.open("w") as f:
+                    f.write("exec socat STDIO TCP4:127.0.0.1:8082\n")
