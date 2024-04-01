@@ -19,7 +19,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
 # USA.
 
-from typing import List
+from typing import List,Dict
 
 from source.common.package_manager import PackageManager
 from source.common.process_result import ProcessResult
@@ -28,7 +28,7 @@ from source.common.process_result import ProcessResult
 class PACMANCLI(PackageManager):
     def __init__(self, log_handler, log_level):
         super().__init__(log_handler, log_level)
-        self.package_manager: str = "pacman"
+        self.package_manager = "pacman"
 
     def refresh(self, hard_fail: bool) -> ProcessResult:
         """
@@ -40,7 +40,7 @@ class PACMANCLI(PackageManager):
         cmd = [self.package_manager, "-Sy"]
         return self.run_cmd(cmd)
 
-    def get_packages(self):
+    def get_packages(self) -> Dict[str, List[str]]:
         """
         Use pacman to return the installed packages and their versions.
         """
@@ -48,9 +48,9 @@ class PACMANCLI(PackageManager):
         cmd = [self.package_manager, "-Q"]
         # EXAMPLE OUTPUT:
         # qubes-vm-core 4.2.25-1
-        result = self.run_cmd(cmd)
+        result = self.run_cmd(cmd, realtime=False)
 
-        packages = {}
+        packages: Dict[str, List[str]] = {}
         for line in result.out.splitlines():
             cols = line.split()
             package, version = cols
