@@ -19,7 +19,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
 # USA.
 
-from typing import List,Dict
+from typing import List, Dict
 
 from source.common.package_manager import PackageManager
 from source.common.process_result import ProcessResult
@@ -34,10 +34,13 @@ class PACMANCLI(PackageManager):
         """
         Use package manager to refresh available packages.
 
-        :param hard_fail: raise error if some repo is unavailable
+        Note: Is a no-op in ArchLinux because upgrade takes care of it, and
+        having just sync could cause problems.
+        See: https://github.com/QubesOS/qubes-core-admin-linux/pull/139#pullrequestreview-1845574713
+
         :return: (exit_code, stdout, stderr)
         """
-        cmd = [self.package_manager, "-Sy"]
+        cmd = ["true"]
         return self.run_cmd(cmd)
 
     def get_packages(self) -> Dict[str, List[str]]:
