@@ -14,7 +14,7 @@
 #include <libqubes-rpc-filecopy.h>
 
 #define DEFAULT_MAX_UPDATES_BYTES (4LL<<30)
-#define DEFAULT_MAX_UPDATES_FILES 2048
+#define DEFAULT_MAX_UPDATES_FILES 4096
  
 #define min(a,b) ((a) < (b) ? (a) : (b))
 #define max(a,b) ((a) > (b) ? (a) : (b))

@@ -79,7 +79,7 @@ class DNFCLI(PackageManager):
         ]
         # EXAMPLE OUTPUT:
         # qubes-core-agent 4.1.351.fc34
-        result = self.run_cmd(cmd)
+        result = self.run_cmd(cmd, realtime=False)
 
         packages = {}
         for line in result.out.splitlines():

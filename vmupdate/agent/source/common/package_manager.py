@@ -56,7 +56,7 @@ class PackageManager:
         result = self._upgrade(
             refresh, hard_fail, remove_obsolete, self.requirements)
         self._log_output("agent", result)
-        if print_streams:
+        if print_streams and not result.posted:
             if result.out:
                 print(result.out, flush=True)
             if result.err:
@@ -70,11 +70,12 @@ class PackageManager:
             remove_obsolete: bool,
             requirements: Optional[Dict[str, str]] = None
     ) -> ProcessResult:
-        result = ProcessResult()
+        result = ProcessResult(realtime=True)
 
         curr_pkg = self.get_packages()
 
         if requirements:
+            print("Install requirements", flush=True)
             result_install = self.install_requirements(requirements, curr_pkg)
             result += result_install
             if result.code != 0:
@@ -85,6 +86,7 @@ class PackageManager:
                     return result
 
         if refresh:
+            print("Refreshing package info", flush=True)
             result_refresh = self.refresh(hard_fail)
             result += result_refresh
             if result.code != 0:
@@ -101,7 +103,7 @@ class PackageManager:
 
         changes = PackageManager.compare_packages(old=curr_pkg, new=new_pkg)
         summary = self._print_changes(changes)
-        result.out += "\n" + summary
+        result += summary
 
         if not result.code and not (changes["installed"] or changes["updated"]):
             result.code = 100  # Nothing to upgrade
@@ -132,7 +134,7 @@ class PackageManager:
         if requirements is None:
             requirements = {}
 
-        result = ProcessResult()
+        result = ProcessResult(realtime=True)
         to_install = []  # install latest (ignore version)
         to_upgrade = {}
         for pkg, version in requirements.items():
@@ -162,18 +164,25 @@ class PackageManager:
 
         return result
 
-    def run_cmd(self, command: List[str]) -> ProcessResult:
+    def run_cmd(
+            self, command: List[str], realtime: bool = True) -> ProcessResult:
         """
         Run command and wait.
 
         :param command: command to execute
+        :param realtime: write directly to stdout/stderr
         """
         self.log.debug("run command: %s", " ".join(command))
-        with subprocess.Popen(command,
-                              stdin=subprocess.PIPE,
-                              stdout=subprocess.PIPE,
-                              stderr=subprocess.PIPE) as proc:
-            result = ProcessResult.process_communicate(proc)
+        if realtime:
+            with subprocess.Popen(command, stdin=subprocess.PIPE) as proc:
+                result = ProcessResult.process_communicate(proc)
+                result.posted = True
+        else:
+            with subprocess.Popen(command,
+                                  stdin=subprocess.PIPE,
+                                  stdout=subprocess.PIPE,
+                                  stderr=subprocess.PIPE) as proc:
+                result = ProcessResult.process_communicate(proc)
         self.log.debug("command exit code: %i", result.code)
 
         return result
@@ -194,31 +203,33 @@ class PackageManager:
                 "removed": {pkg: old[pkg] for pkg in old if pkg not in new}}
 
     def _print_changes(self, changes):
-        result = ""
-        result += self._print_to_string("Installed packages:")
+        result = ProcessResult()
+        result.out += self._print_to_string("Installed packages:")
         if changes["installed"]:
             for pkg in changes["installed"]:
-                result += self._print_to_string(pkg, changes["installed"][pkg])
+                result.out += self._print_to_string(
+                    pkg, changes["installed"][pkg])
         else:
-            result += self._print_to_string("None")
+            result.out += self._print_to_string("None")
 
-        result += self._print_to_string("Updated packages:")
+        result.out += self._print_to_string("Updated packages:")
         if changes["updated"]:
             for pkg in changes["updated"]:
-                result += self._print_to_string(
+                result.out += self._print_to_string(
                     pkg,
                     str(changes["updated"][pkg]["old"])[2:-2]
                     + " -> " +
                     str(changes["updated"][pkg]["new"])[2:-2])
         else:
-            result += self._print_to_string("None")
+            result.out += self._print_to_string("None")
 
-        result += self._print_to_string("Removed packages:")
+        result.out += self._print_to_string("Removed packages:")
         if changes["removed"]:
             for pkg in changes["removed"]:
-                result += self._print_to_string(pkg, changes["removed"][pkg])
+                result.out += self._print_to_string(
+                    pkg, changes["removed"][pkg])
         else:
-            result += self._print_to_string("None")
+            result.out += self._print_to_string("None")
         return result
 
     @staticmethod

@@ -116,6 +116,10 @@ install -m 0644 qubes-rpc-policy/90-default-linux.policy \
 
 install -d $RPM_BUILD_ROOT/var/lib/qubes/updates
 
+# PipeWire workaround
+install -d -- "$RPM_BUILD_ROOT/usr/share/pipewire/pipewire.conf.d/"
+install -m 0644 -- system-config/10_pipewire-high-latency.conf "$RPM_BUILD_ROOT/usr/share/pipewire/pipewire.conf.d/"
+
 # Qrexec services
 mkdir -p $RPM_BUILD_ROOT/usr/lib/qubes/qubes-rpc
 cp qubes-rpc/* $RPM_BUILD_ROOT/usr/lib/qubes/qubes-rpc/
@@ -302,6 +306,7 @@ chmod -x /etc/grub.d/10_linux
 /etc/sudoers.d/qubes
 /etc/polkit-1/rules.d/00-qubes-allow-all.rules
 /etc/security/limits.d/99-qubes.conf
+/usr/share/pipewire/pipewire.conf.d/10_pipewire-high-latency.conf
 %_udevrulesdir/00-qubes-ignore-devices.rules
 %_udevrulesdir/12-qubes-ignore-lvm-devices.rules
 %_udevrulesdir/11-qubes-ignore-zvol-devices.rules

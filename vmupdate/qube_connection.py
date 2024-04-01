@@ -235,38 +235,44 @@ class QubeConnection:
         return result
 
     def _collect_stderr(self, proc) -> bytes:
-        stderr = b""
         progress_finished = False
         for untrusted_line in iter(proc.stderr.readline, b''):
-            if untrusted_line:
-                if not progress_finished:
-                    line = ProcessResult.sanitize_output(untrusted_line)
-                    try:
-                        progress = float(line)
-                    except ValueError:
-                        stderr += untrusted_line
-                        continue
+            if not untrusted_line:
+                continue
+            line = ProcessResult.sanitize_output(untrusted_line, single=True)
+            if not line:
+                continue
+            if not progress_finished:
+                try:
+                    progress = float(line)
+                except ValueError:
+                    self._print('err', line)
+                    continue
 
-                    if progress == 100.:
-                        progress_finished = True
-                    self.status_notifier.put(
-                        StatusInfo.updating(self.qube, progress))
-                else:
-                    stderr += untrusted_line + b'\n'
+                if progress == 100.:
+                    progress_finished = True
+                self.status_notifier.put(
+                    StatusInfo.updating(self.qube, progress))
+            else:
+                self._print('err', line)
 
         proc.stderr.close()
         self.logger.debug("Agent stderr closed.")
 
-        return stderr
+        return b''
 
     def _collect_stdout(self, proc) -> bytes:
-        stdout = b""
-
         for untrusted_line in iter(proc.stdout.readline, b''):
-            if untrusted_line is not None:
-                stdout += untrusted_line
+            if untrusted_line:
+                line = ProcessResult.sanitize_output(
+                    untrusted_line, single=True)
+                if line:
+                    self._print('out', line)
 
-        proc.stdout.close()
+        proc.stderr.close()
         self.logger.debug("Agent stdout closed.")
 
-        return stdout
+        return b''
+
+    def _print(self, stream: str, line: str):
+        self.status_notifier.put(f"{self.qube.name}:{stream}: {line}")

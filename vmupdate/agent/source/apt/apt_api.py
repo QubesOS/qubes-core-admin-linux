@@ -20,14 +20,12 @@
 # USA.
 
 import os
-import logging
 from pathlib import Path
 
 import apt
 import apt.progress.base
 import apt_pkg
 
-from source.common.stream_redirector import StreamRedirector
 from source.common.process_result import ProcessResult
 from source.common.progress_reporter import ProgressReporter, Progress
 
@@ -38,7 +36,8 @@ class APT(APTCLI):
     def __init__(self, log_handler, log_level):
         super().__init__(log_handler, log_level)
         self.apt_cache = apt.Cache()
-        update = FetchProgress(weight=4, log=self.log)  # 4% of total time
+        update = FetchProgress(
+            weight=4, log=self.log, refresh=True)  # 4% of total time
         fetch = FetchProgress(weight=48, log=self.log)  # 48% of total time
         upgrade = UpgradeProgress(weight=48, log=self.log)  # 48% of total time
         self.progress = ProgressReporter(update, fetch, upgrade)
@@ -55,18 +54,17 @@ class APT(APTCLI):
         """
         result = ProcessResult()
         try:
-            with StreamRedirector(result):
-                self.log.debug("Refreshing available packages...")
-                success = self.apt_cache.update(
-                    self.progress.update_progress,
-                    pulse_interval=1000  # microseconds
-                )
-                self.apt_cache.open()
-                if success:
-                    self.log.debug("Cache refresh successful.")
-                else:
-                    self.log.warning("Cache refresh failed.")
-                    result += ProcessResult(1)
+            self.log.debug("Refreshing available packages...")
+            success = self.apt_cache.update(
+                self.progress.update_progress,
+                pulse_interval=1000  # microseconds
+            )
+            self.apt_cache.open()
+            if success:
+                self.log.debug("Cache refresh successful.")
+            else:
+                self.log.warning("Cache refresh failed.")
+                result += ProcessResult(1)
         except Exception as exc:
             self.log.error(
                 "An error occurred while refreshing packages: %s", str(exc))
@@ -78,7 +76,6 @@ class APT(APTCLI):
         """
         Use `apt` package to upgrade and track progress.
         """
-
         result = ProcessResult()
         try:
             self.log.debug("Performing package upgrade...")
@@ -86,13 +83,12 @@ class APT(APTCLI):
             Path(os.path.join(
                 apt_pkg.config.find_dir("Dir::Cache::Archives"), "partial")
             ).mkdir(parents=True, exist_ok=True)
-            with StreamRedirector(result):
-                self.log.debug("Committing upgrade...")
-                self.apt_cache.commit(
-                    self.progress.fetch_progress,
-                    self.progress.upgrade_progress
-                )
-                self.log.debug("Package upgrade successful.")
+            self.log.debug("Committing upgrade...")
+            self.apt_cache.commit(
+                self.progress.fetch_progress,
+                self.progress.upgrade_progress
+            )
+            self.log.debug("Package upgrade successful.")
         except Exception as exc:
             self.log.error(
                 "An error occurred while upgrading packages: %s", str(exc))
@@ -102,15 +98,16 @@ class APT(APTCLI):
 
 
 class FetchProgress(apt.progress.base.AcquireProgress, Progress):
-    def __init__(self, weight: int, log):
+    def __init__(self, weight: int, log, refresh: bool = False):
         Progress.__init__(self, weight, log)
+        self.action = "refresh" if refresh else "fetch"
 
     def fail(self, item):
         """
         Write an error message to the fake stderr.
         """
-        self.log.info("Fetch failed.")
-        print(f"Fail to fetch {item.shortdesc}: "
+        self.log.info(f"{self.action.capitalize()} failed.")
+        print(f"Fail to {self.action} {item.shortdesc}: "
               f"{item.description} from {item.uri}",
               flush=True, file=self._stderr)
 
@@ -127,13 +124,15 @@ class FetchProgress(apt.progress.base.AcquireProgress, Progress):
 
     def start(self):
         """Invoked when the Acquire process starts running."""
-        self.log.info("Fetch started.")
+        self.log.info(f"{self.action.capitalize()} started.")
+        print(f"{self.action.capitalize()}ing packages.", flush=True)
         super().start()
         self.notify_callback(0)
 
     def stop(self):
         """Invoked when the Acquire process stops running."""
-        self.log.info("Fetch ended.")
+        self.log.info(f"{self.action.capitalize()} ended.")
+        print(f"{self.action.capitalize()}ed.", flush=True)
         super().stop()
         self.notify_callback(100)
 
@@ -157,9 +156,11 @@ class UpgradeProgress(apt.progress.base.InstallProgress, Progress):
               flush=True, file=self._stderr)
 
     def start_update(self):
+        print("Updating packages.", flush=True)
         super().start_update()
         self.notify_callback(0)
 
     def finish_update(self):
+        print("Updated.", flush=True)
         super().finish_update()
         self.notify_callback(100)

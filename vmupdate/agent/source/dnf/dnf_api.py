@@ -18,13 +18,12 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
 # USA.
-import sys
 
 import dnf
 from dnf.yum.rpmtrans import TransactionDisplay
 from dnf.callback import DownloadProgress
+import dnf.transaction
 
-from source.common.stream_redirector import StreamRedirector
 from source.common.process_result import ProcessResult
 from source.common.progress_reporter import ProgressReporter, Progress
 
@@ -52,13 +51,12 @@ class DNF(DNFCLI):
 
         result = ProcessResult()
         try:
-            with StreamRedirector(result):
-                self.log.debug("Refreshing available packages...")
-                # Repositories serve as sources of information about packages.
-                self.base.read_all_repos()
-                updated = self.base.update_cache()
-                # A sack is needed for querying.
-                self.base.fill_sack()
+            self.log.debug("Refreshing available packages...")
+            # Repositories serve as sources of information about packages.
+            self.base.read_all_repos()
+            updated = self.base.update_cache()
+            # A sack is needed for querying.
+            self.base.fill_sack()
             if updated:
                 self.log.debug("Cache refresh successful.")
             else:
@@ -91,17 +89,18 @@ class DNF(DNFCLI):
                 self.log.info("No packages to upgrade, quitting.")
                 return ProcessResult(0, out="", err="")
 
-            with StreamRedirector(result):
-                self.base.download_packages(
-                    trans.install_set,
-                    progress=self.progress.fetch_progress
-                )
-                result += sign_check(self.base, trans.install_set, self.log)
+            self.base.download_packages(
+                trans.install_set,
+                progress=self.progress.fetch_progress
+            )
+            result += sign_check(self.base, trans.install_set, self.log)
 
             if result.code == 0:
+                print("Updating packages.", flush=True)
                 self.log.debug("Committing upgrade...")
                 self.base.do_transaction(self.progress.upgrade_progress)
                 self.log.debug("Package upgrade successful.")
+                print("Updated", flush=True)
         except Exception as exc:
             self.log.error(
                 "An error occurred while upgrading packages: %s", str(exc))
@@ -149,13 +148,14 @@ class FetchProgress(DownloadProgress, Progress):
     def end(self, payload, status, msg):
         """Communicate the information that `payload` has finished downloading.
 
-        :api, `status` is a constant denoting the type of outcome, `err_msg` is an
-        error message in case the outcome was an error.
-
+        :api, `status` is a constant denoting the type of outcome, `err_msg` is
+        an error message in case the outcome was an error.
         """
-        self.log.info("Fetch ended.")
+        print(f"{payload}: Fetched", flush=True)
 
     def message(self, msg):
+        if isinstance(msg, bytes):
+            msg = msg.decode('ascii', errors='ignore')
         print(msg, flush=True, file=self._stdout)
 
     def progress(self, payload, done):
@@ -178,6 +178,7 @@ class FetchProgress(DownloadProgress, Progress):
 
         """
         self.log.info("Fetch started.")
+        print("Fetching packages:", flush=True)
         self.bytes_to_fetch = total_size
         self.package_bytes = {}
         self.notify_callback(0)
@@ -212,11 +213,18 @@ class UpgradeProgress(TransactionDisplay, Progress):
         Write an output message to the fake stdout.
         """
         if msgs:
-            print(msgs)
+            if isinstance(msgs, bytes):
+                msgs = msgs.decode('ascii', errors='ignore')
+            print(msgs, flush=True)
+
+    def filelog(self, package, action):
+        print(f"{package}: {dnf.transaction.FILE_ACTIONS[action]}", flush=True)
 
     def error(self, message):
         """
         Write an error message to the fake stderr.
         """
-        print("Error during installation :" + str(message),
+        if isinstance(message, bytes):
+            message = message.decode('ascii', errors='ignore')
+        print("Error during installation :" + message,
               flush=True, file=self._stderr)
