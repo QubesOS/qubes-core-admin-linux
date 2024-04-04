@@ -75,7 +75,7 @@ class DNFCLI(PackageManager):
             "rpm",
             "-qa",
             "--queryformat",
-            "%{NAME} %{VERSION}%{RELEASE}\n",
+            "%{NAME} %{VERSION}-%{RELEASE}\n",
         ]
         # EXAMPLE OUTPUT:
         # qubes-core-agent 4.1.351.fc34
