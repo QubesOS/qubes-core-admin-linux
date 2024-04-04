@@ -19,6 +19,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
 # USA.
 
+import subprocess
 import dnf
 from dnf.yum.rpmtrans import TransactionDisplay
 from dnf.callback import DownloadProgress
@@ -100,6 +101,8 @@ class DNF(DNFCLI):
                 self.log.debug("Committing upgrade...")
                 self.base.do_transaction(self.progress.upgrade_progress)
                 self.log.debug("Package upgrade successful.")
+                self.log.info("Notifying dom0 about installed applications")
+                subprocess.call(['/etc/qubes-rpc/qubes.PostInstall'])
                 print("Updated", flush=True)
         except Exception as exc:
             self.log.error(
