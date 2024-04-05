@@ -20,7 +20,7 @@ if [ "$1" = "--help" ]; then
     echo "This tool is used to download packages for dom0. Without package list"
     echo "it checks for updates for installed packages"
     echo ""
-    echo "Usage: $0 [--clean] [--check-only] [--gui] [<pkg list>]"
+    echo "Usage: $0 [options] [<pkg list>]"
     echo "    --clean      clean dnf cache before doing anything"
     echo "    --check-only only check for updates (no install)"
     echo "    --gui        use gpk-update-viewer for update selection"
@@ -29,6 +29,8 @@ if [ "$1" = "--help" ]; then
     echo "    --console    does nothing; ignored for backward compatibility"
     echo "    --show-output  does nothing; ignored for backward compatibility"
     echo "    --preserve-terminal  does nothing; ignored for backward compatibility"
+    echo "    --switch-audio-server-to=(pulseaudio|pipewire) switch audio daemon to pipewire or pulseaudio"
+    echo "                 it will be done after requested action (update by default)"
     echo "    <pkg list>   download (and install if run by root) new packages"
     echo "                 in dom0 instead of updating"
     echo "    --           mark end of options"
@@ -50,6 +52,7 @@ TEMPLATE_BACKUP=
 FORCE_XEN_UPGRADE=
 REBOOT_REQUIRED=
 DOWNLOADONLY=
+AUDIO_SWITCH=
 # Filter out some dnf options and collect packages list
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -86,6 +89,14 @@ while [ $# -gt 0 ]; do
             ;;
         --force-xen-upgrade)
             FORCE_XEN_UPGRADE=1
+            ;;
+        --switch-audio-server-to=pipewire|\
+        --switch-audio-server-to=pulseaudio)
+            AUDIO_SWITCH="${1#--switch-audio-server-to=}"
+            ;;
+        --switch-audio-server-to*)
+            echo "Invalid --switch-audio-server-to usage, use either --switch-audio-server-to=pipewire or --switch-audio-server-to=pulseaudio" >&2
+            exit 2
             ;;
         --action=*)
             YUM_ACTION=${1#--action=}
@@ -138,6 +149,25 @@ if has_template "${PKGS[@]}"; then
     fi
     echo "Redirecting to 'qvm-template $YUM_ACTION ${QVMTEMPLATE_OPTS[*]} $TEMPLATE'"
     exec qvm-template "$YUM_ACTION" "${QVMTEMPLATE_OPTS[@]}" "$TEMPLATE"
+fi
+
+if [ -n "$AUDIO_SWITCH" ]; then
+    if [ -n "$REMOTE_ONLY" ]; then
+        echo "--switch-audio-server-to cannot be used with any remote-only action" >&2
+        exit 2
+    fi
+fi
+
+if [ "$YUM_ACTION" = upgrade ] && [ -z "$AUDIO_SWITCH" ]; then
+    # switch to pipewire automatically, once
+    if ! [ -e /var/lib/qubes/.audio-switch-done ]; then
+        AUDIO_SWITCH=pipewire
+    fi
+fi
+
+if [ -n "$SWITCHING_AUDIO_IN_PROGRESS" ]; then
+    # avoid recursive audio switch
+    AUDIO_SWITCH=
 fi
 
 # since all the template handling is via qvm-template now, exclude all the templates
@@ -334,6 +364,37 @@ else
     if [ "$GUI" == "1" ]; then
         zenity --info --title='Dom0 updates' --text='No updates available'
     fi
+fi
+
+# Switching audio
+
+if [ "$AUDIO_SWITCH" = "pipewire" ]; then
+    if ! rpm -q pipewire pipewire-pulseaudio >/dev/null; then
+        echo "Switching from Pulseaudio to PipeWire" >&2
+        SWITCHING_AUDIO_IN_PROGRESS=yes "$0" "${UPDATEVM_OPTS[@]}" --action=install --allowerasing pipewire pipewire-pulseaudio || exit $?
+        echo "Audio daemon switched to PipeWare, you can undo it with qubes-domo0-update --switch-audio-server-to=pulseaudio" >&2
+        # do not leave the user with stopped both daemons
+        user=$(getent group qubes|cut -f 4 -d :|cut -f 1 -d ,) || exit 1
+        uid=$(id -u "$user") || exit 1
+        sudo -u "$user" XDG_RUNTIME_DIR="/run/user/$uid" systemctl --user start pipewire-pulse
+    else
+        echo "PipeWire already installed" >&2
+    fi
+    echo 1 > /var/lib/qubes/.audio-switch-done
+elif [ "$AUDIO_SWITCH" = "pulseaudio" ]; then
+    if ! rpm -q pulseaudio >/dev/null; then
+        echo "Switching from PipeWire to Pulseaudio" >&2
+        SWITCHING_AUDIO_IN_PROGRESS=yes "$0" "${UPDATEVM_OPTS[@]}" --allowerasing --action=swap pipewire pulseaudio || exit $?
+        echo "Audio daemon switched to Pulseaudio, you can undo it with qubes-domo0-update --switch-audio-server-to=pipewire" >&2
+        # do not leave the user with stopped both daemons
+        user=$(getent group qubes|cut -f 4 -d :|cut -f 1 -d ,) || exit 1
+        uid=$(id -u "$user") || exit 1
+        sudo -u "$user" XDG_RUNTIME_DIR="/run/user/$uid" systemctl --user stop pipewire pipewire-pulse pipewire.socket pipewire-pulse.socket
+        sudo -u "$user" XDG_RUNTIME_DIR="/run/user/$uid" systemctl --user start pulseaudio
+    else
+        echo "Pulseaudio already installed" >&2
+    fi
+    echo 1 > /var/lib/qubes/.audio-switch-done
 fi
 
 if [ "$REBOOT_REQUIRED" = 1 ]; then
