@@ -55,8 +55,7 @@ class PACMANCLI(PackageManager):
 
         packages: Dict[str, List[str]] = {}
         for line in result.out.splitlines():
-            cols = line.split()
-            package, version = cols
+            package, version = line.split()
             packages.setdefault(package, []).append(version)
 
         return packages

@@ -71,15 +71,7 @@ def get_package_manager(os_data, log, log_handler, log_level, no_progress):
         if no_progress:
             from source.dnf.dnf_cli import DNFCLI as PackageManager
     elif os_data["os_family"] == "ArchLinux":
-        try:
-            from source.pacman.pacman_api import PACMAN as PackageManager
-        except ImportError:
-            log.warning("Failed to load pacman with progress bar. Use pacman cli.")
-            # no progress reporting
-            no_progress = True
-
-        if no_progress:
-            from source.pacman.pacman_cli import PACMANCLI as PackageManager
+        from source.pacman.pacman_cli import PACMANCLI as PackageManager
     else:
         raise NotImplementedError(
             "Only Debian, RedHat and ArchLinux based OS is supported.")
