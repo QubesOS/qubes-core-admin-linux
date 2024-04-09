@@ -119,6 +119,8 @@ def get_targets(args, app) -> Set[qubesadmin.vm.QubesVM]:
 
     # remove skipped qubes and dom0 - not a target
     to_skip = args.skip.split(',')
+    if 'dom0' in targets and not args.quiet:
+        print("Skipping dom0. To update AdminVM use `qubes-dom0-update`")
     targets = {vm for vm in targets
                if vm.name != 'dom0' and vm.name not in to_skip}
     return targets
