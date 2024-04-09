@@ -24,31 +24,33 @@ import argparse
 class AgentArgs:
     # To avoid code repeating when we want to retrieve arguments
     OPTIONS = {
-        "log": {"action": 'store',
-                "default": "INFO",
-                "help": 'Provide logging level. Values: DEBUG, INFO (default) '
-                        'WARNING, ERROR, CRITICAL'},
-        "no-refresh": {"action": 'store_true',
-                       "help": 'Do not refresh available packages before '
-                               'upgrading'},
-        "force-upgrade": {"action": 'store_true',
-                          "help": 'Try upgrade even if errors are '
-                                  'encountered (like a refresh error)'},
-        "leave-obsolete": {"action": 'store_true',
-                           "help": 'Do not remove obsolete packages during '
-                                   'upgrading'},
+        ("--log",): {"action": 'store',
+                     "default": "INFO",
+                     "help": 'Provide logging level. Values: DEBUG, '
+                             'INFO (default), WARNING, ERROR, CRITICAL'},
+        ("--no-refresh",): {"action": 'store_true',
+                            "help": 'Do not refresh available packages before '
+                                    'upgrading'},
+        ("--force-upgrade", "-f"):
+            {"action": 'store_true',
+             "help": 'Try upgrade even if errors are '
+                     'encountered (like a refresh error)'},
+        ("--leave-obsolete",): {
+            "action": 'store_true',
+            "help": 'Do not remove obsolete packages during upgrading'},
     }
     EXCLUSIVE_OPTIONS_1 = {
-        "show-output": {"action": 'store_true',
-                        "help": 'Show output of management commands'},
-        "quiet": {"action": 'store_true',
-                  "help": 'Do not print anything to stdout'}
+        ("--show-output", "--verbose", "-v"):
+            {"action": 'store_true',
+             "help": 'Show output of management commands'},
+        ("--quiet", "-q"): {"action": 'store_true',
+                            "help": 'Do not print anything to stdout'}
     }
     EXCLUSIVE_OPTIONS_2 = {
-        "no-progress": {"action": "store_true",
-                        "help": "Do not show upgrading progress."},
-        "just-print-progress": {"action": "store_true",
-                                "help": argparse.SUPPRESS}
+        ("--no-progress",): {"action": "store_true",
+                             "help": "Do not show upgrading progress."},
+        ("--just-print-progress",): {"action": "store_true",
+                                     "help": argparse.SUPPRESS}
     }
     ALL_OPTIONS = {**OPTIONS, **EXCLUSIVE_OPTIONS_1, **EXCLUSIVE_OPTIONS_2}
 
@@ -58,13 +60,13 @@ class AgentArgs:
         Add common arguments to the parser.
         """
         for arg, properties in AgentArgs.OPTIONS.items():
-            parser.add_argument('--' + arg, **properties)
+            parser.add_argument(*arg, **properties)
         verbosity = parser.add_mutually_exclusive_group()
         for arg, properties in AgentArgs.EXCLUSIVE_OPTIONS_1.items():
-            verbosity.add_argument('--' + arg, **properties)
+            verbosity.add_argument(*arg, **properties)
         progress_reporting = parser.add_mutually_exclusive_group()
         for arg, properties in AgentArgs.EXCLUSIVE_OPTIONS_2.items():
-            progress_reporting.add_argument('--' + arg, **properties)
+            progress_reporting.add_argument(*arg, **properties)
 
     @staticmethod
     def to_cli_args(args):
@@ -75,10 +77,12 @@ class AgentArgs:
         args_dict = vars(args)
 
         cli_args = []
-        for key, value in AgentArgs.ALL_OPTIONS.items():
+        for keys, value in AgentArgs.ALL_OPTIONS.items():
+            # keys[0] since first value is used as attribute name in parser
+            param_name = keys[0][2:].replace("-", "_")
             if value["action"] == "store_true":
-                if args_dict[key.replace("-", "_")]:
-                    cli_args.append("--" + key)
+                if args_dict[param_name]:
+                    cli_args.append(keys[0])
             else:
-                cli_args.extend(("--" + key, args_dict[key.replace("-", "_")]))
+                cli_args.extend((keys[0], args_dict[param_name]))
         return cli_args

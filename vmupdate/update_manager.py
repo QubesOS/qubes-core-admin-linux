@@ -45,7 +45,7 @@ class UpdateManager:
     Update multiple qubes simultaneously.
     """
 
-    def __init__(self, qubes, args):
+    def __init__(self, qubes, args, log):
         self.qubes = qubes
         self.max_concurrency = args.max_concurrency
         self.show_output = args.show_output
@@ -56,13 +56,16 @@ class UpdateManager:
         self.buffer = ""
         self.cleanup = not args.no_cleanup
         self.ret_code = 0
+        self.log = log
 
     def run(self, agent_args):
         """
         Run simultaneously `update_qube` for all qubes as separate processes.
         """
+        self.log.info("Update Manager: New batch of qubes to update")
         if not self.qubes:
-            return 0
+            self.log.info("Update Manager: No qubes to update, quiting.")
+            return 0, {q.name: FinalStatus.SUCCESS for q in self.qubes}
 
         show_progress = not self.quiet and not self.no_progress
         SimpleTerminalBar.reinit_class()
@@ -88,10 +91,18 @@ class UpdateManager:
         progress_bar.feeding()
         progress_bar.pool.join()
         progress_bar.close()
+        self.log.info("Update Manager: Finished, collecting success info")
+
+        stats = [stat for stat in progress_bar.statuses.values()]
+        if any(stats) == FinalStatus.ERROR:
+            self.ret_code = max(self.ret_code, 5)
+        if any(stats) == FinalStatus.UNKNOWN:
+            self.ret_code = max(self.ret_code, 6)
+
         if self.buffer:
             print(self.buffer)
 
-        return self.ret_code
+        return self.ret_code, progress_bar.statuses
 
     def collect_result(self, result_tuple: Tuple[str, ProcessResult]):
         """
@@ -182,11 +193,12 @@ class MultipleUpdateMultipleProgressBar:
         # in pool
         signal.signal(signal.SIGINT, signal.SIG_IGN)
         self.pool = multiprocessing.Pool(max_concurrency)
-        # set SIGINT handler to gracefully termination
+        # set SIGINT handler to graceful termination
         signal.signal(signal.SIGINT, self.signal_handler_during_feeding)
 
         self.progresses = {}
         self.progress_bars = {}
+        self.statuses = {}
         self.output_class = output
         self.print = printer
 
@@ -224,6 +236,7 @@ class MultipleUpdateMultipleProgressBar:
                     if feed.status == Status.DONE:
                         left_to_finish -= 1
                         status_name = feed.info.value
+                        self.statuses[feed.qname] = FinalStatus(status_name)
                     self.progress_bars[feed.qname].set_description(
                         f"{feed.qname} ({status_name})")
                     if feed.status == Status.UPDATING:
