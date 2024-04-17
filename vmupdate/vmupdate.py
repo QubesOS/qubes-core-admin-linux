@@ -32,13 +32,12 @@ class ArgumentError(Exception):
     """
 
 
-def main(args=None):
+def main(args=None, app=qubesadmin.Qubes()):
     args = parse_args(args)
 
     log.setLevel(args.log)
     log.addHandler(log_handler)
 
-    app = qubesadmin.Qubes()
     try:
         targets = get_targets(args, app)
     except ArgumentError as err:

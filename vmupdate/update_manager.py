@@ -82,7 +82,7 @@ class UpdateManager:
             progress_bar.add_bar(qube.name)
             progress_bar.pool.apply_async(
                 update_qube,
-                (qube.name, agent_args, show_progress,
+                (qube, agent_args, show_progress,
                  progress_bar.status_notifier, progress_bar.termination),
                 callback=self.collect_result, error_callback=print
             )
@@ -269,32 +269,26 @@ class MultipleUpdateMultipleProgressBar:
 
 
 def update_qube(
-        qname, agent_args, show_progress, status_notifier, termination
+        qube, agent_args, show_progress, status_notifier, termination
 ) -> Tuple[str, ProcessResult]:
     """
     Create and run `UpdateAgentManager` for qube.
 
-    :param qname: name of qube
+    :param qube: vm to update
     :param agent_args: args for agent entrypoint
     :param show_progress: if progress should be printed in real time
-    :param status_notifier: object to be fed with the progress data
+    :param status_notifier: an object to be fed with the progress data
     :param termination: signal to gracefully terminate subprocess
     :return:
     """
-    app = qubesadmin.Qubes()
-    try:
-        qube = app.domains[qname]
-    except KeyError:
-        return qname, ProcessResult(2, "ERROR (qube not found)")
-
     if termination.value:
         status_notifier.put(StatusInfo.done(qube, FinalStatus.CANCELLED))
-        return qname, ProcessResult(130, "Canceled")
+        return qube.name, ProcessResult(130, "Canceled")
     status_notifier.put(StatusInfo.updating(qube, 0))
 
     try:
         runner = UpdateAgentManager(
-            app,
+            qube.app,
             qube,
             agent_args=agent_args,
             show_progress=show_progress
@@ -305,7 +299,7 @@ def update_qube(
             termination=termination
         )
     except Exception as exc:  # pylint: disable=broad-except
-        return qname, ProcessResult(1, f"ERROR (exception {str(exc)})")
+        return qube.name, ProcessResult(1, f"ERROR (exception {str(exc)})")
     return qube.name, result
 
 
