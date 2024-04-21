@@ -93,10 +93,10 @@ class UpdateManager:
         progress_bar.close()
         self.log.info("Update Manager: Finished, collecting success info")
 
-        stats = [stat for stat in progress_bar.statuses.values()]
-        if any(stats) == FinalStatus.ERROR:
+        stats = list(progress_bar.statuses.values())
+        if FinalStatus.ERROR in stats:
             self.ret_code = max(self.ret_code, 5)
-        if any(stats) == FinalStatus.UNKNOWN:
+        if FinalStatus.UNKNOWN in stats:
             self.ret_code = max(self.ret_code, 6)
 
         if self.buffer:
