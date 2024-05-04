@@ -160,7 +160,7 @@ class QubeConnection:
         result = self._run_shell_command_in_qube(self.qube, command)
 
         # run entrypoint
-        command = [entrypoint_path, *AgentArgs.to_cli_args(agent_args)]
+        command = ["python3", entrypoint_path, *AgentArgs.to_cli_args(agent_args)]
         result += self._run_shell_command_in_qube(
             self.qube, command, show=self.show_progress)
 
