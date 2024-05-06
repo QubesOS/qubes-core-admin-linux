@@ -6,6 +6,8 @@ import argparse
 import asyncio
 import logging
 import sys
+import os
+import grp
 from datetime import datetime
 from typing import Set, Iterable, Dict, Tuple
 
@@ -37,6 +39,13 @@ def main(args=None, app=qubesadmin.Qubes()):
 
     log.setLevel(args.log)
     log.addHandler(log_handler)
+    try:
+        gid = grp.getgrnam("qubes").gr_gid
+        os.chown(LOGPATH, -1, gid)
+        os.chmod(LOGPATH, 0o664)
+    except (PermissionError, KeyError):
+        # do it on best effort basis
+        pass
 
     try:
         targets = get_targets(args, app)
