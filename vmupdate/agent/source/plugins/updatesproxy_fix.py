@@ -22,7 +22,6 @@
 
 import os
 import pathlib
-import pkg_resources
 
 
 def updatesproxy_fix(os_data, log, **kwargs):

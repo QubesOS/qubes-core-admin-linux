@@ -21,8 +21,6 @@
 
 import os
 
-import pkg_resources
-
 
 def manage_rpm_macro(os_data, log, **kwargs):
     """
@@ -30,12 +28,16 @@ def manage_rpm_macro(os_data, log, **kwargs):
     """
     if os_data["os_family"] == "RedHat":
         rpm_macro = "/usr/lib/rpm/macros.d/macros.qubes"
-        if (os_data["id"] == "fedora"
-                and os_data["release"] < pkg_resources.parse_version("33")):
-            log.info("Old fedora version detected.")
-            with open(rpm_macro, "w") as file:
-                file.write("# CVE-2021-20271 mitigation\n"
-                           "%_pkgverify_level all")
+        if os_data["id"] == "fedora":
+            try:
+                version = int(os_data["release"].split(".")[0])
+            except ValueError:
+                version = 99  # fedora changed its version
+            if version < 33:
+                log.info("Old fedora version detected.")
+                with open(rpm_macro, "w") as file:
+                    file.write("# CVE-2021-20271 mitigation\n"
+                               "%_pkgverify_level all")
         else:
             if os.path.exists(rpm_macro):
                 os.remove(rpm_macro)
