@@ -53,6 +53,11 @@ def main(args=None, app=qubesadmin.Qubes()):
         log.error(str(err))
         return 128
 
+    if not targets:
+        if not args.quiet:
+            print("No qube selected for update")
+        return 100
+
     independent = [target for target in targets if target.klass in (
         'TemplateVM', 'StandaloneVM')]
     derived = [target for target in targets if target.klass not in (
