@@ -372,7 +372,7 @@ if [ "$AUDIO_SWITCH" = "pipewire" ]; then
     if ! rpm -q pipewire pipewire-pulseaudio >/dev/null; then
         echo "Switching from Pulseaudio to PipeWire" >&2
         SWITCHING_AUDIO_IN_PROGRESS=yes "$0" "${UPDATEVM_OPTS[@]}" --action=install --allowerasing pipewire pipewire-pulseaudio || exit $?
-        echo "Audio daemon switched to PipeWare, you can undo it with qubes-domo0-update --switch-audio-server-to=pulseaudio" >&2
+        echo "Audio daemon switched to PipeWire, you can undo it with qubes-domo0-update --switch-audio-server-to=pulseaudio" >&2
         # do not leave the user with stopped both daemons
         user=$(getent group qubes|cut -f 4 -d :|cut -f 1 -d ,) || exit 1
         uid=$(id -u "$user") || exit 1
