@@ -1,2 +1,4 @@
 rpm/
 pkgs/
+
+__pycache__/
