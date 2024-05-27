@@ -92,6 +92,9 @@ def parse_args(args):
         '--apply-to-all', '-R', action='store_true',
         help='Restart Service VMs and shutdown AppVMs whose template '
              'has been updated.')
+    restart.add_argument(
+        '--no-apply', action='store_true',
+        help='Do not restart/shutdown any AppVMs.')
 
     parser.add_argument('--no-cleanup', action='store_true',
                         help='Do not remove updater files from target qube')
