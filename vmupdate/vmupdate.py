@@ -66,12 +66,18 @@ def main(args=None, app=qubesadmin.Qubes()):
     # independent qubes first (TemplateVMs, StandaloneVMs)
     ret_code_independent, templ_statuses = run_update(
         independent, args, "templates and stanalones")
+    no_updates = all(stat == FinalStatus.NO_UPDATES for stat in templ_statuses)
     # then derived qubes (AppVMs...)
-    ret_code_appvm, _ = run_update(derived, args)
+    ret_code_appvm, app_statuses = run_update(derived, args)
+    no_updates = all(stat == FinalStatus.NO_UPDATES for stat in app_statuses
+                     ) and no_updates
 
     ret_code_restart = apply_updates_to_appvm(args, independent, templ_statuses)
 
-    return max(ret_code_independent, ret_code_appvm, ret_code_restart)
+    ret_code = max(ret_code_independent, ret_code_appvm, ret_code_restart)
+    if ret_code == 0 and no_updates:
+        return 100
+    return ret_code
 
 
 def parse_args(args):

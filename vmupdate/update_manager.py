@@ -94,6 +94,8 @@ class UpdateManager:
         self.log.info("Update Manager: Finished, collecting success info")
 
         stats = list(progress_bar.statuses.values())
+        if FinalStatus.CANCELLED in stats:
+            self.ret_code = max(self.ret_code, 130)
         if FinalStatus.ERROR in stats:
             self.ret_code = max(self.ret_code, 5)
         if FinalStatus.UNKNOWN in stats:
