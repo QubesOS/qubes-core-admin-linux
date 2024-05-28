@@ -32,8 +32,6 @@ from typing import Optional, Tuple
 
 from tqdm import tqdm
 
-import qubesadmin.vm
-import qubesadmin.exc
 from .agent.source.status import StatusInfo, FinalStatus, Status
 from .qube_connection import QubeConnection
 from vmupdate.agent.source.log_congfig import init_logs
@@ -65,7 +63,7 @@ class UpdateManager:
         self.log.info("Update Manager: New batch of qubes to update")
         if not self.qubes:
             self.log.info("Update Manager: No qubes to update, quiting.")
-            return 0, {q.name: FinalStatus.SUCCESS for q in self.qubes}
+            return 0, {}
 
         show_progress = not self.quiet and not self.no_progress
         SimpleTerminalBar.reinit_class()
@@ -301,6 +299,7 @@ def update_qube(
             termination=termination
         )
     except Exception as exc:  # pylint: disable=broad-except
+        status_notifier.put(StatusInfo.done(qube, FinalStatus.ERROR))
         return qube.name, ProcessResult(1, f"ERROR (exception {str(exc)})")
     return qube.name, result
 
