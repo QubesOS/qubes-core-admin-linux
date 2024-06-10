@@ -116,7 +116,7 @@ def parse_args(args):
              'Attempt to update targeted VMs with known updates available '
              'or for which last update check was more than N days ago. '
              '(default: %(default)d)',
-        type=int, default=7, choices=range(0, 366))
+        type=int, default=7)
     update_state.add_argument(
         '--update-if-available', action='store_true',
         help='Update targeted VMs with known updates available.')
@@ -144,6 +144,9 @@ def parse_args(args):
 
     AgentArgs.add_arguments(parser)
     args = parser.parse_args(args)
+
+    if args.update_if_stale < 0:
+        raise ArgumentError("Wrong value for --update-if-stale")
 
     return args
 
