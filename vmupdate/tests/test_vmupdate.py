@@ -22,7 +22,7 @@ import itertools
 
 from unittest.mock import patch
 
-from vmupdate.tests.conftest import generate_vm_variations
+from vmupdate.tests.conftest import generate_vm_variations, TestVM
 from vmupdate.agent.source.status import FinalStatus
 from vmupdate.vmupdate import main
 from vmupdate import vmupdate
@@ -34,7 +34,8 @@ from vmupdate import vmupdate
 @patch('logging.getLogger')
 def test_no_options_do_nothing(_logger, _log_file, _chmod, _chown, test_qapp):
     args = []
-    test_qapp.domains = ()
+    test_qapp.domains = test_qapp.Domains()
+    TestVM("dom0", test_qapp, klass="AdminVM")
     assert main(args, test_qapp) == 100
 
 

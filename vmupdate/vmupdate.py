@@ -18,6 +18,7 @@ from vmupdate.agent.source.status import FinalStatus
 from . import update_manager
 from .agent.source.args import AgentArgs
 
+DEFAULT_UPDATE_IF_STALE = 7
 LOGPATH = '/var/log/qubes/qubes-vm-update.log'
 LOG_FORMAT = '%(asctime)s %(message)s'
 
@@ -28,7 +29,7 @@ class ArgumentError(Exception):
 
 
 def main(args=None, app=qubesadmin.Qubes()):
-    args = parse_args(args)
+    args = parse_args(args, app)
 
     log_handler = logging.FileHandler(LOGPATH, encoding='utf-8')
     log_formatter = logging.Formatter(LOG_FORMAT)
@@ -79,8 +80,13 @@ def main(args=None, app=qubesadmin.Qubes()):
     return ret_code
 
 
-def parse_args(args):
+def parse_args(args, app):
     parser = argparse.ArgumentParser()
+    try:
+        default_update_if_stale = int(app.domains["dom0"].features.get(
+            "qubes-vm-update-update-if-stale", DEFAULT_UPDATE_IF_STALE))
+    except qubesadmin.exc.QubesDaemonAccessError:
+        default_update_if_stale = DEFAULT_UPDATE_IF_STALE
 
     parser.add_argument('--max-concurrency', '-x',
                         action='store',
@@ -116,7 +122,7 @@ def parse_args(args):
              'Attempt to update targeted VMs with known updates available '
              'or for which last update check was more than N days ago. '
              '(default: %(default)d)',
-        type=int, default=7)
+        type=int, default=default_update_if_stale)
     update_state.add_argument(
         '--update-if-available', action='store_true',
         help='Update targeted VMs with known updates available.')
