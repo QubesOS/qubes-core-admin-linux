@@ -1,0 +1,5 @@
+[run]
+source = vmupdate
+omit =
+  vmupdate/agent/*
+  vmupdate/tests/*
