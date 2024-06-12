@@ -15,6 +15,7 @@ import qubesadmin
 import qubesadmin.exc
 from qubesadmin.events.utils import wait_for_domain_shutdown
 from vmupdate.agent.source.status import FinalStatus
+from vmupdate.agent.source.common.exit_codes import EXIT
 from . import update_manager
 from .agent.source.args import AgentArgs
 
@@ -50,12 +51,12 @@ def main(args=None, app=qubesadmin.Qubes()):
         targets = get_targets(args, app)
     except ArgumentError as err:
         log.error(str(err))
-        return 128
+        return EXIT.ERR_USAGE
 
     if not targets:
         if not args.quiet:
             print("No qube selected for update")
-        return 100 if args.signal_no_updates else 0
+        return EXIT.OK_NO_UPDATES if args.signal_no_updates else EXIT.OK
 
     independent = [target for target in targets if target.klass in (
         'TemplateVM', 'StandaloneVM')]
@@ -75,8 +76,8 @@ def main(args=None, app=qubesadmin.Qubes()):
         args, independent, templ_statuses, app_statuses, log)
 
     ret_code = max(ret_code_independent, ret_code_appvm, ret_code_restart)
-    if ret_code == 0 and no_updates and args.signal_no_updates:
-        return 100
+    if ret_code == EXIT.OK and no_updates and args.signal_no_updates:
+        return EXIT.OK_NO_UPDATES
     return ret_code
 
 
@@ -262,13 +263,13 @@ def run_update(
         targets, args, log, qube_klass="qubes"
 ) -> Tuple[int, Dict[str, FinalStatus]]:
     if not targets:
-        return 0, {}
+        return EXIT.OK, {}
 
     message = f"Following {qube_klass} will be updated:" + \
               ",".join((target.name for target in targets))
     if args.dry_run:
         print(message)
-        return 0, {target.name: FinalStatus.SUCCESS for target in targets}
+        return EXIT.OK, {target.name: FinalStatus.SUCCESS for target in targets}
     else:
         log.debug(message)
 
@@ -313,12 +314,12 @@ def apply_updates_to_appvm(
 
     Returns return codes:
     `0` - OK
-    `1` - unable to shut down some templateVMs
-    `2` - unable to shut down some AppVMs
-    `3` - unable to start some AppVMs
+    `11` - unable to shut down some templateVMs
+    `12` - unable to shut down some AppVMs
+    `13` - unable to start some AppVMs
     """
     if not args.apply_to_sys and not args.apply_to_all:
-        return 0
+        return EXIT.OK
 
     updated_tmpls = [
         vm for vm in vm_updated
@@ -337,18 +338,18 @@ def apply_updates_to_appvm(
               ",".join((target.name for target in to_restart)))
         print("Following qubes CAN be shutdown:",
               ",".join((target.name for target in to_shutdown)))
-        return 0
+        return EXIT.OK
 
     # first shutdown templates to apply changes to the root volume
     # they are no need to start templates automatically
     ret_code, _ = shutdown_domains(templates_to_shutdown, log)
 
-    if ret_code != 0:
+    if ret_code != EXIT.OK:
         log.error("Shutdown of some templates fails with code %d", ret_code)
         log.warning(
             "Derived VMs of the following templates will be omitted: %s",
             ", ".join((t.name for t in updated_tmpls if t.is_running())))
-        ret_code = 1
+        ret_code = EXIT.ERR_SHUTDOWN_TMPL
         # Some templates are not down dur to errors, there is no point in
         # restarting their derived AppVMs
         ready_templates = [tmpl for tmpl in updated_tmpls
@@ -391,7 +392,7 @@ def shutdown_domains(to_shutdown, log):
     """
     Try to shut down vms and wait to finish.
     """
-    ret_code = 0
+    ret_code = EXIT.OK
     wait_for = []
     for vm in to_shutdown:
         try:
@@ -399,7 +400,7 @@ def shutdown_domains(to_shutdown, log):
             wait_for.append(vm)
         except qubesadmin.exc.QubesVMError as exc:
             log.error(str(exc))
-            ret_code = 2
+            ret_code = EXIT.ERR_SHUTDOWN_APP
 
     asyncio.run(wait_for_domain_shutdown(wait_for))
 
@@ -418,7 +419,7 @@ def restart_vms(to_restart, log):
             vm.start()
         except qubesadmin.exc.QubesVMError as exc:
             log.error(str(exc))
-            ret_code = 3
+            ret_code = EXIT.ERR_START_APP
 
     return ret_code
 

@@ -27,6 +27,7 @@ import apt.progress.base
 import apt_pkg
 
 from source.common.process_result import ProcessResult
+from source.common.exit_codes import EXIT
 from source.common.progress_reporter import ProgressReporter, Progress
 
 from .apt_cli import APTCLI
@@ -64,11 +65,11 @@ class APT(APTCLI):
                 self.log.debug("Cache refresh successful.")
             else:
                 self.log.warning("Cache refresh failed.")
-                result += ProcessResult(1)
+                result += ProcessResult(EXIT.ERR_VM_REFRESH)
         except Exception as exc:
             self.log.error(
                 "An error occurred while refreshing packages: %s", str(exc))
-            result += ProcessResult(2, out="", err=str(exc))
+            result += ProcessResult(EXIT.ERR_VM_REFRESH, out="", err=str(exc))
 
         return result
 
@@ -92,7 +93,7 @@ class APT(APTCLI):
         except Exception as exc:
             self.log.error(
                 "An error occurred while upgrading packages: %s", str(exc))
-            result += ProcessResult(3, out="", err=str(exc))
+            result += ProcessResult(EXIT.ERR_VM_UPDATE, out="", err=str(exc))
 
         return result
 

@@ -83,6 +83,37 @@ Targeting is used to choose the VMs that will be checked for available updates, 
 
 Additionally, not all VMs in the system can be updated directly (such as AppVMs), and to update them, you must use one of the "propagation" options. This means, after updating the template, restarting the VM and applying the installed updates to it. Using at least the `--apply-to-sys` flag is recommended, which restarts all service VMs. Keep in mind that during this process, unsaved data may be lost.
 
+RETURN CODES
+============
+
+0   : ok
+
+100 : ok, no updates available
+
+1   : general error
+
+11  : error of TemplateVM shutdown
+
+12  : error of AppVM shutdown
+
+13  : error of AppVM startup
+
+21  : general error inside updated vm
+
+22  : error inside updated vm during updating/installing prerequisites/patches
+
+23  : repo-refresh error inside updated vm, check if vm is connected to network
+
+24  : error inside updated vm during installing updates
+
+25  : unhandled error inside updated vm
+
+40  : qrexec error, communication across domains was interrupted
+
+64  : usage error, wrong parameter
+
+130 : user interruption
+
 AUTHORS
 =======
 | Piotr Bartman-Szwarc <prbartman at invisiblethingslab dot com>

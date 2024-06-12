@@ -36,6 +36,7 @@ from .agent.source.status import StatusInfo, FinalStatus, Status
 from .qube_connection import QubeConnection
 from vmupdate.agent.source.log_congfig import init_logs
 from vmupdate.agent.source.common.process_result import ProcessResult
+from vmupdate.agent.source.common.exit_codes import EXIT
 
 
 class UpdateManager:
@@ -53,7 +54,7 @@ class UpdateManager:
         self.buffered = not args.just_print_progress and not args.no_progress
         self.buffer = ""
         self.cleanup = not args.no_cleanup
-        self.ret_code = 0
+        self.ret_code = EXIT.OK
         self.log = log
 
     def run(self, agent_args):
@@ -63,7 +64,7 @@ class UpdateManager:
         self.log.info("Update Manager: New batch of qubes to update")
         if not self.qubes:
             self.log.info("Update Manager: No qubes to update, quiting.")
-            return 0, {}
+            return EXIT.OK, {}
 
         show_progress = not self.quiet and not self.no_progress
         SimpleTerminalBar.reinit_class()
@@ -93,11 +94,12 @@ class UpdateManager:
 
         stats = list(progress_bar.statuses.values())
         if FinalStatus.CANCELLED in stats:
-            self.ret_code = max(self.ret_code, 130)
+            self.ret_code = max(self.ret_code, EXIT.SIGINT)
         if FinalStatus.ERROR in stats:
-            self.ret_code = max(self.ret_code, 5)
+            self.ret_code = max(self.ret_code, EXIT.ERR)
         if FinalStatus.UNKNOWN in stats:
-            self.ret_code = max(self.ret_code, 6)
+            # communication with vm fails
+            self.ret_code = max(self.ret_code, EXIT.ERR_QREXEX)
 
         if self.buffer:
             print(self.buffer)
@@ -109,7 +111,15 @@ class UpdateManager:
         Callback method to process `update_qube` output.
         """
         qube_name, result = result_tuple
-        self.ret_code = max(self.ret_code, result.code)
+
+        vm_code = result.code
+        if result.code not in EXIT.VM_HANDLED:
+            vm_code = EXIT.ERR_VM_UNHANDLED
+        if vm_code == EXIT.OK_NO_UPDATES:
+            # at this point, this code should be captured
+            vm_code = EXIT.ERR_VM_UNHANDLED
+        self.ret_code = max(self.ret_code, vm_code)
+
         if self.show_output:
             for line in result.out.split('\n'):
                 self.print(qube_name + ":out:", line)
@@ -283,7 +293,7 @@ def update_qube(
     """
     if termination.value:
         status_notifier.put(StatusInfo.done(qube, FinalStatus.CANCELLED))
-        return qube.name, ProcessResult(130, "Canceled")
+        return qube.name, ProcessResult(EXIT.SIGINT, "Canceled")
     status_notifier.put(StatusInfo.updating(qube, 0))
 
     try:
@@ -300,7 +310,8 @@ def update_qube(
         )
     except Exception as exc:  # pylint: disable=broad-except
         status_notifier.put(StatusInfo.done(qube, FinalStatus.ERROR))
-        return qube.name, ProcessResult(1, f"ERROR (exception {str(exc)})")
+        return qube.name, ProcessResult(
+            EXIT.ERR_VM_UNHANDLED, f"ERROR (exception {str(exc)})")
     return qube.name, result
 
 
@@ -345,7 +356,7 @@ class UpdateAgentManager:
             self.log.debug('agent output: %s', line)
         self.log.info('agent exit code: %d', result.code)
         if not agent_args.show_output or not output:
-            result.out = "OK" if result.code == 0 else \
+            result.out = "OK" if result.code == EXIT.OK else \
                 f"ERROR (exit code {result.code}, details in {self.log_path})"
         return result
 
@@ -375,7 +386,7 @@ class UpdateAgentManager:
 
             if termination.value:
                 qconn.status = FinalStatus.CANCELLED
-                return ProcessResult(130, "", "Cancelled")
+                return ProcessResult(EXIT.SIGINT, "", "Cancelled")
 
             self.log.info(
                 "The agent is starting the task in qube: %s", self.qube.name)

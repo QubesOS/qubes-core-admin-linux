@@ -22,6 +22,7 @@ import itertools
 
 from unittest.mock import patch
 
+from vmupdate.agent.source.common.exit_codes import EXIT
 from vmupdate.tests.conftest import generate_vm_variations, TestVM
 from vmupdate.agent.source.status import FinalStatus
 from vmupdate.vmupdate import main
@@ -36,9 +37,9 @@ def test_no_options_do_nothing(_logger, _log_file, _chmod, _chown, test_qapp):
     test_qapp.domains = test_qapp.Domains()
     TestVM("dom0", test_qapp, klass="AdminVM")
     args = []
-    assert main(args, test_qapp) == 0
+    assert main(args, test_qapp) == EXIT.OK
     args = ['--signal-no-updates']
-    assert main(args, test_qapp) == 100
+    assert main(args, test_qapp) == EXIT.OK_NO_UPDATES
 
 
 @patch('vmupdate.update_manager.TerminalMultiBar.print')
@@ -122,10 +123,11 @@ def test_preselection(
         ("--targets", RunNUpAppVM.name,): {RunNUpAppVM},
         ("--targets", NRunAppVM.name,): {NRunAppVM},
         ("--targets", StandVM.name,): {StandVM},
-        ("--targets", AdminVM.name,): 100,  # dom0 skipped, user warning
-        ("--targets", "unknown",): 128,
+        # dom0 skipped, user warning
+        ("--targets", AdminVM.name,): EXIT.OK_NO_UPDATES,
+        ("--targets", "unknown",): EXIT.ERR_USAGE,
         ("--targets", f"{TemplVM.name},{StandVM.name}",): {TemplVM, StandVM},
-        ("--targets", f"{TemplVM.name},{TemplVM.name}",): 128,
+        ("--targets", f"{TemplVM.name},{TemplVM.name}",): EXIT.ERR_USAGE,
         ("--targets", TemplVM.name, "--skip", TemplVM.name,): {},
         ("--targets", f"{TemplVM.name},{StandVM.name}", "--skip", TemplVM.name,): {StandVM},
     }
@@ -136,12 +138,13 @@ def test_preselection(
             feed = {}
             expected_exit = selected
         else:
-            feed = {vm.name: {'statuses': [FinalStatus.SUCCESS], 'retcode': 0}
+            feed = {vm.name: {'statuses': [FinalStatus.SUCCESS],
+                              'retcode': EXIT.OK}
                     for vm in selected}
             if feed:
-                expected_exit = 0
+                expected_exit = EXIT.OK
             else:
-                expected_exit = 100
+                expected_exit = EXIT.OK_NO_UPDATES
 
         unexpected = []
         agent_mng.side_effect = test_agent(feed, unexpected)
@@ -205,14 +208,15 @@ def test_selection(
             monkeypatch.setattr(
                 vmupdate, "preselect_targets", lambda *_: all)
         else:
-            feed = {vm.name: {'statuses': [FinalStatus.SUCCESS], 'retcode': 0}
+            feed = {vm.name: {'statuses': [FinalStatus.SUCCESS],
+                              'retcode': EXIT.OK_NO_UPDATES}
                     for vm in selected}
             monkeypatch.setattr(
                 vmupdate, "preselect_targets", lambda *_: selected)
             if feed:
-                expected_exit = 0
+                expected_exit = EXIT.OK
             else:
-                expected_exit = 100
+                expected_exit = EXIT.OK_NO_UPDATES
 
         unexpected = []
         agent_mng.side_effect = test_agent(feed, unexpected)

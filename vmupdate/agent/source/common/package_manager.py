@@ -24,6 +24,7 @@ import subprocess
 import sys
 from typing import Optional, Dict, List
 from .process_result import ProcessResult
+from .exit_codes import EXIT
 
 
 class PackageManager:
@@ -77,36 +78,45 @@ class PackageManager:
         if requirements:
             print("Install requirements", flush=True)
             result_install = self.install_requirements(requirements, curr_pkg)
+            if result_install:
+                self.log.warning(
+                    "Installing requirements failed with exit code: %d",
+                    result_install.code)
+                result_install.code = EXIT.ERR_VM_PRE
             result += result_install
-            if result.code != 0:
-                self.log.warning("Installing requirements failed.")
-                if hard_fail:
-                    self.log.error("Exiting due to a packages install error. "
-                                   "Use --force-upgrade to upgrade anyway.")
-                    return result
+            if result and hard_fail:
+                self.log.error("Exiting due to a packages install error. "
+                               "Use --force-upgrade to upgrade anyway.")
+                return result
 
         if refresh:
             print("Refreshing package info", flush=True)
             result_refresh = self.refresh(hard_fail)
+            if result_refresh:
+                self.log.warning("Refreshing failed with code: %d",
+                                 result_refresh.code)
+                result_refresh.code = EXIT.ERR_VM_REFRESH
             result += result_refresh
-            if result.code != 0:
-                self.log.warning("Refreshing failed.")
-                if hard_fail:
-                    self.log.error("Exiting due to a refresh error. "
-                                   "Use --force-upgrade to upgrade anyway.")
-                    return result
+            if result and hard_fail:
+                self.log.error("Exiting due to a refresh error. "
+                               "Use --force-upgrade to upgrade anyway.")
+                return result
 
         result_upgrade = self.upgrade_internal(remove_obsolete)
+        if result_upgrade:
+            result_upgrade.code = EXIT.ERR_VM_UPDATE
         result += result_upgrade
 
         new_pkg = self.get_packages()
 
         changes = PackageManager.compare_packages(old=curr_pkg, new=new_pkg)
         summary = self._print_changes(changes)
+        if summary:
+            summary.code = EXIT.ERR_VM
         result += summary
 
-        if not result.code and not (changes["installed"] or changes["updated"]):
-            result.code = 100  # Nothing to upgrade
+        if not result and not (changes["installed"] or changes["updated"]):
+            result.code = EXIT.OK_NO_UPDATES
 
         return result
 
