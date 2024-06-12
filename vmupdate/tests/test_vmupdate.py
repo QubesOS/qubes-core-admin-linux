@@ -81,6 +81,7 @@ def test_preselection(
 
     expected = {
         (): default,
+        ("--skip", UpStandVM.name): default - {UpStandVM},
         ("--all",): default,
         ("--all", "--apps",): default,
         ("--all", "--templates",): default,
