@@ -66,11 +66,12 @@ def main(args=None, app=qubesadmin.Qubes()):
     # independent qubes first (TemplateVMs, StandaloneVMs)
     ret_code_independent, templ_statuses = run_update(
         independent, args, log, "templates and standalones")
-    no_updates = all(stat == FinalStatus.NO_UPDATES for stat in templ_statuses)
+    no_updates = all(stat == FinalStatus.NO_UPDATES
+                     for stat in templ_statuses.values())
     # then derived qubes (AppVMs...)
     ret_code_appvm, app_statuses = run_update(derived, args, log)
-    no_updates = all(stat == FinalStatus.NO_UPDATES for stat in app_statuses
-                     ) and no_updates
+    no_updates = all(stat == FinalStatus.NO_UPDATES
+                     for stat in app_statuses.values()) and no_updates
 
     ret_code_restart = apply_updates_to_appvm(
         args, independent, templ_statuses, app_statuses, log)

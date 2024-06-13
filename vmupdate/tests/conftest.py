@@ -105,8 +105,8 @@ def test_manager():
 
 
 class MPPool(Mock):
-    def apply_async(self, func, args, **_kwargs):
-        func(*args)
+    def apply_async(self, func, args, *, callback, **_kwargs):
+        callback(func(*args))
 
 
 @pytest.fixture()
@@ -175,6 +175,8 @@ def generate_vm_variations(app, variations):
     }
 
     klasses = list(reversed(sorted(list(domains['klass'].keys()))))
+    if "klass" not in variations:
+        klasses = klasses[:1]
     rest = [list(domains[key].keys())
             if key in variations else list(domains[key].keys())[:1]
             for key in domains.keys() if key != "klass"]
@@ -232,7 +234,7 @@ def generate_vm_variations(app, variations):
             vm = TestVM(
                 k[0] + ext_suffix, app, klass=k, updateable=updatable,
                 running=running, auto_cleanup=auto_cleanup, template=template,
-                features=Features("dom0", app, features),
+                features=Features(k[0] + ext_suffix, app, features),
                 update_result=update_result)
 
             domains["klass"][k].add(vm)

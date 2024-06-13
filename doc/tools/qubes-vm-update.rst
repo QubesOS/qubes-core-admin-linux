@@ -86,33 +86,35 @@ Additionally, not all VMs in the system can be updated directly (such as AppVMs)
 RETURN CODES
 ============
 
-0   : ok
+0:   ok
 
-100 : ok, no updates available
+100: ok, no updates available
 
-1   : general error
+1:   general error
 
-11  : error of TemplateVM shutdown
+2:   usage error, unrecognized argument
 
-12  : error of AppVM shutdown
+11:  error of TemplateVM shutdown
 
-13  : error of AppVM startup
+12:  error of AppVM shutdown
 
-21  : general error inside updated vm
+13:  error of AppVM startup
 
-22  : error inside updated vm during updating/installing prerequisites/patches
+21:  general error inside updated vm
 
-23  : repo-refresh error inside updated vm, check if vm is connected to network
+22:  error inside updated vm during updating/installing prerequisites/patches
 
-24  : error inside updated vm during installing updates
+23:  repo-refresh error inside updated vm, check if vm is connected to network
 
-25  : unhandled error inside updated vm
+24:  error inside updated vm during installing updates
 
-40  : qrexec error, communication across domains was interrupted
+25:  unhandled error inside updated vm
 
-64  : usage error, wrong parameter
+40:  qrexec error, communication across domains was interrupted
 
-130 : user interruption
+64:  usage error, wrong parameter value
+
+130: user interruption
 
 AUTHORS
 =======

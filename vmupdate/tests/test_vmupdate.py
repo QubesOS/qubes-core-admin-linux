@@ -22,8 +22,11 @@ import itertools
 
 from unittest.mock import patch
 
+import pytest
+
+import qubesadmin
 from vmupdate.agent.source.common.exit_codes import EXIT
-from vmupdate.tests.conftest import generate_vm_variations, TestVM
+from vmupdate.tests.conftest import generate_vm_variations, TestVM, Features
 from vmupdate.agent.source.status import FinalStatus
 from vmupdate.vmupdate import main
 from vmupdate import vmupdate
@@ -209,7 +212,7 @@ def test_selection(
                 vmupdate, "preselect_targets", lambda *_: all)
         else:
             feed = {vm.name: {'statuses': [FinalStatus.SUCCESS],
-                              'retcode': EXIT.OK_NO_UPDATES}
+                              'retcode': EXIT.OK}
                     for vm in selected}
             monkeypatch.setattr(
                 vmupdate, "preselect_targets", lambda *_: selected)
@@ -330,3 +333,173 @@ def test_restarting(
     fails = {args: failed[args] for args in failed if failed[args]}
     assert not fails
     arun.asseert_called()
+
+
+stat = FinalStatus
+
+
+@patch('vmupdate.update_manager.TerminalMultiBar.print')
+@patch('os.chmod')
+@patch('os.chown')
+@patch('logging.FileHandler')
+@patch('logging.getLogger')
+@patch('vmupdate.update_manager.UpdateAgentManager')
+@patch('multiprocessing.Pool')
+@patch('multiprocessing.Manager')
+@pytest.mark.parametrize(
+    "tmpl_status, tmpl_retcode, app_status, app_retcode, expected_retcode",
+(
+    pytest.param(
+        stat.NO_UPDATES, EXIT.OK, stat.NO_UPDATES, EXIT.OK,
+        EXIT.OK_NO_UPDATES, id="no updates: 2x OK"),
+    pytest.param(
+        stat.NO_UPDATES, EXIT.OK, stat.NO_UPDATES, EXIT.OK,
+        EXIT.OK_NO_UPDATES, id="no updates: tmpl OK"),
+    pytest.param(
+        stat.NO_UPDATES, EXIT.OK, stat.NO_UPDATES, EXIT.OK,
+        EXIT.OK_NO_UPDATES, id="no updates: app OK"),
+    pytest.param(
+        stat.ERROR, EXIT.OK, stat.NO_UPDATES, EXIT.OK,
+        EXIT.ERR, id="error: tmpl"),
+    pytest.param(
+        stat.SUCCESS, EXIT.OK, stat.ERROR, EXIT.OK,
+        EXIT.ERR, id="error: app"),
+    pytest.param(
+        stat.SUCCESS, EXIT.OK_NO_UPDATES, stat.SUCCESS, EXIT.OK,
+        EXIT.ERR_VM_UNHANDLED, id="unhandled retcode"),
+    pytest.param(
+        stat.SUCCESS, EXIT.ERR_VM, stat.ERROR, EXIT.ERR_VM_PRE,
+        EXIT.ERR_VM_PRE, id="vm inside error"),
+    pytest.param(
+        stat.SUCCESS, EXIT.ERR_VM_UPDATE, stat.ERROR, EXIT.ERR_VM_REFRESH,
+        EXIT.ERR_VM_UPDATE, id="vm inside error 2"),
+    pytest.param(
+        stat.SUCCESS, EXIT.ERR_VM, stat.SUCCESS, EXIT.OK,
+        EXIT.ERR_VM, id="vm general inside error"),
+    pytest.param(
+        stat.CANCELLED, EXIT.OK, stat.SUCCESS, EXIT.OK,
+        EXIT.SIGINT, id="cancelled"),
+    pytest.param(
+        stat.CANCELLED, EXIT.OK, stat.ERROR, EXIT.ERR_VM_UNHANDLED,
+        EXIT.SIGINT, id="cancelled with error"),
+    pytest.param(
+        stat.UNKNOWN, EXIT.OK, stat.SUCCESS, EXIT.OK,
+        EXIT.ERR_QREXEX, id="communication error"),
+))
+def test_return_codes(
+        mp_manager, mp_pool, agent_mng,
+        _logger, _log_file, _chmod, _chown, _print,
+        test_qapp, test_manager, test_pool, test_agent,
+        monkeypatch,
+        tmpl_status, tmpl_retcode, app_status, app_retcode, expected_retcode
+):
+    mp_manager.return_value = test_manager
+    mp_pool.return_value = test_pool
+
+    _dom0 = TestVM("dom0", test_qapp, klass="AdminVM")
+    vm = TestVM("vm", test_qapp, klass="TemplateVM")
+    appvm = TestVM("appvm", test_qapp, klass="AppVM", template=vm)
+
+    feed = {
+        vm.name: {'statuses': [tmpl_status], 'retcode': tmpl_retcode},
+        appvm.name: {'statuses': [app_status], 'retcode': app_retcode}}
+    unexpected = []
+    agent_mng.side_effect = test_agent(feed, unexpected)
+
+    monkeypatch.setattr(vmupdate, "get_targets", lambda *_: [vm, appvm])
+
+    retcode = main((
+        "--just-print-progress", "--all", "--force-update"), test_qapp)
+    assert retcode == expected_retcode
+
+
+@patch('vmupdate.update_manager.TerminalMultiBar.print')
+@patch('os.chmod')
+@patch('os.chown')
+@patch('logging.FileHandler')
+@patch('logging.getLogger')
+@patch('vmupdate.update_manager.UpdateAgentManager')
+@patch('multiprocessing.Pool')
+@patch('multiprocessing.Manager')
+def test_error(
+        mp_manager, mp_pool, agent_mng,
+        _logger, _log_file, _chmod, _chown, _print,
+        test_qapp, test_manager, test_pool, test_agent,
+        monkeypatch
+):
+    mp_manager.return_value = test_manager
+    mp_pool.return_value = test_pool
+
+    _dom0 = TestVM("dom0", test_qapp, klass="AdminVM")
+    vm = TestVM("vm", test_qapp, klass="TemplateVM")
+    appvm = TestVM("appvm", test_qapp, klass="AppVM", template=vm)
+
+    feed = {
+        vm.name: {'statuses': [FinalStatus.ERROR], 'retcode': EXIT.OK},
+        appvm.name: {'statuses': [FinalStatus.NO_UPDATES], 'retcode': EXIT.OK}}
+    unexpected = []
+    agent_mng.side_effect = test_agent(feed, unexpected)
+
+    monkeypatch.setattr(vmupdate, "get_targets", lambda *_: [vm, appvm])
+
+    retcode = main((
+        "--just-print-progress", "--all", "--force-update"), test_qapp)
+    assert retcode == EXIT.ERR
+
+
+@patch('vmupdate.update_manager.TerminalMultiBar.print')
+@patch('os.chmod')
+@patch('os.chown')
+@patch('logging.FileHandler')
+@patch('logging.getLogger')
+@patch('asyncio.run')
+@pytest.mark.parametrize(
+    "action, code",
+(
+    pytest.param("template shutdown", EXIT.ERR_SHUTDOWN_TMPL),
+    pytest.param("app shutdown", EXIT.ERR_SHUTDOWN_APP),
+    pytest.param("app start", EXIT.ERR_START_APP),
+))
+def test_error_apply(
+        _arun, _logger, _log_file, _chmod, _chown, _print,
+        test_qapp, monkeypatch, action, code
+):
+    _dom0 = TestVM("dom0", test_qapp, klass="AdminVM")
+    vm = TestVM("vm", test_qapp, klass="TemplateVM")
+    appvm = TestVM(
+        "appvm", test_qapp, klass="AppVM", template=vm,
+        features=Features("appvm", test_qapp, {'servicevm': True}))
+
+    monkeypatch.setattr(vmupdate, "get_targets", lambda *_: [vm, appvm])
+    monkeypatch.setattr(vmupdate, "run_update",
+                        lambda *_: [EXIT.OK, {"vm": FinalStatus.SUCCESS}])
+
+    def raiser(*_args, **_kwargs):
+        raise qubesadmin.exc.QubesVMError("foo")
+    if action == "template shutdown":
+        vm.shutdown = raiser
+    elif action == "app shutdown":
+        appvm.shutdown = raiser
+    elif action == "app start":
+        appvm.start = raiser
+    else:
+        raise ValueError()
+
+    retcode = main(("--all", "--force-update", "--apply-to-all"), test_qapp)
+    assert retcode == code
+
+
+@patch('vmupdate.update_manager.TerminalMultiBar.print')
+@patch('os.chmod')
+@patch('os.chown')
+@patch('logging.FileHandler')
+@patch('logging.getLogger')
+def test_error_usage_wrong_param(
+        _logger, _log_file, _chmod, _chown, _print, test_qapp,
+):
+    _dom0 = TestVM("dom0", test_qapp, klass="AdminVM")
+
+    retcode = main((
+        "--just-print-progress", "--targets", 'vm', "--force-update"),
+        test_qapp)
+    assert retcode == EXIT.ERR_USAGE
