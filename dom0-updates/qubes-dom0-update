@@ -29,6 +29,7 @@ if [ "$1" = "--help" ]; then
     echo "    --console    does nothing; ignored for backward compatibility"
     echo "    --show-output  does nothing; ignored for backward compatibility"
     echo "    --preserve-terminal  does nothing; ignored for backward compatibility"
+    echo "    --skip-boot-check  does not check if /boot & /boot/efi should be mounted"
     echo "    --switch-audio-server-to=(pulseaudio|pipewire) switch audio daemon to pipewire or pulseaudio"
     echo "                 it will be done after requested action (update by default)"
     echo "    <pkg list>   download (and install if run by root) new packages"
@@ -53,6 +54,7 @@ FORCE_XEN_UPGRADE=
 REBOOT_REQUIRED=
 DOWNLOADONLY=
 AUDIO_SWITCH=
+SKIP_BOOT_CHECK=
 # Filter out some dnf options and collect packages list
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -101,6 +103,9 @@ while [ $# -gt 0 ]; do
         --action=*)
             YUM_ACTION=${1#--action=}
             UPDATEVM_OPTS+=( "$1" )
+            ;;
+        --skip-boot-check)
+            SKIP_BOOT_CHECK=1
             ;;
         --)
             if [[ "$#" -gt 1 ]]; then
@@ -233,6 +238,44 @@ if [ -n "$CLEAN" ]; then
     rm -f /var/lib/qubes/updates/repodata/*
 fi
 rm -f /var/lib/qubes/updates/errors
+
+# Synopsis: check_mounted MOUNTPOINT
+check_mounted() {
+    local CHOICE
+    # No reason to check further if mount point is already mounted
+    awk -v PART="${1}" '{if ($2 == PART ) { exit 0 }} ENDFILE{exit -1}' < /proc/mounts
+    [[ ${?} -ne 0 ]] || return
+    # No reason to check further if mount point is not in fstab
+    awk -v PART="${1}" '!/^[ \t]*#/{ if ( $2 == PART ) { exit 0}} ENDFILE {exit -1}' < /etc/fstab
+    [[ ${?} -ne 0 ]] && return
+    # Ask user to manually mount partition if user is using GUI Updater
+    if [ ! -t 1 ]; then
+        echo "Could not decide about unmounted ${1} partition in non-interactive/GUI mode!"
+        echo "Please mount ${1} manually before proceeding with updates or update via CLI."
+        exit 1
+    fi
+    read -p "${1} partition is not mounted! mount it now? (y)es, (n)o, (a)bort operation " CHOICE
+    case ${CHOICE} in
+        y|Y)
+            mount "${1}"
+            if [[ ${?} -ne 0 ]]; then
+                echo "Mounting of ${1} was unsuccessful! aborting."
+                exit 1
+            fi
+            ;;
+        n|N) echo "Warning! Proceeding forward without mounting ${1}";;
+        a|A) echo Operation aborted!; exit 1;;
+        *) echo Invalid choice. Aborting!; exit 1;;
+    esac
+}
+
+if [ "$SKIP_BOOT_CHECK" != "1" ] && [ "$CHECK_ONLY" != "1" ] && \
+        [ "$REMOTE_ONLY" != "1" ] && [ "$DOWNLOADONLY" != "1" ]; then
+    # Check if /boot is mounted on split root systems
+    check_mounted "/boot"
+    # Check if efi partition is mounted on UEFI systems
+    [ -d /sys/firmware/efi ] && check_mounted "/boot/efi"
+fi
 
 echo "Using $UPDATEVM as UpdateVM to download updates for Dom0; this may take some time..." >&2
 
