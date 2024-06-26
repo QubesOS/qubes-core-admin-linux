@@ -33,9 +33,11 @@ from vmupdate import vmupdate
 @patch('logging.FileHandler')
 @patch('logging.getLogger')
 def test_no_options_do_nothing(_logger, _log_file, _chmod, _chown, test_qapp):
-    args = []
     test_qapp.domains = test_qapp.Domains()
     TestVM("dom0", test_qapp, klass="AdminVM")
+    args = []
+    assert main(args, test_qapp) == 0
+    args = ['--signal-no-updates']
     assert main(args, test_qapp) == 100
 
 

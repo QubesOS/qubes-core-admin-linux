@@ -55,7 +55,7 @@ def main(args=None, app=qubesadmin.Qubes()):
     if not targets:
         if not args.quiet:
             print("No qube selected for update")
-        return 100
+        return 100 if args.signal_no_updates else 0
 
     independent = [target for target in targets if target.klass in (
         'TemplateVM', 'StandaloneVM')]
@@ -75,7 +75,7 @@ def main(args=None, app=qubesadmin.Qubes()):
         args, independent, templ_statuses, app_statuses, log)
 
     ret_code = max(ret_code_independent, ret_code_appvm, ret_code_restart)
-    if ret_code == 0 and no_updates:
+    if ret_code == 0 and no_updates and args.signal_no_updates:
         return 100
     return ret_code
 
@@ -97,6 +97,10 @@ def parse_args(args, app):
                         help='Do not remove updater files from target qube')
     parser.add_argument('--dry-run', action='store_true',
                         help='Just print what happens.')
+    parser.add_argument(
+        '--signal-no-updates', action='store_true',
+        help='Return exit code 100 instread of 0 '
+             'if there is no updates available.')
 
     restart = parser.add_mutually_exclusive_group()
     restart.add_argument(
