@@ -23,8 +23,6 @@ import re
 import ast
 from typing import Optional, Dict, Any
 
-import pkg_resources
-
 
 def get_os_data(logger: Optional = None) -> Dict[str, Any]:
     """
@@ -34,7 +32,7 @@ def get_os_data(logger: Optional = None) -> Dict[str, Any]:
     id: "linux" or a lower-case string identifying the operating system,
     name: "Linux" or a string identifying the operating system,
     codename (optional): an operating system release code name,
-    release (optional): packaging.version.Version,
+    release (optional): version string,
     os_family: "Unknown", "RedHat", "Debian", "ArchLinux".
     """
     data = {}
@@ -49,7 +47,7 @@ def get_os_data(logger: Optional = None) -> Dict[str, Any]:
     data["name"] = os_release.get("NAME", "Linux").strip()
     if "VERSION_ID" in os_release:
         release = os_release["VERSION_ID"]
-        data["release"] = pkg_resources.parse_version(release)
+        data["release"] = release
     if "VERSION_CODENAME" in os_release:
         data["codename"] = os_release["VERSION_CODENAME"]
 
