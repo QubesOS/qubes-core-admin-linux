@@ -26,6 +26,7 @@ from dnf.callback import DownloadProgress
 import dnf.transaction
 
 from source.common.process_result import ProcessResult
+from source.common.exit_codes import EXIT
 from source.common.progress_reporter import ProgressReporter, Progress
 
 from .dnf_cli import DNFCLI
@@ -62,11 +63,11 @@ class DNF(DNFCLI):
                 self.log.debug("Cache refresh successful.")
             else:
                 self.log.warning("Cache refresh failed.")
-                result += ProcessResult(1)
+                result += ProcessResult(EXIT.ERR_VM_REFRESH)
         except Exception as exc:
             self.log.error(
                 "An error occurred while refreshing packages: %s", str(exc))
-            result += ProcessResult(2, out="", err=str(exc))
+            result += ProcessResult(EXIT.ERR_VM_REFRESH, out="", err=str(exc))
 
         return result
 
@@ -88,7 +89,7 @@ class DNF(DNFCLI):
             trans = self.base.transaction
             if not trans:
                 self.log.info("No packages to upgrade, quitting.")
-                return ProcessResult(0, out="", err="")
+                return ProcessResult(EXIT.OK, out="", err="")
 
             self.base.download_packages(
                 trans.install_set,
@@ -96,7 +97,7 @@ class DNF(DNFCLI):
             )
             result += sign_check(self.base, trans.install_set, self.log)
 
-            if result.code == 0:
+            if result.code == EXIT.OK:
                 print("Updating packages.", flush=True)
                 self.log.debug("Committing upgrade...")
                 self.base.do_transaction(self.progress.upgrade_progress)
@@ -107,7 +108,7 @@ class DNF(DNFCLI):
         except Exception as exc:
             self.log.error(
                 "An error occurred while upgrading packages: %s", str(exc))
-            result += ProcessResult(3, out="", err=str(exc))
+            result += ProcessResult(EXIT.ERR_VM_UPDATE, out="", err=str(exc))
         finally:
             self.base.close()
 
@@ -116,13 +117,13 @@ class DNF(DNFCLI):
 
 def sign_check(base, packages, log) -> ProcessResult:
     """
-    Check signature of packages.
+    Check a signature of packages.
     """
     log.debug("Check signature of packages.")
     result = ProcessResult()
     for package in packages:
         ret_code, message = base.package_signature_check(package)
-        if ret_code != 0:
+        if ret_code != EXIT.OK:
             # Import key and re-try the check
             try:
                 base.package_import_key(package, askcb=(lambda a, b, c: True))
@@ -133,10 +134,10 @@ def sign_check(base, packages, log) -> ProcessResult:
             # do that explicitly anyway, in case the behavior would change
             # (intentionally or not)
             ret_code, message = base.package_signature_check(package)
-        if ret_code != 0:
+        if ret_code != EXIT.OK:
             result += ProcessResult(ret_code, out="", err=message)
         else:
-            result += ProcessResult(0, out=message, err="")
+            result += ProcessResult(EXIT.OK, out=message, err="")
 
     return result
 

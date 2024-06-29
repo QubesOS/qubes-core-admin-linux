@@ -7,6 +7,7 @@ from source import plugins
 from source.args import AgentArgs
 from source.utils import get_os_data
 from source.log_congfig import init_logs
+from source.common.exit_codes import EXIT
 
 
 def main(args=None):
@@ -33,6 +34,8 @@ def main(args=None):
     log.debug("Notify dom0 about upgrades.")
     os.system("/usr/lib/qubes/upgrades-status-notify")
 
+    if return_code not in EXIT.VM_HANDLED:
+        return_code = EXIT.ERR_VM_UNHANDLED
     return return_code
 
 
@@ -90,4 +93,4 @@ if __name__ == '__main__':
         sys.exit(main())
     except RuntimeError as ex:
         print(ex)
-        sys.exit(1)
+        sys.exit(EXIT.ERR_VM_UNHANDLED)
