@@ -101,7 +101,7 @@ def parse_args(args, app):
                         help='Just print what happens.')
     parser.add_argument(
         '--signal-no-updates', action='store_true',
-        help='Return exit code 100 instread of 0 '
+        help='Return exit code 100 instead of 0 '
              'if there is no updates available.')
 
     restart = parser.add_mutually_exclusive_group()

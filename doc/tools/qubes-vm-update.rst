@@ -61,6 +61,8 @@ Auxiliary
     Maximum number of VMs configured simultaneously (default: number of cpus)
 --log LOG
     Provide logging level. Values: DEBUG, INFO (default), WARNING, ERROR, CRITICAL
+--signal-no-updates
+    Return exit code 100 instead of 0 if there is no updates available.
 
 --no-progress
     Do not show upgrading progress
@@ -88,7 +90,7 @@ RETURN CODES
 
 0:   ok
 
-100: ok, no updates available
+100: ok, returned if `--signal-no-updates` and no updates available
 
 1:   general error
 

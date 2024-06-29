@@ -408,8 +408,9 @@ def test_return_codes(
 
     monkeypatch.setattr(vmupdate, "get_targets", lambda *_: [vm, appvm])
 
-    retcode = main((
-        "--just-print-progress", "--all", "--force-update"), test_qapp)
+    retcode = main(
+        ("--just-print-progress", "--all", "--force-update",
+         "--signal-no-updates"), test_qapp)
     assert retcode == expected_retcode
 
 
