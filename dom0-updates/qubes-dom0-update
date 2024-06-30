@@ -187,6 +187,15 @@ if [ "$ID" != 0 ] && [ -z "$GUI" ] && [ -z "$CHECK_ONLY" ] ; then
     exit 1
 fi
 
+LOCKFILE="/var/run/qubes/qubes-dom0-update.lock"
+exec 9>"${LOCKFILE}"
+[ "$ID" == 0 ] && chgrp qubes "${LOCKFILE}" && chmod g+w "${LOCKFILE}"
+flock -n 9
+if [[ ${?} -ne 0 ]]; then
+    echo "Another instance of qubes-dom0-update is already running!"
+    exit 1
+fi
+
 if [ "$GUI" == "1" ] && [ ${#PKGS[@]} -ne 0 ]; then
     echo "ERROR: GUI mode can be used only for updates" >&2
     exit 1
