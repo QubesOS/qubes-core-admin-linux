@@ -58,6 +58,8 @@ Requires:	systemd-udev
 Requires: usbguard
 # salt needs to pass --console --show-output options now
 Conflicts:  qubes-mgmt-salt-dom0-update < 4.1.4
+# Changed qubes-vm-update arguments
+Conflicts:  qubes-desktop-linux-manager < 4.2.24
 
 Source0: %{name}-%{version}.tar.gz
 
