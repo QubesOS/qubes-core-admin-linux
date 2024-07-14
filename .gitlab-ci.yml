@@ -3,3 +3,19 @@ include:
   project: QubesOS/qubes-continuous-integration
 - file: /r4.2/gitlab-host.yml
   project: QubesOS/qubes-continuous-integration
+
+checks:tests:
+  stage: checks
+  variables:
+    PYTEST_ADDOPTS: "--color=yes"
+  before_script: &before-script
+    - "PATH=$PATH:$HOME/.local/bin"
+    - sudo dnf install -y python3-pytest python3-coverage
+    - pip3 install --quiet -r ci/requirements.txt
+    - git clone https://github.com/QubesOS/qubes-core-admin-client ~/core-admin-client
+  script:
+    - export PATH="$HOME/.local/bin:$PATH"
+    - PYTHONPATH=~/core-admin-client ./run-tests.sh
+  after_script:
+    - "PATH=$PATH:$HOME/.local/bin"
+    - ci/codecov-wrapper

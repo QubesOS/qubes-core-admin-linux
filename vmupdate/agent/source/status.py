@@ -32,6 +32,14 @@ class FinalStatus(Enum):
     ERROR = "error"
     CANCELLED = "cancelled"
     NO_UPDATES = "no updates"
+    UNKNOWN = "unknown"
+
+    @classmethod
+    def __missing__(cls, key):
+        return cls.UNKNOWN
+
+    def __bool__(self):
+        return self == FinalStatus.SUCCESS
 
 
 class StatusInfo:

@@ -21,6 +21,7 @@
 import sys
 from copy import deepcopy
 from typing import Union, Optional
+from .exit_codes import EXIT
 
 
 class ProcessResult:
@@ -32,7 +33,7 @@ class ProcessResult:
     """
     def __init__(
             self,
-            code: int = 0, out: str = "", err: str = "",
+            code: int = EXIT.OK, out: str = "", err: str = "",
             realtime: bool = False
     ):
         self.code: int = code
@@ -75,7 +76,7 @@ class ProcessResult:
             untrusted_err_bytes = untrusted_err
         err = ProcessResult.sanitize_output(untrusted_err_bytes)
 
-        return cls(0, out, err)
+        return cls(EXIT.OK, out, err)
 
     @staticmethod
     def sanitize_output(untrusted_bytes: bytes, single: bool = False) -> str:
@@ -114,4 +115,4 @@ class ProcessResult:
     def error_from_messages(self):
         out_lines = (self.out + '\n' + self.err).splitlines()
         if any(line.lower().startswith("err") for line in out_lines):
-            self.code = 1
+            self.code = EXIT.ERR
