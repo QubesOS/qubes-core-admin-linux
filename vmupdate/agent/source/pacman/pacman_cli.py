@@ -19,8 +19,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
 # USA.
 
-import shutil
-from typing import List
+from typing import List, Dict
 
 from source.common.package_manager import PackageManager
 from source.common.process_result import ProcessResult
@@ -29,34 +28,34 @@ from source.common.process_result import ProcessResult
 class PACMANCLI(PackageManager):
     def __init__(self, log_handler, log_level):
         super().__init__(log_handler, log_level)
-        self.package_manager: str = "pacman"
+        self.package_manager = "pacman"
 
     def refresh(self, hard_fail: bool) -> ProcessResult:
         """
         Use package manager to refresh available packages.
 
-        :param hard_fail: raise error if some repo is unavailable
+        Note: Is a no-op in ArchLinux because upgrade takes care of it, and
+        having just sync could cause problems.
+        See: https://github.com/QubesOS/qubes-core-admin-linux/pull/139#pullrequestreview-1845574713
+
         :return: (exit_code, stdout, stderr)
         """
-        cmd = [ self.package_manager,
-                "-Sy" ]
-        return  self.run_cmd(cmd)
+        cmd = ["true"]
+        return self.run_cmd(cmd)
 
-    def get_packages(self):
+    def get_packages(self) -> Dict[str, List[str]]:
         """
         Use pacman to return the installed packages and their versions.
         """
 
-        cmd = [ self.package_manager, 
-                "-Q" ]
+        cmd = [self.package_manager, "-Q"]
         # EXAMPLE OUTPUT:
         # qubes-vm-core 4.2.25-1
-        result = self.run_cmd(cmd)
+        result = self.run_cmd(cmd, realtime=False)
 
-        packages = {}
+        packages: Dict[str, List[str]] = {}
         for line in result.out.splitlines():
-            cols = line.split()
-            package, version = cols
+            package, version = line.split()
             packages.setdefault(package, []).append(version)
 
         return packages
