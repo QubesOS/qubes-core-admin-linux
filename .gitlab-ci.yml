@@ -10,7 +10,7 @@ checks:tests:
     PYTEST_ADDOPTS: "--color=yes"
   before_script: &before-script
     - "PATH=$PATH:$HOME/.local/bin"
-    - sudo dnf install -y python3-pytest python3-coverage
+    - sudo dnf install -y python3-pytest python3-coverage python3-pip
     - pip3 install --quiet -r ci/requirements.txt
     - git clone https://github.com/QubesOS/qubes-core-admin-client ~/core-admin-client
   script:
