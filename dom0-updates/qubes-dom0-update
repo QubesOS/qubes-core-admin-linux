@@ -137,8 +137,24 @@ case ${YUM_ACTION=upgrade} in
     ;;
 esac
 
+echo "Using $UPDATEVM as UpdateVM for Dom0" >&2
+
 if [ "$CHECK_ONLY" == "1" ]; then
     REMOTE_ONLY=1
+    echo "Checking for dom0 updates..." >&2
+else
+    case ${YUM_ACTION=upgrade} in
+    (upgrade|upgrade-to)
+        echo "Downloading updates. This may take a while..." >&2;;
+    (install|reinstall)
+        echo "Downloading packages. This may take a while..." >&2;;
+    (downgrade)
+        echo "Downgrading packages. This may take a while..." >&2;;
+    (list|search)
+        echo "Updating package lists. This may take a while..." >&2;;
+    (*)
+        echo "Performing ${YUM_ACTION}. This may take a while..." >&2;;
+    esac
 fi
 
 # Redirect operations on templates to qvm-template command
@@ -285,8 +301,6 @@ if [ "$SKIP_BOOT_CHECK" != "1" ] && [ "$CHECK_ONLY" != "1" ] && \
     # Check if efi partition is mounted on UEFI systems
     [ -d /sys/firmware/efi ] && check_mounted "/boot/efi"
 fi
-
-echo "Using $UPDATEVM as UpdateVM to download updates for Dom0; this may take some time..." >&2
 
 # qvm-run by default auto-starts the VM if not running
 readonly dom0_updates_dir=/var/lib/qubes/dom0-updates
