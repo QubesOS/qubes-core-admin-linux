@@ -224,7 +224,7 @@ fi
 
 # setup thinpool autoextend
 if [ -e /etc/lvm/lvm.conf ]; then
-    tpool_threshold_line_value=$(grep -n -Po '^[^#]thin_pool_autoextend_threshold[ \t]*=[ \t]*\K\d+' /etc/lvm/lvm.conf)
+    tpool_threshold_line_value=$(grep -n -Po '^[^#]thin_pool_autoextend_threshold[ \t]*=[ \t]*\K\d+' /etc/lvm/lvm.conf || :)
     if [ -n "$tpool_threshold_line_value" ]; then
         tpool_threshold_line="$(echo "$tpool_threshold_line_value" | cut -d':' -f1)"
         tpool_threshold_value="$(echo "$tpool_threshold_line_value" | cut -d':' -f2)"
