@@ -34,8 +34,12 @@ enable xenstored.socket
 enable xenstored_ro.socket
 enable xenconsoled.service
 enable xen-init-dom0.service
-enable libvirtd.service
-enable virlockd.socket
+enable virtxend.socket
+enable virtxend-ro.socket
+enable virtxend-admin.socket
+enable virtnodedevd.socket
+enable virtnodedevd-ro.socket
+enable virtnodedevd-admin.socket
 
 enable upower.service
 enable udisks2.service
