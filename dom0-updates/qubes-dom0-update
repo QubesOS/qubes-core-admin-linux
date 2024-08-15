@@ -393,7 +393,7 @@ fi
 
 if [ ${#PKGS[@]} -gt 0 ]; then
 
-    dnf "${YUM_OPTS[@]}" $YUM_ACTION "${PKGS[@]}" ; RETCODE=$?
+    dnf $YUM_ACTION "${YUM_OPTS[@]}" "${PKGS[@]}" ; RETCODE=$?
 
 elif [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
     # Above file exists only when at least one package was downloaded
@@ -404,7 +404,7 @@ elif [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
     else
         dnf check-update ||
         if [ $? -eq 100 ]; then # Run dnf with options
-            dnf "${YUM_OPTS[@]}" $YUM_ACTION; RETCODE=$?
+            dnf $YUM_ACTION "${YUM_OPTS[@]}"; RETCODE=$?
         fi
     fi
     if dnf -q check-update; then
