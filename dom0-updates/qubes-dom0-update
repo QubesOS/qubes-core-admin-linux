@@ -179,13 +179,6 @@ if [ -n "$AUDIO_SWITCH" ]; then
     fi
 fi
 
-if [ "$YUM_ACTION" = upgrade ] && [ -z "$AUDIO_SWITCH" ]; then
-    # switch to pipewire automatically, once
-    if ! [ -e /var/lib/qubes/.audio-switch-done ]; then
-        AUDIO_SWITCH=pipewire
-    fi
-fi
-
 if [ -n "$SWITCHING_AUDIO_IN_PROGRESS" ]; then
     # avoid recursive audio switch
     AUDIO_SWITCH=
