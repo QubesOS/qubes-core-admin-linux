@@ -267,7 +267,7 @@ class PackageManager:
 
     def get_action(self, remove_obsolete: bool) -> List[str]:
         """
-        Return command for upgrade or upgrade with removing obsolete packages.
+        Return command and options for upgrade with optional removing obsoletes.
         """
         raise NotImplementedError()
 
@@ -275,9 +275,7 @@ class PackageManager:
         """
         Just run upgrade via CLI.
         """
-        cmd = [self.package_manager,
-               "--noconfirm" if self.package_manager == "pacman" else "-y",
-               *self.get_action(remove_obsolete)]
+        cmd = [self.package_manager, *self.get_action(remove_obsolete)]
 
         return self.run_cmd(cmd)
 
