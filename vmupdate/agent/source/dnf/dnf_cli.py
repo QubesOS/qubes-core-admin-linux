@@ -95,8 +95,8 @@ class DNFCLI(PackageManager):
         Disable or enforce obsolete flag in dnf/yum.
         """
         if remove_obsolete:
-            return ["--obsoletes", "upgrade"]
-        return ["--setopt=obsoletes=0",
+            return ["-y", "--obsoletes", "upgrade"]
+        return ["-y", "--setopt=obsoletes=0",
                 "upgrade" if self.package_manager == "dnf" else "update"]
 
     def clean(self) -> int:

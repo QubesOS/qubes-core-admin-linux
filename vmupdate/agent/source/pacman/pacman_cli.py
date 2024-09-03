@@ -65,7 +65,7 @@ class PACMANCLI(PackageManager):
         """
         Pacman will handle obsoletions itself
         """
-        return ["-Syu"]
+        return ["--noconfirm", "-Syu"]
 
     def clean(self) -> int:
         """

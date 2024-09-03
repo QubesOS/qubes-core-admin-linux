@@ -91,7 +91,9 @@ class APTCLI(PackageManager):
         """
         Return command `upgrade` or `dist-upgrade` if `remove_obsolete`.
         """
-        return ["dist-upgrade"] if remove_obsolete else ["upgrade"]
+        result = ["-y"]
+        result += ["dist-upgrade"] if remove_obsolete else ["upgrade"]
+        return result
 
     def clean(self) -> int:
         """
