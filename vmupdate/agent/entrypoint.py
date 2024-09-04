@@ -56,6 +56,12 @@ def get_package_manager(os_data, log, log_handler, log_level, no_progress):
     If appropriate python package is not installed or `no_progress` is `True`
     cli based version is returned.
     """
+    requirements = {}
+    # plugins MUST be applied before import anything from package managers.
+    # in case of apt configuration is loaded on `import apt`.
+    for plugin in plugins.entrypoints:
+        plugin(os_data, log, requirements=requirements)
+
     if os_data["os_family"] == "Debian":
         try:
             from source.apt.apt_api import APT as PackageManager
@@ -81,10 +87,6 @@ def get_package_manager(os_data, log, log_handler, log_level, no_progress):
     else:
         raise NotImplementedError(
             "Only Debian, RedHat and ArchLinux based OS is supported.")
-
-    requirements = {}
-    for plugin in plugins.entrypoints:
-        plugin(os_data, log, requirements=requirements)
 
     pkg_mng = PackageManager(log_handler, log_level)
     pkg_mng.requirements = requirements
