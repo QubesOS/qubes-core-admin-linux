@@ -26,6 +26,7 @@ from typing import List
 
 from source.common.package_manager import PackageManager
 from source.common.process_result import ProcessResult
+from source.common.exit_codes import EXIT
 
 
 class APTCLI(PackageManager):
@@ -80,3 +81,12 @@ class APTCLI(PackageManager):
         Return command `upgrade` or `dist-upgrade` if `remove_obsolete`.
         """
         return ["dist-upgrade"] if remove_obsolete else ["upgrade"]
+
+    def clean(self) -> int:
+        """
+        Use apt to clears out the local repository of retrieved package files.
+        """
+        cmd = [self.package_manager, "clean"]  # consider autoclean
+        result = self.run_cmd(cmd, realtime=False)
+        return_code = EXIT.ERR_VM_CLEANUP if result.code != 0 else 0
+        return return_code

@@ -24,6 +24,7 @@ from typing import List
 
 from source.common.package_manager import PackageManager
 from source.common.process_result import ProcessResult
+from source.common.exit_codes import EXIT
 
 
 class DNFCLI(PackageManager):
@@ -97,3 +98,12 @@ class DNFCLI(PackageManager):
             return ["--obsoletes", "upgrade"]
         return ["--setopt=obsoletes=0",
                 "upgrade" if self.package_manager == "dnf" else "update"]
+
+    def clean(self) -> int:
+        """
+        Performs cleanup of temporary files kept for repositories.
+        """
+        cmd = [self.package_manager, "clean", "packages"]
+        result = self.run_cmd(cmd, realtime=False)
+        return_code = EXIT.ERR_VM_CLEANUP if result.code != 0 else 0
+        return return_code

@@ -280,3 +280,10 @@ class PackageManager:
                *self.get_action(remove_obsolete)]
 
         return self.run_cmd(cmd)
+
+    def clean(self) -> int:
+        """
+        Clean cache files of package manager.
+        Should return 0 on success or EXIT.ERR_VM_CLEANUP otherwise.
+        """
+        return EXIT.ERR_VM_CLEANUP

@@ -35,9 +35,12 @@ class AgentArgs:
             {"action": 'store_true',
              "help": 'Try upgrade even if errors are '
                      'encountered (like a refresh error)'},
+        ("--no-cleanup",): {
+            "action": 'store_true',
+            "help": 'Do not remove cache files after upgrading'},
         ("--leave-obsolete",): {
             "action": 'store_true',
-            "help": 'Do not remove obsolete packages during upgrading'},
+            "help": 'Do not remove updater and cache files from target qube'},
     }
     EXCLUSIVE_OPTIONS_1 = {
         ("--show-output", "--verbose", "-v"):

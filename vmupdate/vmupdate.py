@@ -95,8 +95,6 @@ def parse_args(args, app):
                         help='Maximum number of VMs configured simultaneously '
                              '(default: number of cpus)',
                         type=int)
-    parser.add_argument('--no-cleanup', action='store_true',
-                        help='Do not remove updater files from target qube')
     parser.add_argument('--dry-run', action='store_true',
                         help='Just print what happens.')
     parser.add_argument(
