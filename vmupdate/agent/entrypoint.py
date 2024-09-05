@@ -34,6 +34,9 @@ def main(args=None):
     log.debug("Notify dom0 about upgrades.")
     os.system("/usr/lib/qubes/upgrades-status-notify")
 
+    if not args.no_cleanup:
+        return_code = max(pkg_mng.clean(), return_code)
+
     if return_code not in EXIT.VM_HANDLED:
         return_code = EXIT.ERR_VM_UNHANDLED
     return return_code

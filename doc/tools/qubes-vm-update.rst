@@ -69,7 +69,7 @@ Auxiliary
 --dry-run
     Just print what happens
 --no-cleanup
-    Do not remove updater files from target qube
+    Do not remove updater and cache files from target qube
 
 --help, -h
     Show this help message and exit
@@ -110,7 +110,9 @@ RETURN CODES
 
 24:  error inside updated vm during installing updates
 
-25:  unhandled error inside updated vm
+25:  error inside updated vm during cleanup
+
+26:  unhandled error inside updated vm
 
 40:  qrexec error, communication across domains was interrupted
 

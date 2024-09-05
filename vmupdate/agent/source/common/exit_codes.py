@@ -31,12 +31,13 @@ class EXIT:
     ERR_SHUTDOWN_APP = 12  # unable to shut down some AppVMs
     ERR_START_APP = 13  # unable to start some AppVMs
 
-    VM_HANDLED = (0, 100, 21, 22, 23, 24)
+    VM_HANDLED = (0, 100, 21, 22, 23, 24, 25)
     ERR_VM = 21
     ERR_VM_PRE = 22
     ERR_VM_REFRESH = 23
     ERR_VM_UPDATE = 24
-    ERR_VM_UNHANDLED = 25
+    ERR_VM_CLEANUP = 25
+    ERR_VM_UNHANDLED = 26
 
     ERR_QREXEX = 40
     ERR_USAGE = 64
