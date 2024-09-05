@@ -95,6 +95,9 @@ class APT(APTCLI):
                 "An error occurred while upgrading packages: %s", str(exc))
             result += ProcessResult(EXIT.ERR_VM_UPDATE, out="", err=str(exc))
 
+        if remove_obsolete:
+            result += self.remove_obsolete_kernels()
+
         return result
 
 
