@@ -200,7 +200,7 @@ LOCKFILE="/var/run/qubes/qubes-dom0-update.lock"
 exec 9>"${LOCKFILE}"
 [ "$ID" == 0 ] && chgrp qubes "${LOCKFILE}" && chmod g+w "${LOCKFILE}"
 flock -n 9
-if [[ ${?} -ne 0 ]]; then
+if [[ ${?} -ne 0 ]] && [[ ! $SWITCHING_AUDIO_IN_PROGRESS ]]; then
     echo "Another instance of qubes-dom0-update is already running!"
     exit 1
 fi
