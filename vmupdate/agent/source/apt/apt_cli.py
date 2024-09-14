@@ -128,7 +128,7 @@ class APTCLI(PackageManager):
                 cmd = [self.package_manager, "remove", "-y", *obsoletes]
                 result = self.run_cmd(cmd, realtime=False)
             else:
-                result = ProcessResult.OK
+                result = ProcessResult(EXIT.OK)
 
         result.code = EXIT.ERR_VM_CLEANUP if result.code != 0 else 0
         return result
