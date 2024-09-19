@@ -218,7 +218,7 @@ class PackageManager:
         if changes["installed"]:
             for pkg in changes["installed"]:
                 result.out += self._print_to_string(
-                    pkg, changes["installed"][pkg])
+                    pkg, ", ".join(changes["installed"][pkg]))
         else:
             result.out += self._print_to_string("None")
 
@@ -227,9 +227,9 @@ class PackageManager:
             for pkg in changes["updated"]:
                 result.out += self._print_to_string(
                     pkg,
-                    str(changes["updated"][pkg]["old"])[2:-2]
+                    ", ".join((changes["updated"][pkg]["old"]))
                     + " -> " +
-                    str(changes["updated"][pkg]["new"])[2:-2])
+                    ", ".join((changes["updated"][pkg]["new"]))
         else:
             result.out += self._print_to_string("None")
 
@@ -237,7 +237,7 @@ class PackageManager:
         if changes["removed"]:
             for pkg in changes["removed"]:
                 result.out += self._print_to_string(
-                    pkg, changes["removed"][pkg])
+                    pkg, ", ".join(changes["removed"][pkg]))
         else:
             result.out += self._print_to_string("None")
         return result
@@ -276,7 +276,10 @@ class PackageManager:
         Just run upgrade via CLI.
         """
         cmd = [self.package_manager,
-               "--noconfirm" if self.package_manager == "pacman" else "-y",
+               *(
+                   ["--noconfirm"] if self.package_manager == "pacman"
+                   else [] if self.package_manager == "qubes-nixos-rebuild" else "-y"
+               ),
                *self.get_action(remove_obsolete)]
 
         return self.run_cmd(cmd)

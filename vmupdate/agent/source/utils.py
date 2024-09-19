@@ -65,6 +65,9 @@ def get_os_data(logger: Optional = None) -> Dict[str, Any]:
     if 'arch' in family:
         data["os_family"] = 'ArchLinux'
 
+    if "nixos" in family:
+        data["os_family"] = "NixOS"
+
     return data
 
 
