@@ -32,7 +32,11 @@ def main(args=None):
                                   )
 
     log.debug("Notify dom0 about upgrades.")
-    os.system("/usr/lib/qubes/upgrades-status-notify")
+    if os_data["os_family"] == "NixOS":
+        # use non-absolute path since NixOS will configure PATH correctly for us
+        os.system("upgrades-status-notify")
+    else:
+        os.system("/usr/lib/qubes/upgrades-status-notify")
 
     if not args.no_cleanup:
         return_code = max(pkg_mng.clean(), return_code)
@@ -78,9 +82,11 @@ def get_package_manager(os_data, log, log_handler, log_level, no_progress):
             from source.dnf.dnf_cli import DNFCLI as PackageManager
     elif os_data["os_family"] == "ArchLinux":
         from source.pacman.pacman_cli import PACMANCLI as PackageManager
+    elif os_data["os_family"] == "NixOS":
+        from source.nixos.nixos_cli import NIXOSCLI as PackageManager
     else:
         raise NotImplementedError(
-            "Only Debian, RedHat and ArchLinux based OS is supported.")
+            "Only Debian, RedHat, ArchLinux, NixOS based OS is supported.")
 
     requirements = {}
     for plugin in plugins.entrypoints:

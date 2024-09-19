@@ -45,7 +45,7 @@ class QubeConnection:
        stop the qube if it was started by this connection.
     """
 
-    PYTHON_PATH = "/usr/bin/python3"
+    PYTHON_PATH = "/usr/bin"
 
     def __init__(
             self,
@@ -162,8 +162,11 @@ class QubeConnection:
         result = self._run_shell_command_in_qube(self.qube, command)
 
         # run entrypoint
-        command = [QubeConnection.PYTHON_PATH, entrypoint_path,
-                   *AgentArgs.to_cli_args(agent_args)]
+        command = ["sh", "-c", " ".join(
+                      ["env", f"PATH=${QubeConnection.PYTHON_PATH}:$PATH",
+                       "python3", entrypoint_path,
+                       *AgentArgs.to_cli_args(agent_args)])]
+
         result += self._run_shell_command_in_qube(
             self.qube, command, show=self.show_progress)
 
