@@ -91,7 +91,10 @@ class APTCLI(PackageManager):
         """
         Return command `upgrade` or `dist-upgrade` if `remove_obsolete`.
         """
-        result = ["-y"]
+        result = ["-y",
+                   "-o", 'Dpkg::Options::=--force-confdef',
+                   "-o", 'Dpkg::Options::=--force-confold'
+                  ]
         result += ["dist-upgrade"] if remove_obsolete else ["upgrade"]
         return result
 

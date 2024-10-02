@@ -84,6 +84,8 @@ class APT(APTCLI):
             Path(os.path.join(
                 apt_pkg.config.find_dir("Dir::Cache::Archives"), "partial")
             ).mkdir(parents=True, exist_ok=True)
+            apt_pkg.config.set('Dpkg::Options::', "--force-confdef")
+            apt_pkg.config.set('Dpkg::Options::', "--force-confold")
             self.log.debug("Committing upgrade...")
             self.apt_cache.commit(
                 self.progress.fetch_progress,
