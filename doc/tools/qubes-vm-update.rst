@@ -85,6 +85,8 @@ Targeting is used to choose the VMs that will be checked for available updates, 
 
 Additionally, not all VMs in the system can be updated directly (such as AppVMs), and to update them, you must use one of the "propagation" options. This means, after updating the template, restarting the VM and applying the installed updates to it. Using at least the `--apply-to-sys` flag is recommended, which restarts all service VMs. Keep in mind that during this process, unsaved data may be lost.
 
+VMs with `skip-update` feature set to True will be excluded from update, unless directly targeted with `--targets` option.
+
 RETURN CODES
 ============
 

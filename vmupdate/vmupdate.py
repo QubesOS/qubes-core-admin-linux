@@ -208,6 +208,12 @@ def preselect_targets(args, app) -> Set[qubesadmin.vm.QubesVM]:
         print("Skipping dom0. To update AdminVM use `qubes-dom0-update`")
     targets = {vm for vm in targets
                if vm.name != 'dom0' and vm.name not in to_skip}
+
+    # exclude vms with `skip-update` feature, but allow --targets to override it
+    if not args.targets:
+        targets = {vm for vm in targets
+               if not bool(vm.features.get('skip-update', False))}
+
     return targets
 
 
