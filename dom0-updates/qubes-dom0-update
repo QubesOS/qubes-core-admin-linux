@@ -76,12 +76,16 @@ while [ $# -gt 0 ]; do
             GUI=1
             UPDATEVM_OPTS+=( "$1" )
             ;;
-        --show-output)
-            # ignore
-            ;;
         --check-only)
             CHECK_ONLY=1
             UPDATEVM_OPTS+=( "$1" )
+            ;;
+        --setopt)
+            UPDATEVM_OPTS+=( "$1=$2" )
+            shift
+            ;;
+        --show-output)
+            # ignore
             ;;
         --preserve-terminal)
             # ignore
