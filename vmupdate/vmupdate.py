@@ -50,6 +50,7 @@ def main(args=None, app=qubesadmin.Qubes()):
     try:
         targets = get_targets(args, app)
     except ArgumentError as err:
+        print(str(err), file=sys.stderr)
         log.error(str(err))
         return EXIT.ERR_USAGE
 
