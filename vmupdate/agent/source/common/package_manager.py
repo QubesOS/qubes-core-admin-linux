@@ -18,6 +18,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
 # USA.
+""" package manager for VMs """
 import io
 import logging
 import subprocess
@@ -28,6 +29,7 @@ from .exit_codes import EXIT
 
 
 class PackageManager:
+    """ main package manager class """
     def __init__(self, log_handler, log_level):
         self.package_manager: Optional[str] = None
         self.log = logging.getLogger(
@@ -216,7 +218,7 @@ class PackageManager:
         result = ProcessResult()
         result.out += self._print_to_string("Installed packages:")
         if changes["installed"]:
-            for pkg in changes["installed"]:
+            for pkg in sorted(changes["installed"]):
                 result.out += self._print_to_string(
                     pkg, changes["installed"][pkg])
         else:
@@ -224,7 +226,7 @@ class PackageManager:
 
         result.out += self._print_to_string("Updated packages:")
         if changes["updated"]:
-            for pkg in changes["updated"]:
+            for pkg in sorted(changes["updated"]):
                 result.out += self._print_to_string(
                     pkg,
                     str(changes["updated"][pkg]["old"])[2:-2]
@@ -235,7 +237,7 @@ class PackageManager:
 
         result.out += self._print_to_string("Removed packages:")
         if changes["removed"]:
-            for pkg in changes["removed"]:
+            for pkg in sorted(changes["removed"]):
                 result.out += self._print_to_string(
                     pkg, changes["removed"][pkg])
         else:
