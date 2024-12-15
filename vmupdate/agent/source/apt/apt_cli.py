@@ -21,6 +21,7 @@
 
 # pylint: disable=unused-argument
 
+import fcntl
 import os
 from typing import List
 
@@ -37,6 +38,13 @@ class APTCLI(PackageManager):
         # to prevent a warning: `debconf: unable to initialize frontend: Dialog`
         os.environ['DEBIAN_FRONTEND'] = 'noninteractive'
 
+    def wait_for_lock(self):
+        """
+        Wait for any other apt-get instance to finish.
+        """
+        with open("/var/lib/apt/lists/lock") as f_lock:
+            fcntl.flock(f_lock.fileno(), fcntl.LOCK_EX)
+
     def refresh(self, hard_fail: bool) -> ProcessResult:
         """
         Use package manager to refresh available packages.
@@ -44,6 +52,7 @@ class APTCLI(PackageManager):
         :param hard_fail: raise error if some repo is unavailable
         :return: (exit_code, stdout, stderr)
         """
+        self.wait_for_lock()
         cmd = [self.package_manager, "-q", "update"]
         result = self.run_cmd(cmd)
         # 'apt-get update' reports error with exit code 100, but updater as a
