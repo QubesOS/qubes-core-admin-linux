@@ -53,6 +53,7 @@ class APT(APTCLI):
         :param hard_fail: raise error if some repo is unavailable
         :return: (exit_code, stdout, stderr)
         """
+        self.wait_for_lock()
         result = ProcessResult()
         try:
             self.log.debug("Refreshing available packages...")
