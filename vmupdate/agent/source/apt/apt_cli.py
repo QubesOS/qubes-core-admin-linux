@@ -43,7 +43,7 @@ class APTCLI(PackageManager):
         Wait for any other apt-get instance to finish.
         """
         with open("/var/lib/apt/lists/lock") as f_lock:
-            fcntl.flock(f_lock.fileno(), fcntl.LOCK_EX)
+            fcntl.lockf(f_lock.fileno(), fcntl.LOCK_EX)
 
     def refresh(self, hard_fail: bool) -> ProcessResult:
         """
