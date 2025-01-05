@@ -23,6 +23,7 @@
 
 import fcntl
 import os
+import contextlib
 from typing import List
 
 from source.common.package_manager import PackageManager
@@ -38,12 +39,21 @@ class APTCLI(PackageManager):
         # to prevent a warning: `debconf: unable to initialize frontend: Dialog`
         os.environ['DEBIAN_FRONTEND'] = 'noninteractive'
 
+    @contextlib.contextmanager
+    def apt_lock(self):
+        """
+        Contex manager for locking compatible with 'apt-get update' lock.
+        """
+        with open("/var/lib/apt/lists/lock", "rb+") as f_lock:
+            fcntl.lockf(f_lock.fileno(), fcntl.LOCK_EX)
+            yield
+
     def wait_for_lock(self):
         """
         Wait for any other apt-get instance to finish.
         """
-        with open("/var/lib/apt/lists/lock", "rb+") as f_lock:
-            fcntl.lockf(f_lock.fileno(), fcntl.LOCK_EX)
+        with self.apt_lock():
+            pass
 
     def refresh(self, hard_fail: bool) -> ProcessResult:
         """
@@ -52,9 +62,12 @@ class APTCLI(PackageManager):
         :param hard_fail: raise error if some repo is unavailable
         :return: (exit_code, stdout, stderr)
         """
-        self.wait_for_lock()
-        cmd = [self.package_manager, "-q", "update"]
-        result = self.run_cmd(cmd)
+        # apply lock externally to wait for it, until
+        # https://bugs.debian.org/1069167 gets implemented
+        with self.apt_lock():
+            cmd = [self.package_manager,
+                   "-o", "Debug::NoLocking=true", "-q", "update"]
+            result = self.run_cmd(cmd)
         # 'apt-get update' reports error with exit code 100, but updater as a
         # whole reserves it for "no updates"
         if result.code == 100:
