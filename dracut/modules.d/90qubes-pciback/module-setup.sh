@@ -1,4 +1,11 @@
 #!/bin/bash
+# This is a Qubes-specific dracut module that takes care of detecting and
+# hiding all networking devices (and optionally USB devices) at boot time so
+# that Dom0 doesn't load drivers for them...
+
+check() {
+    return 0
+}
 
 install () {
     inst_hook cmdline 02 "$moddir/qubes-pciback.sh"
