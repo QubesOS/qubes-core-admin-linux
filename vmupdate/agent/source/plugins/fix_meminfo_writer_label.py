@@ -1,5 +1,6 @@
 import subprocess
 import os
+import signal
 
 
 def fix_meminfo_writer_label(os_data, log, **kwargs):
@@ -33,9 +34,13 @@ def fix_meminfo_writer_label(os_data, log, **kwargs):
 
             if label_changed:
                 try:
-                    subprocess.check_call(
-                        ["systemctl", "restart", "qubes-meminfo-writer"]
+                    with open("/run/meminfo-writer.pid", "r", encoding="utf-8") as f:
+                        target_pid = int(f.read().strip())
+                        os.kill(target_pid, signal.SIGUSR1)
+                        log.info(
+                            f"USR1 signal sent to meminfo-writer process id: {target_pid}"
+                        )
+                except (FileNotFoundError, ValueError, OSError) as e:
+                    log.error(
+                        f"Error sending USR1 signal to meminfo-writer process: {e}"
                     )
-                    log.info("qubes-meminfo-writer service restarted")
-                except subprocess.CalledProcessError as e:
-                    log.error(f"Error restarting qubes-meminfo-writer service: {e}")
