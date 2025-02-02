@@ -220,7 +220,7 @@ def preselect_targets(args, app) -> Set[qubesadmin.vm.QubesVM]:
 
 def select_targets(targets, args) -> Set[qubesadmin.vm.QubesVM]:
     # try to update all preselected targets
-    if args.force_update:
+    if args.force_update or args.force_upgrade:
         return targets
 
     selected = set()
