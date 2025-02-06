@@ -72,7 +72,7 @@ class PACMANCLI(PackageManager):
         Clean cache files of package manager.
         Should return 0 on success or EXIT.ERR_VM_CLEANUP otherwise.
         """
-        cmd = [self.package_manager, "-Scc"]  # consider -Sc
+        cmd = [self.package_manager, "--noconfirm", "-Sc"]
         result = self.run_cmd(cmd, realtime=False)
         return_code = EXIT.ERR_VM_CLEANUP if result.code != 0 else 0
         return return_code
