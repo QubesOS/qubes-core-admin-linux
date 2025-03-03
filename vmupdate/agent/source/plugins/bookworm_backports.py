@@ -37,6 +37,13 @@ Pin-Priority: 600
 
 """
 
+prefs_pipewire_data = """\
+Package: src:pipewire
+Pin: release n=bookworm-backports
+Pin-Priority: 600
+
+"""
+
 
 def add_backports_repo():
     # find URL flavor used for deb.debian.org
@@ -82,16 +89,19 @@ def check_package_not_from_backports(package):
 
 def bookworm_backports(os_data, log, **kwargs):
     """
-    Update firmware packages from backports repository.
+    Update firmware and/or pipewire packages from backports repository.
 
     https://github.com/QubesOS/qubes-issues/issues/9815
+    https://github.com/QubesOS/qubes-issues/issues/8560
+    https://github.com/QubesOS/qubes-issues/issues/8916
     """
     if os_data.get("codename", "") == "bookworm":
         # check what packages need to be updated to backports version
         update_firmware = check_package_not_from_backports(
             "firmware-linux-nonfree"
         )
-        if not update_firmware:
+        update_pipewire = check_package_not_from_backports("pipewire")
+        if not update_firmware and not update_pipewire:
             return
         add_backports_repo()
         # then pin firmware packages to backports repo
@@ -99,3 +109,6 @@ def bookworm_backports(os_data, log, **kwargs):
             with open(prefs_path, "w") as prefs:
                 if update_firmware:
                     prefs.write(prefs_firmware_data)
+
+                if update_pipewire:
+                    prefs.write(prefs_pipewire_data)
