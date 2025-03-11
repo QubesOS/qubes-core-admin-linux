@@ -12,7 +12,10 @@ def fix_meminfo_writer_label(os_data, log, **kwargs):
 
     if os_data["id"] == "fedora":
         if os.path.exists("/usr/sbin/selinuxenabled"):
-            meminfo_path = "/usr/sbin/meminfo-writer"
+            if os.path.exists("/usr/bin/meminfo-writer"):
+                meminfo_path = "/usr/bin/meminfo-writer"
+            else:
+                meminfo_path = "/usr/sbin/meminfo-writer"
             expected_label = "qubes_meminfo_writer_exec_t"
 
             label_changed = False
