@@ -74,7 +74,14 @@ def get_package_manager(os_data, log, log_handler, log_level, no_progress):
             from source.apt.apt_cli import APTCLI as PackageManager
     elif os_data["os_family"] == "RedHat":
         try:
-            from source.dnf.dnf_api import DNF as PackageManager
+            version = int(os_data["release"].split(".")[0])
+        except ValueError:
+            version = 99  # fedora changed its version
+        try:
+            if version < 41:
+                from source.dnf.dnf_api import DNF as PackageManager
+            else:
+                from source.dnf.dnf5_api import DNF as PackageManager
         except ImportError:
             log.warning("Failed to load dnf with progress bar. Use dnf cli.")
             # no progress reporting
