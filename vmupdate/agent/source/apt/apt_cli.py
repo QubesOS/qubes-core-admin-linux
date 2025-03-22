@@ -52,6 +52,8 @@ class APTCLI(PackageManager):
         """
         Wait for any other apt-get instance to finish.
         """
+        if not os.path.exists("/var/lib/apt/lists/lock"):
+            return
         with self.apt_lock():
             pass
 
