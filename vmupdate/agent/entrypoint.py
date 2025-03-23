@@ -69,6 +69,7 @@ def get_package_manager(os_data, log, log_handler, log_level, no_progress):
             log.warning("Failed to load apt with progress bar. Using apt cli.")
             # no progress reporting
             no_progress = True
+            print(f"Progress reporting not supported.", flush=True)
 
         if no_progress:
             from source.apt.apt_cli import APTCLI as PackageManager
@@ -99,6 +100,7 @@ def get_package_manager(os_data, log, log_handler, log_level, no_progress):
             from source.dnf.dnf_cli import DNFCLI as PackageManager
     elif os_data["os_family"] == "ArchLinux":
         from source.pacman.pacman_cli import PACMANCLI as PackageManager
+        print(f"Progress reporting not supported.", flush=True)
     else:
         raise NotImplementedError(
             "Only Debian, RedHat and ArchLinux based OS is supported.")
