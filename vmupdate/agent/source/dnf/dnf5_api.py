@@ -133,7 +133,7 @@ class FetchProgress(DownloadCallbacks, Progress):
         self.package_bytes = {}
         self.package_names = {}
         self.count = 0
-        self.last_notification_time = 0
+        self.fetching_notified = False
 
     def add_new_download(
             self, _user_data, description: str, total_to_download: float
@@ -164,10 +164,14 @@ class FetchProgress(DownloadCallbacks, Progress):
         :param total_to_download: Total number of bytes to download.
         :param downloaded: Number of bytes downloaded.
         """
+        if not self.fetching_notified:
+            print(f"Fetching {self.count} packages", flush=True)
+            self.fetching_notified = True
         self.bytes_fetched += downloaded - self.package_bytes[user_cb_data]
-        self.package_bytes[user_cb_data] = downloaded
-        percent = self.bytes_fetched / self.bytes_to_fetch * 100
-        self.notify_callback(percent)
+        if downloaded > self.package_bytes[user_cb_data]:
+            self.package_bytes[user_cb_data] = downloaded
+            percent = self.bytes_fetched / self.bytes_to_fetch * 100
+            self.notify_callback(percent)
         # Should return 0 on success,
         # in case anything in dnf5 changed we return their default value
         return DownloadCallbacks.progress(
@@ -183,8 +187,6 @@ class FetchProgress(DownloadCallbacks, Progress):
         """
         if status != 0:
             print(msg, flush=True, file=self._stdout)
-        else:
-            print(f"{self.package_names[user_cb_data]}: Fetched", flush=True)
         return DownloadCallbacks.end(self, user_cb_data, status, msg)
 
     def mirror_failure(
