@@ -108,6 +108,7 @@ class FetchProgress(apt.progress.base.AcquireProgress, Progress):
     def __init__(self, weight: int, log, refresh: bool = False):
         Progress.__init__(self, weight, log)
         self.action = "refresh" if refresh else "fetch"
+        self.fetching_notified = False
 
     def fail(self, item):
         """
@@ -126,13 +127,19 @@ class FetchProgress(apt.progress.base.AcquireProgress, Progress):
         This function returns a boolean value indicating whether the
         acquisition should be continued (True) or cancelled (False).
         """
+        if self.action == "fetch" and not self.fetching_notified:
+            print(f"Fetching {self.total_items} packages "
+                  f"[{self._format_bytes(self.total_bytes)}]",
+                  flush=True)
+            self.fetching_notified = True
         self.notify_callback(self.current_bytes / self.total_bytes * 100)
         return True
 
     def start(self):
         """Invoked when the Acquire process starts running."""
         self.log.info(f"{self.action.capitalize()} started.")
-        print(f"{self.action.capitalize()}ing packages.", flush=True)
+        if self.action == "refresh":
+            print("Refreshing available packages.", flush=True)
         super().start()
         self.notify_callback(0)
 

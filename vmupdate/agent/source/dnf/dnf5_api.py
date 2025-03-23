@@ -165,7 +165,9 @@ class FetchProgress(DownloadCallbacks, Progress):
         :param downloaded: Number of bytes downloaded.
         """
         if not self.fetching_notified:
-            print(f"Fetching {self.count} packages", flush=True)
+            print(f"Fetching {self.count} packages "
+                  f"[{self._format_bytes(self.bytes_to_fetch)}]",
+                  flush=True)
             self.fetching_notified = True
         self.bytes_fetched += downloaded - self.package_bytes[user_cb_data]
         if downloaded > self.package_bytes[user_cb_data]:
