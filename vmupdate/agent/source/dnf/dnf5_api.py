@@ -133,6 +133,45 @@ class FetchProgress(DownloadCallbacks, Progress):
         self.package_bytes = {}
         self.package_names = {}
         self.count = 0
+        self.last_notification_time = 0
+
+    def add_new_download(
+            self, _user_data, description: str, total_to_download: float
+    ) -> int:
+        """
+        Notify the client that a new download has been created.
+
+        :param _user_data: User data entered together with url/package to download.
+        :param description: The message describing new download (url/packagename).
+        :param total_to_download: Total number of bytes to download.
+        :return: Associated user data for new download.
+        """
+        self.count += 1
+        self.bytes_to_fetch += total_to_download
+        self.package_bytes[self.count] = 0
+        self.package_names[self.count] = description
+        # downloading is not started yet
+        self.notify_callback(0)
+        return self.count
+
+    def progress(
+            self, user_cb_data: int, total_to_download: float, downloaded: float
+    ) -> int:
+        """
+        Download progress callback.
+
+        :param user_cb_data: Associated user data obtained from add_new_download.
+        :param total_to_download: Total number of bytes to download.
+        :param downloaded: Number of bytes downloaded.
+        """
+        self.bytes_fetched += downloaded - self.package_bytes[user_cb_data]
+        self.package_bytes[user_cb_data] = downloaded
+        percent = self.bytes_fetched / self.bytes_to_fetch * 100
+        self.notify_callback(percent)
+        # Should return 0 on success,
+        # in case anything in dnf5 changed we return their default value
+        return DownloadCallbacks.progress(
+            self, user_cb_data, total_to_download, downloaded)
 
     def end(self, user_cb_data: int, status: int, msg: str) -> int:
         """
@@ -164,45 +203,6 @@ class FetchProgress(DownloadCallbacks, Progress):
               flush=True, file=self._stdout)
         return DownloadCallbacks.mirror_failure(
             self, user_cb_data, msg, url, metadata)
-
-    def progress(
-            self, user_cb_data: int, total_to_download: float, downloaded: float
-    ) -> int:
-        """
-        Download progress callback.
-
-        :param user_cb_data: Associated user data obtained from add_new_download.
-        :param total_to_download: Total number of bytes to download.
-        :param downloaded: Number of bytes downloaded.
-        """
-        self.bytes_fetched += downloaded - self.package_bytes[user_cb_data]
-        self.package_bytes[user_cb_data] = downloaded
-        percent = self.bytes_fetched / self.bytes_to_fetch * 100
-        self.notify_callback(percent)
-        # Should return 0 on success,
-        # in case anything in dnf5 changed we return their default value
-        return DownloadCallbacks.progress(
-            self, user_cb_data, total_to_download, downloaded)
-
-    def add_new_download(
-            self, _user_data, description: str, total_to_download: float
-    ) -> int:
-        """
-        Notify the client that a new download has been created.
-
-        :param _user_data: User data entered together with url/package to download.
-        :param description: The message describing new download (url/packagename).
-        :param total_to_download: Total number of bytes to download.
-        :return: Associated user data for new download.
-        """
-        print(f"Fetching package: {description}", flush=True)
-        self.count += 1
-        self.bytes_to_fetch += total_to_download
-        self.package_bytes[self.count] = 0
-        self.package_names[self.count] = description
-        # downloading is not started yet
-        self.notify_callback(0)
-        return self.count
 
 
 class UpgradeProgress(TransactionCallbacks, Progress):
