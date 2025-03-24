@@ -21,6 +21,7 @@
 # USA.
 
 import subprocess
+import os
 
 import libdnf5
 from libdnf5.repo import DownloadCallbacks
@@ -57,11 +58,14 @@ class DNF(DNFCLI):
         :param hard_fail: raise error if some repo is unavailable
         :return: (exit_code, stdout, stderr)
         """
-        self.config.skip_unavailable = not hard_fail
+        self.config.skip_if_unavailable = not hard_fail
 
         result = ProcessResult()
         try:
             self.log.debug("Refreshing available packages...")
+
+            result += self.expire_cache()
+
             repo_sack = self.base.get_repo_sack()
             repo_sack.create_repos_from_system_configuration()
             repo_sack.load_repos()
