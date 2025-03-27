@@ -21,7 +21,6 @@
 # USA.
 
 import subprocess
-import os
 
 import libdnf5
 from libdnf5.repo import DownloadCallbacks
