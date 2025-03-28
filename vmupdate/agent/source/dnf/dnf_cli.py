@@ -48,11 +48,7 @@ class DNFCLI(PackageManager):
         :param hard_fail: raise error if some repo is unavailable
         :return: (exit_code, stdout, stderr)
         """
-        cmd = [self.package_manager,
-               "-q",
-               "clean",
-               "expire-cache"]
-        result = self.run_cmd(cmd)
+        result = self.expire_cache()
 
         cmd = [self.package_manager,
                "-q",
@@ -65,6 +61,17 @@ class DNFCLI(PackageManager):
         result += result_check
         result.error_from_messages()
 
+        return result
+
+    def expire_cache(self) -> ProcessResult:
+        """
+        Use package manager to expire cache.
+        """
+        cmd = [self.package_manager,
+               "-q",
+               "clean",
+               "expire-cache"]
+        result = self.run_cmd(cmd)
         return result
 
     def get_packages(self):
