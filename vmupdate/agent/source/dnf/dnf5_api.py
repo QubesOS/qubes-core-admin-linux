@@ -174,6 +174,9 @@ class FetchProgress(DownloadCallbacks, Progress):
             self.fetching_notified = True
         self.bytes_fetched += downloaded - self.package_bytes[user_cb_data]
         if downloaded > self.package_bytes[user_cb_data]:
+            if self.package_bytes[user_cb_data] == 0:
+                print(f"Fetching {self.package_names[user_cb_data]} [{self._format_bytes(total_to_download)}]",
+                      flush=True)
             self.package_bytes[user_cb_data] = downloaded
             percent = self.bytes_fetched / self.bytes_to_fetch * 100
             self.notify_callback(percent)
@@ -218,6 +221,7 @@ class UpgradeProgress(TransactionCallbacks, Progress):
         Progress.__init__(self, weight, log)
         self.pgks = None
         self.pgks_done = None
+        self.processed_packages = set()
 
     def install_progress(
             self, item: libdnf5.base.TransactionPackage, amount: int, total: int
@@ -229,6 +233,10 @@ class UpgradeProgress(TransactionCallbacks, Progress):
         :param amount: The portion of the package already installed
         :param total: The disk space used by the package after installation
         """
+        package = item.get_package().get_full_nevra()
+        if package not in self.processed_packages:
+            print(f"Installing {package}", flush=True)
+            self.processed_packages.add(package)
         pkg_progress = amount / total
         percent = (self.pgks_done + pkg_progress) / self.pgks * 100
         self.notify_callback(percent)
@@ -252,6 +260,10 @@ class UpgradeProgress(TransactionCallbacks, Progress):
         :param amount: The portion of the package already uninstalled
         :param total: The disk space freed by the package after removal
         """
+        package = item.get_package().get_full_nevra()
+        if package not in self.processed_packages:
+            print(f"Uninstalling {package}", flush=True)
+            self.processed_packages.add(package)
         pkg_progress = amount / total
         percent = (self.pgks_done + pkg_progress) / self.pgks * 100
         self.notify_callback(percent)
@@ -267,3 +279,16 @@ class UpgradeProgress(TransactionCallbacks, Progress):
         self.pgks_done = amount
         percent = amount / total * 100
         self.notify_callback(percent)
+
+    def script_start(self, item: libdnf5.base.TransactionPackage, nevra, type: int):
+        r"""
+        Execution of the rpm scriptlet has started
+
+        :param item: The TransactionPackage class instance for the package that owns the executed or triggered
+                     scriptlet. It can be `nullptr` if the scriptlet owner is not part of the transaction
+                     (e.g., a package installation triggered an update of the man database, owned by man-db package).
+        :param nevra: Nevra of the package that owns the executed or triggered scriptlet.
+        :param type: Type of the scriptlet
+        """
+        print(f"Running rpm scriptlet for {nevra.get_name()}-{nevra.get_epoch()}:{nevra.get_version()}"
+              f"-{nevra.get_release()}.{nevra.get_arch()}", flush=True)
