@@ -64,6 +64,16 @@ class Progress:
             self._callback(_percent)
             self._last_percent = _percent
 
+    @staticmethod
+    def _format_bytes(size):
+        units = ["B", "KB", "MB", "GB", "TB", "PB"]
+        factor = 1000
+        for unit in units:
+            if size < factor:
+                return f"{size:.2f} {unit}"
+            size /= factor
+        return f"{size:.2f} {units[-1]}"
+
 
 class ProgressReporter:
     """

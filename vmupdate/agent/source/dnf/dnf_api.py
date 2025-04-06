@@ -182,8 +182,10 @@ class FetchProgress(DownloadProgress, Progress):
 
         """
         self.log.info("Fetch started.")
-        print("Fetching packages:", flush=True)
         self.bytes_to_fetch = total_size
+        print(f"Fetching {total_files} packages "
+              f"[{self._format_bytes(self.bytes_to_fetch)}]",
+              flush=True)
         self.package_bytes = {}
         self.notify_callback(0)
 

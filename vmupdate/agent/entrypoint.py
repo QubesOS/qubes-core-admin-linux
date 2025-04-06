@@ -66,24 +66,41 @@ def get_package_manager(os_data, log, log_handler, log_level, no_progress):
         try:
             from source.apt.apt_api import APT as PackageManager
         except ImportError:
-            log.warning("Failed to load apt with progress bar. Use apt cli.")
+            log.warning("Failed to load apt with progress bar. Using apt cli.")
             # no progress reporting
             no_progress = True
+            print(f"Progress reporting not supported.", flush=True)
 
         if no_progress:
             from source.apt.apt_cli import APTCLI as PackageManager
     elif os_data["os_family"] == "RedHat":
         try:
-            from source.dnf.dnf_api import DNF as PackageManager
-        except ImportError:
-            log.warning("Failed to load dnf with progress bar. Use dnf cli.")
-            # no progress reporting
-            no_progress = True
+            version = int(os_data["release"].split(".")[0])
+        except ValueError:
+            version = 99  # fedora changed its version
 
-        if no_progress:
+        loaded = False
+        if version >= 41:
+            try:
+                from source.dnf.dnf5_api import DNF as PackageManager
+                loaded = True
+            except ImportError:
+                log.warning("Failed to load dnf5.")
+
+        if not loaded:
+            try:
+                from source.dnf.dnf_api import DNF as PackageManager
+                loaded = True
+            except ImportError:
+                log.warning(
+                    "Failed to load dnf with progress bar. Using dnf cli.")
+                print(f"Progress reporting not supported.", flush=True)
+
+        if no_progress or not loaded:
             from source.dnf.dnf_cli import DNFCLI as PackageManager
     elif os_data["os_family"] == "ArchLinux":
         from source.pacman.pacman_cli import PACMANCLI as PackageManager
+        print(f"Progress reporting not supported.", flush=True)
     else:
         raise NotImplementedError(
             "Only Debian, RedHat and ArchLinux based OS is supported.")
