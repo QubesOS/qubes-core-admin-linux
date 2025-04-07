@@ -63,9 +63,9 @@ done
             die 'Cannot determine hypervisor type'
     fi
     if [ "$hypervisor_type" = "xen" ]; then
-        die 'Cannot unbind PCI devices.'
+        die "Cannot unbind $dev PCI devices."
     else
-        warn 'Cannot unbind PCI devices - not running under Xen'
+        warn "Cannot unbind $dev PCI devices - not running under Xen"
     fi
 }
 if [ "$usb_in_dom0" = true ]; then
