@@ -5,7 +5,7 @@ installkernel() {
     # ehci-hcd split off
     hostonly='' instmods ehci-pci ehci-platform || :
     # xhci-hcd split off
-    hostonly='' instmods xhci-pci xhci-plat-hcd || :
+    hostonly='' instmods xhci-pci xhci-plat-hcd xhci-pci-renesas || :
     # ohci-hcd split off
     hostonly='' instmods ohci-pci || :
     # workaround for https://github.com/dracutdevs/dracut/issues/712
