@@ -28,6 +28,7 @@ if [ "$1" = "--help" ]; then
     echo "    --force-xen-upgrade  force major Xen upgrade even if some qubes are running"
     echo "    --console    does nothing; ignored for backward compatibility"
     echo "    --show-output  does nothing; ignored for backward compatibility"
+    echo "    --quiet      do not print anything to stdout"
     echo "    --preserve-terminal  does nothing; ignored for backward compatibility"
     echo "    --skip-boot-check  does not check if /boot & /boot/efi should be mounted"
     echo "    --switch-audio-server-to=(pulseaudio|pipewire) switch audio daemon to pipewire or pulseaudio"
@@ -46,6 +47,7 @@ YUM_OPTS=()
 UPDATEVM_OPTS=()
 QVMTEMPLATE_OPTS=()
 GUI=
+PROGRESS_REPORTING=
 CHECK_ONLY=
 CLEAN=
 TEMPLATE=
@@ -78,6 +80,12 @@ while [ $# -gt 0 ]; do
             ;;
         --show-output)
             # ignore
+            ;;
+        --quiet)
+            exec > /dev/null
+            ;;
+        --just-print-progress)
+            PROGRESS_REPORTING=1
             ;;
         --check-only)
             CHECK_ONLY=1
@@ -310,27 +318,53 @@ qvm-run --nogui -q -- "$UPDATEVM" "rm -rf -- '$dom0_updates_dir/etc' '$dom0_upda
    exit "$status"
 }
 
-CMD="/usr/lib/qubes/qubes-download-dom0-updates.sh --doit --nogui"
-
-# We avoid using bash’s own facilities for this, as they produce $'\n'-style
-# strings in certain cases.  These are not portable, whereas the string produced
-# by the following is.
-for i in "${UPDATEVM_OPTS[@]}"; do CMD+=" '${i//\'/\'\\\'\'}'"; done
-
 QVMRUN_OPTS=(--quiet --filter-escape-chars --nogui --pass-io)
-if [[ -t 1 ]] && [[ -t 2 ]]; then
-    # Use ‘script’ to emulate a TTY, so that we get status bars and other
-    # progress output.  Since stdout and stderr are both terminals, qvm-run
-    # will automatically sanitize them, but we explicitly tell it to anyway
-    # as a precaution.
-    #
-    # We MUST NOT use ‘exec script’ here.  That causes ‘script’ to
-    # inherit the child processes of the shell.  ‘script’ mishandles
-    # this and enters an infinite loop.
-    CMD="script --quiet --return --command '${CMD//\'/\'\\\'\'}' /dev/null"
-fi
 
-qvm-run "${QVMRUN_OPTS[@]}" -- "$UPDATEVM" "$CMD" < /dev/null
+if [ "$PROGRESS_REPORTING" == "1" ]; then
+    CMD="/usr/lib/qubes/qubes-download-dom0-updates-init.sh"
+    qvm-run "${QVMRUN_OPTS[@]}" -- "$UPDATEVM" "$CMD"
+
+    update_agent_log="/var/log/qubes/qubes-update"
+    qvm-run --nogui -q -u root -- "$UPDATEVM" "user=\$(qubesdb-read /default-user) && chown -R -- \"\$user:qubes\" '$update_agent_log'" || exit 1
+
+    # "--no-cleanup" is needed since fakeroot cannot remove entrypoint
+    qubes-vm-update --force-update --targets "$UPDATEVM" --signal-no-updates --just-print-progress --display-name dom0 --download-only --no-cleanup --show-output --log=DEBUG
+    RETCODE=$?
+    if [ "$RETCODE" -eq 100 ]; then
+        echo "$(hostname) done no_updates" >&2
+        exit 100
+    fi
+    if [ "$RETCODE" -ne 0 ]; then
+        echo "$(hostname) done error" >&2
+        exit $RETCODE
+    fi
+
+    # qubes-vm-update leaves the downloaded packages with root ownership
+    qvm-run --nogui -q -u root -- "$UPDATEVM" "user=\$(qubesdb-read /default-user) && chown -R -- \"\$user:qubes\" '$dom0_updates_dir'" || exit 1
+
+    CMD="/usr/lib/qubes/qubes-download-dom0-updates-finish.sh"
+    qvm-run "${QVMRUN_OPTS[@]}" -- "$UPDATEVM" "$CMD"
+else
+    CMD="/usr/lib/qubes/qubes-download-dom0-updates.sh --doit --nogui"
+
+    # We avoid using bash’s own facilities for this, as they produce $'\n'-style
+    # strings in certain cases.  These are not portable, whereas the string produced
+    # by the following is.
+    for i in "${UPDATEVM_OPTS[@]}"; do CMD+=" '${i//\'/\'\\\'\'}'"; done
+
+    if [[ -t 1 ]] && [[ -t 2 ]]; then
+        # Use ‘script’ to emulate a TTY, so that we get status bars and other
+        # progress output.  Since stdout and stderr are both terminals, qvm-run
+        # will automatically sanitize them, but we explicitly tell it to anyway
+        # as a precaution.
+        #
+        # We MUST NOT use ‘exec script’ here.  That causes ‘script’ to
+        # inherit the child processes of the shell.  ‘script’ mishandles
+        # this and enters an infinite loop.
+        CMD="script --quiet --return --command '${CMD//\'/\'\\\'\'}' /dev/null"
+    fi
+    qvm-run "${QVMRUN_OPTS[@]}" -- "$UPDATEVM" "$CMD" < /dev/null
+fi
 
 RETCODE=$?
 if [[ "$REMOTE_ONLY" = '1' ]] || [ "$RETCODE" -ne 0 ]; then
@@ -401,6 +435,9 @@ elif [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
         # refresh packagekit metadata, GUI utilities use it
         pkcon refresh force
         $guiapp
+    elif [ "$PROGRESS_REPORTING" == 1 ]; then
+        # report progress to the user
+        qubes-vm-update --no-refresh --targets dom0 --force-update --log=DEBUG --just-print-progress --show-output
     else
         dnf check-update ||
         if [ $? -eq 100 ]; then # Run dnf with options

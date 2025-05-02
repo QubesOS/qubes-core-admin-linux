@@ -32,7 +32,7 @@ from typing import Optional, Tuple
 
 from tqdm import tqdm
 
-from .agent.source.status import StatusInfo, FinalStatus, Status
+from .agent.source.status import StatusInfo, FinalStatus, Status, FormatedLine
 from .qube_connection import QubeConnection
 from vmupdate.agent.source.log_congfig import init_logs
 from vmupdate.agent.source.common.process_result import ProcessResult
@@ -51,6 +51,7 @@ class UpdateManager:
         self.quiet = args.quiet
         self.no_progress = args.no_progress
         self.just_print_progress = args.just_print_progress
+        self.download_only = args.download_only
         self.buffered = not args.just_print_progress and not args.no_progress
         self.buffer = ""
         self.cleanup = not args.no_cleanup
@@ -67,7 +68,7 @@ class UpdateManager:
             return EXIT.OK, {}
 
         show_progress = not self.quiet and not self.no_progress
-        SimpleTerminalBar.reinit_class()
+        SimpleTerminalBar.reinit_class(self.download_only)
         progress_output = SimpleTerminalBar \
             if self.just_print_progress else tqdm
         progress_bar = MultipleUpdateMultipleProgressBar(
@@ -78,13 +79,19 @@ class UpdateManager:
         )
 
         for qube in self.qubes:
-            progress_bar.add_bar(qube.name)
+            disp_name = agent_args.display_name \
+                if agent_args.display_name is not None else qube.name
+            progress_bar.add_bar(disp_name)
             progress_bar.pool.apply_async(
                 update_qube,
                 (qube, agent_args, show_progress,
                  progress_bar.status_notifier, progress_bar.termination),
                 callback=self.collect_result, error_callback=print
             )
+            if qube.klass == "AdminVM":
+                # progress of AdminVM is continuation of different process,
+                # so we want to skip 0 value at beginning
+                progress_bar.progress_bars[qube.name].progress = None
 
         progress_bar.pool.close()
         progress_bar.feeding()
@@ -122,9 +129,9 @@ class UpdateManager:
 
         if self.show_output:
             for line in result.out.split('\n'):
-                self.print(qube_name + ":out:", line)
+                self.print(FormatedLine(qube_name, "out", line))
             for line in result.err.split('\n'):
-                self.print(qube_name + ":err:", line)
+                self.print(FormatedLine(qube_name, "err", line))
         elif not self.quiet and self.no_progress:
             self.print(result.out)
 
@@ -146,6 +153,7 @@ class TerminalMultiBar:
 
 class SimpleTerminalBar:
     PARENT_MULTI_BAR = None
+    DOWNLOAD_ONLY = False
 
     def __init__(self, total, position, desc):
         assert position == len(SimpleTerminalBar.PARENT_MULTI_BAR.progresses)
@@ -162,13 +170,19 @@ class SimpleTerminalBar:
                       FinalStatus.ERROR.value,
                       FinalStatus.CANCELLED.value,
                       FinalStatus.NO_UPDATES.value):
+            if SimpleTerminalBar.DOWNLOAD_ONLY:
+                return ""
             info = status.replace(" ", "_")
             status = "done"
         if status == Status.UPDATING.value:
+            if self.progress is None:
+                return ""
             info = self.progress
         return f"{name} {status} {info}"
 
     def update(self, progress):
+        if self.progress is None:
+            self.progress = 0
         self.progress += progress
         SimpleTerminalBar.PARENT_MULTI_BAR.print()
 
@@ -181,8 +195,9 @@ class SimpleTerminalBar:
         pass
 
     @staticmethod
-    def reinit_class():
+    def reinit_class(download_only = False):
         SimpleTerminalBar.PARENT_MULTI_BAR = TerminalMultiBar()
+        SimpleTerminalBar.DOWNLOAD_ONLY = download_only
 
 
 class MultipleUpdateMultipleProgressBar:
@@ -291,18 +306,29 @@ def update_qube(
     :param termination: signal to gracefully terminate subprocess
     :return:
     """
+    if agent_args.display_name is not None:
+        status_notifier = StatusNotifierWrapper(status_notifier, agent_args.display_name)
+
     if termination.value:
         status_notifier.put(StatusInfo.done(qube, FinalStatus.CANCELLED))
         return qube.name, ProcessResult(EXIT.SIGINT, "Canceled")
-    status_notifier.put(StatusInfo.updating(qube, 0))
 
     try:
-        runner = UpdateAgentManager(
-            qube.app,
-            qube,
-            agent_args=agent_args,
-            show_progress=show_progress
-        )
+        if qube.klass == "AdminVM":
+            # AdminVM update
+            runner = AdminVMAgentManager(
+                qube.app,
+                qube,
+                agent_args=agent_args,
+                show_progress=show_progress
+            )
+        else:
+            runner = UpdateAgentManager(
+                qube.app,
+                qube,
+                agent_args=agent_args,
+                show_progress=show_progress
+            )
         result = runner.run_agent(
             agent_args=agent_args,
             status_notifier=status_notifier,
@@ -408,3 +434,70 @@ class UpdateAgentManager:
             self.log_handler.setFormatter(self.log_formatter)
 
         return result
+
+class StatusNotifierWrapper:
+    """
+    Masks proxy VM with display name.
+    """
+    def __init__(self, status_notifier, qube_name):
+        self.status_notifier = status_notifier
+        self.qube_name = qube_name
+
+    def put(self, message):
+        if isinstance(message, (StatusInfo, FormatedLine)):
+            message.qname = self.qube_name
+        self.status_notifier.put(message)
+
+
+class AdminVMAgentManager(UpdateAgentManager):
+    """
+    Handle AdminVM updates.
+    """
+    def __init__(self, app, qube, agent_args, show_progress):
+        super().__init__(app, qube, agent_args, show_progress)
+
+    def run_agent(
+            self, agent_args, status_notifier, termination
+    ) -> ProcessResult:
+        """
+        Download updates in UpdateVM and install them in AdminVM.
+        """
+        status_notifier = StatusNotifierWrapper(status_notifier, "dom0")
+        result = self._run_agent(
+            agent_args, status_notifier, termination)
+        output = result.out.split("\n") + result.err.split("\n")
+        for line in output:
+            self.log.debug('agent output: %s', line)
+        self.log.info('agent exit code: %d', result.code)
+        if not agent_args.show_output or not output:
+            result.out = "OK" if result.code == EXIT.OK else \
+                f"ERROR (exit code {result.code}, details in {self.log_path})"
+        return result
+
+    def _run_agent(
+            self, agent_args, status_notifier, termination
+    ) -> ProcessResult:
+        self.log.info('Running update agent for %s', self.qube.name)
+        this_dir = os.path.dirname(os.path.realpath(__file__))
+        dest_agent = join(this_dir, UpdateAgentManager.ENTRYPOINT)
+
+        with QubeConnection(
+                self.qube,
+                None,
+                False,
+                self.log,
+                self.show_progress,
+                status_notifier
+        ) as qconn:
+            if termination.value:
+                qconn.status = FinalStatus.CANCELLED
+                return ProcessResult(EXIT.SIGINT, "", "Cancelled")
+
+            self.log.info(
+                "The agent is starting the task in qube: %s", self.qube.name)
+            result = qconn.run_entrypoint(dest_agent, agent_args)
+            if not result and qconn.status != FinalStatus.NO_UPDATES:
+                qconn.status = FinalStatus.SUCCESS
+
+        return result
+

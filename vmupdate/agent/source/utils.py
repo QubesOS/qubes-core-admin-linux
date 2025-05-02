@@ -62,6 +62,10 @@ def get_os_data(logger: Optional = None) -> Dict[str, Any]:
     if 'rhel' in family or 'fedora' in family:
         data["os_family"] = 'RedHat'
 
+    if 'qubes' in family:
+        # We do not want to use 'RedHat' for dom0 since usually plugins do not apply to dom0
+        data["os_family"] = 'Qubes'
+
     if 'arch' in family:
         data["os_family"] = 'ArchLinux'
 
