@@ -26,14 +26,18 @@ import os
 import contextlib
 from typing import List
 
-from source.common.package_manager import PackageManager
+from source.common.package_manager import PackageManager, AgentType
 from source.common.process_result import ProcessResult
 from source.common.exit_codes import EXIT
 
 
 class APTCLI(PackageManager):
-    def __init__(self, log_handler, log_level,):
-        super().__init__(log_handler, log_level,)
+    PROGRESS_REPORTING = False
+
+    def __init__(self, log_handler, log_level, agent_type: AgentType):
+        super().__init__(log_handler, log_level, agent_type)
+        if self.type is AgentType.UPDATE_VM:
+            raise NotImplementedError("APT do not support update proxy VM.")
         self.package_manager: str = "apt-get"
 
         # to prevent a warning: `debconf: unable to initialize frontend: Dialog`

@@ -41,6 +41,9 @@ class AgentArgs:
         ("--leave-obsolete",): {
             "action": 'store_true',
             "help": 'Do not remove updater and cache files from target qube'},
+        ("--download-only",): {
+            "action": 'store_true',
+            "help": 'Only download packages'},
     }
     EXCLUSIVE_OPTIONS_1 = {
         ("--show-output", "--verbose", "-v"):

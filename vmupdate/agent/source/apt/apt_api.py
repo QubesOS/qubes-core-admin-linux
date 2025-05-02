@@ -26,6 +26,7 @@ import apt
 import apt.progress.base
 import apt_pkg
 
+from source.common.package_manager import AgentType
 from source.common.process_result import ProcessResult
 from source.common.exit_codes import EXIT
 from source.common.progress_reporter import ProgressReporter, Progress
@@ -34,8 +35,10 @@ from .apt_cli import APTCLI
 
 
 class APT(APTCLI):
-    def __init__(self, log_handler, log_level):
-        super().__init__(log_handler, log_level)
+    PROGRESS_REPORTING = True
+
+    def __init__(self, log_handler, log_level, agent_type: AgentType):
+        super().__init__(log_handler, log_level, agent_type)
         self.apt_cache = apt.Cache()
         update = FetchProgress(
             weight=4, log=self.log, refresh=True)  # 4% of total time
