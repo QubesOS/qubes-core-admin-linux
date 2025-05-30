@@ -45,6 +45,14 @@ def test_no_options_do_nothing(_logger, _log_file, _chmod, _chown, test_qapp):
     assert main(args, test_qapp) == EXIT.OK_NO_UPDATES
 
 
+class Subproc:
+    def __init__(self, returncode=0):
+        self.returncode = returncode
+
+    def wait(self):
+        pass
+
+
 @patch('vmupdate.update_manager.TerminalMultiBar.print')
 @patch('os.chmod')
 @patch('os.chown')
@@ -53,11 +61,13 @@ def test_no_options_do_nothing(_logger, _log_file, _chmod, _chown, test_qapp):
 @patch('vmupdate.update_manager.UpdateAgentManager')
 @patch('multiprocessing.Pool')
 @patch('multiprocessing.Manager')
+@patch('subprocess.Popen')
 def test_preselection(
-        mp_manager, mp_pool, agent_mng,
+        dummy_subprocess, mp_manager, mp_pool, agent_mng,
         _logger, _log_file, _chmod, _chown, _print,
         test_qapp, test_manager, test_pool, test_agent,
 ):
+    dummy_subprocess.return_value = Subproc()
     mp_manager.return_value = test_manager
     mp_pool.return_value = test_pool
 
@@ -160,12 +170,14 @@ def test_preselection(
 @patch('vmupdate.update_manager.UpdateAgentManager')
 @patch('multiprocessing.Pool')
 @patch('multiprocessing.Manager')
+@patch('subprocess.Popen')
 def test_selection(
-        mp_manager, mp_pool, agent_mng,
+        dummy_subprocess, mp_manager, mp_pool, agent_mng,
         _logger, _log_file, _chmod, _chown, _print,
         test_qapp, test_manager, test_pool, test_agent,
         monkeypatch
 ):
+    dummy_subprocess.return_value = Subproc()
     mp_manager.return_value = test_manager
     mp_pool.return_value = test_pool
 
@@ -200,7 +212,8 @@ def test_selection(
         else:
             feed = {vm.name: {'statuses': [FinalStatus.SUCCESS],
                               'retcode': EXIT.OK}
-                    for vm in selected}
+                    for vm in selected
+                    if vm.klass != "AdminVM"}  # dom0 is not updated via agent
             monkeypatch.setattr(
                 vmupdate, "preselect_targets", lambda *_: selected)
             if feed:
@@ -233,12 +246,14 @@ def test_selection(
 @patch('multiprocessing.Pool')
 @patch('multiprocessing.Manager')
 @patch('asyncio.run')
+@patch('subprocess.Popen')
 def test_restarting(
-        arun, mp_manager, mp_pool, agent_mng,
+        dummy_subprocess, arun, mp_manager, mp_pool, agent_mng,
         _logger, _log_file, _chmod, _chown, _print,
         test_qapp, test_manager, test_pool, test_agent,
         monkeypatch
 ):
+    dummy_subprocess.return_value = Subproc()
     mp_manager.return_value = test_manager
     mp_pool.return_value = test_pool
 
@@ -284,7 +299,8 @@ def test_restarting(
         monkeypatch.setattr(vmupdate, "get_targets", lambda *_: all)
         feed = {vm.name: {'statuses': [vm.update_result],
                           'retcode': None}  # we don't care
-                for vm in all}
+                for vm in all
+                if vm.klass != "AdminVM"} # dom0 is not updated via agent
 
         unexpected = []
         agent_mng.side_effect = test_agent(feed, unexpected)
