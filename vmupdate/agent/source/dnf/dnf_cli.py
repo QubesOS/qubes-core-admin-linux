@@ -53,6 +53,7 @@ class DNFCLI(PackageManager):
         cmd = [self.package_manager,
                "-q",
                "check-update",
+               "--assumeyes",
                f"--setopt=skip_if_unavailable={int(not hard_fail)}"]
         result_check = self.run_cmd(cmd)
         # ret_code == 100 is not an error
