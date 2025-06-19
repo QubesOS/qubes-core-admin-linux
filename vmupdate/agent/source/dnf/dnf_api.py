@@ -43,7 +43,7 @@ class DNF(DNFCLI):
         super().__init__(log_handler, log_level, agent_type)
 
         if self.type == AgentType.UPDATE_VM:
-            dnfconf = "/var/lib/qubes/dom0-updates/etc/dnf/dnf.conf"
+            dnfconf = self.UPDATE_VM_INSTALLROOT + "/etc/dnf/dnf.conf"
         else:
             dnfconf = None
         conf = dnf.conf.Conf()
@@ -73,8 +73,6 @@ class DNF(DNFCLI):
         subst['releasever'] = releasever
 
         self.base = dnf.Base(conf)
-        if self.type == AgentType.UPDATE_VM:
-            self.base._allow_erasing = True
         # Repositories serve as sources of information about packages.
         self.base.read_all_repos()
 
@@ -130,7 +128,7 @@ class DNF(DNFCLI):
             # fill empty `Command line` column in dnf history
             self.base.cmds = ["qubes-vm-update"]
 
-            self.base.resolve()
+            self.base.resolve(allow_erasing=self.type == AgentType.UPDATE_VM)
             trans = self.base.transaction
             if not trans:
                 self.log.info("No packages to upgrade, quitting.")
