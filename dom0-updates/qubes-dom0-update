@@ -320,7 +320,37 @@ qvm-run --nogui -q -- "$UPDATEVM" "rm -rf -- '$dom0_updates_dir/etc' '$dom0_upda
 
 QVMRUN_OPTS=(--quiet --filter-escape-chars --nogui --pass-io)
 
-if [ "$PROGRESS_REPORTING" == "1" ]; then
+progress_agent_version="4.3"
+
+get_base_vm() {
+    # Resolve base VM (TemplateVM or StandaloneVM)
+    local vm="$1"
+    while true; do
+        # If it's a TemplateVM or StandaloneVM, stop
+        if qvm-check --template "$vm" &>/dev/null || qvm-check --standalone "$vm" &>/dev/null; then
+            echo "$vm"
+            return
+        fi
+        # Try to get its template
+        vm=$(qvm-prefs "$vm" template 2>/dev/null) || return 1
+    done
+}
+version_check() {
+    # Compare version numbers (e.g., 4.2 < 4.3)
+    awk 'BEGIN {exit !(ARGV[1] < ARGV[2])}' "$1" "$2"
+}
+base_vm=$(get_base_vm $UPDATEVM)
+OLD_VERSION=0
+if [ -n "$base_vm" ]; then
+    agent_version=$(qvm-features "$base_vm" qubes-agent-version 2>/dev/null)
+
+    if [ -n "$agent_version" ] && version_check "$agent_version" "$progress_agent_version"; then
+        OLD_VERSION=1
+    fi
+fi
+
+
+if [ "$PROGRESS_REPORTING" == "1" ] && [ "$OLD_VERSION" == "0" ]; then
     CMD="/usr/lib/qubes/qubes-download-dom0-updates-init.sh"
     qvm-run "${QVMRUN_OPTS[@]}" -- "$UPDATEVM" "$CMD"
 
@@ -331,6 +361,7 @@ if [ "$PROGRESS_REPORTING" == "1" ]; then
     qubes-vm-update --force-update --targets "$UPDATEVM" --signal-no-updates --just-print-progress --display-name dom0 --download-only --no-cleanup --show-output --log=DEBUG
     RETCODE=$?
     if [ "$RETCODE" -eq 100 ]; then
+        echo "$(hostname):out: Nothing to do."
         echo "$(hostname) done no_updates" >&2
         exit 100
     fi
@@ -345,6 +376,9 @@ if [ "$PROGRESS_REPORTING" == "1" ]; then
     CMD="/usr/lib/qubes/qubes-download-dom0-updates-finish.sh"
     qvm-run "${QVMRUN_OPTS[@]}" -- "$UPDATEVM" "$CMD"
 else
+    if [ "$PROGRESS_REPORTING" == "1" ] && [ "$OLD_VERSION" == "1" ]; then
+        echo "$(hostname):out: Progress reporting requires updateVM based on a template with Qubes 4.3 packages."
+    fi
     CMD="/usr/lib/qubes/qubes-download-dom0-updates.sh --doit --nogui"
 
     # We avoid using bash’s own facilities for this, as they produce $'\n'-style
@@ -363,10 +397,23 @@ else
         # this and enters an infinite loop.
         CMD="script --quiet --return --command '${CMD//\'/\'\\\'\'}' /dev/null"
     fi
-    qvm-run "${QVMRUN_OPTS[@]}" -- "$UPDATEVM" "$CMD" < /dev/null
+    if [ "$PROGRESS_REPORTING" == "1" ]; then
+        qvm-run "${QVMRUN_OPTS[@]}" -- "$UPDATEVM" "$CMD" < /dev/null | sed "s/``^/$(hostname):out: /"
+        # "consume" the last empty line
+        echo ""
+    else
+        qvm-run "${QVMRUN_OPTS[@]}" -- "$UPDATEVM" "$CMD" < /dev/null
+    fi
 fi
 
 RETCODE=$?
+if [ "$PROGRESS_REPORTING" == "1" ] && [ "$OLD_VERSION" == "1" ]; then
+    echo "$(hostname) updating 50.0" >&2
+    if [ "$RETCODE" -ne 0 ]; then
+        echo "$(hostname) done error" >&2
+        exit $RETCODE
+    fi
+fi
 if [[ "$REMOTE_ONLY" = '1' ]] || [ "$RETCODE" -ne 0 ]; then
     if [ "$CHECK_ONLY" = '1' ]; then
         if [ "$RETCODE" -eq 100 ]; then
