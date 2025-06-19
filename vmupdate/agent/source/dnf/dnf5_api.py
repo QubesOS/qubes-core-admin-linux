@@ -63,8 +63,8 @@ class DNF5(DNFCLI):
         self.base.setup()
         self.config = self.base.get_config()
         update = FetchProgress(weight=0, log=self.log)  # % of total time
-        fetch = FetchProgress(weight=50, log=self.log)  # % of total time
-        upgrade = UpgradeProgress(weight=50, log=self.log)  # % of total time
+        fetch = FetchProgress(weight=55, log=self.log)  # % of total time
+        upgrade = UpgradeProgress(weight=45, log=self.log)  # % of total time
         self.progress = ProgressReporter(update, fetch, upgrade)
 
     def refresh(self, hard_fail: bool) -> ProcessResult:
