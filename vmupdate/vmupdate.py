@@ -5,6 +5,7 @@ Update qubes.
 import argparse
 import asyncio
 import logging
+import subprocess
 import sys
 import os
 import grp
@@ -59,16 +60,36 @@ def main(args=None, app=qubesadmin.Qubes()):
             print("No qube selected for update")
         return EXIT.OK_NO_UPDATES if args.signal_no_updates else EXIT.OK
 
+    admin = [target for target in targets if target.klass == 'AdminVM']
     independent = [target for target in targets if target.klass in (
         'TemplateVM', 'StandaloneVM')]
     derived = [target for target in targets if target.klass not in (
-        'TemplateVM', 'StandaloneVM')]
+        'AdminVM', 'TemplateVM', 'StandaloneVM')]
+
+    no_updates = True
+    ret_code_admin = EXIT.OK
+    if admin:
+        message = f"The admin VM ({admin[0].name}) will be updated."
+    else:
+        message = "The admin VM will not be updated."
+    if args.dry_run:
+        print(message)
+    elif admin:
+        log.debug(message)
+        if args.just_print_progress and args.no_refresh:
+            # internal usage just for installing ready updates, use carefully
+            ret_code_admin, admin_status = run_update(admin, args, log, "admin VM")
+        else:
+            # use qubes-dom0-update to update dom0
+            ret_code_admin, admin_status = run_admin_update(admin[0], args, log)
+        no_updates = all(stat == FinalStatus.NO_UPDATES
+                         for stat in admin_status.values())
 
     # independent qubes first (TemplateVMs, StandaloneVMs)
     ret_code_independent, templ_statuses = run_update(
         independent, args, log, "templates and standalones")
     no_updates = all(stat == FinalStatus.NO_UPDATES
-                     for stat in templ_statuses.values())
+                     for stat in templ_statuses.values()) and no_updates
     # then derived qubes (AppVMs...)
     ret_code_appvm, app_statuses = run_update(derived, args, log)
     no_updates = all(stat == FinalStatus.NO_UPDATES
@@ -77,9 +98,11 @@ def main(args=None, app=qubesadmin.Qubes()):
     ret_code_restart = apply_updates_to_appvm(
         args, independent, templ_statuses, app_statuses, log)
 
-    ret_code = max(ret_code_independent, ret_code_appvm, ret_code_restart)
+    ret_code = max(ret_code_admin, ret_code_independent, ret_code_appvm, ret_code_restart)
     if ret_code == EXIT.OK and no_updates and args.signal_no_updates:
         return EXIT.OK_NO_UPDATES
+    if ret_code == EXIT.OK_NO_UPDATES and not args.signal_no_updates:
+        return EXIT.OK
     return ret_code
 
 
@@ -153,6 +176,11 @@ def parse_args(args, app):
         help='DEFAULT. Target all updatable VMs except AdminVM. '
              'Use explicitly with "--targets" to include both.')
 
+    # for internal usage, e.g., download updates via proxy vm
+    parser.add_argument(
+        '--display-name', action='store',
+        help=argparse.SUPPRESS)
+
     AgentArgs.add_arguments(parser)
     args = parser.parse_args(args)
 
@@ -205,10 +233,7 @@ def preselect_targets(args, app) -> Set[qubesadmin.vm.QubesVM]:
 
     # remove skipped qubes and dom0 - not a target
     to_skip = args.skip.split(',')
-    if 'dom0' in targets and not args.quiet:
-        print("Skipping dom0. To update AdminVM use `qubes-dom0-update`")
-    targets = {vm for vm in targets
-               if vm.name != 'dom0' and vm.name not in to_skip}
+    targets = {vm for vm in targets if vm.name not in to_skip}
 
     # exclude vms with `skip-update` feature, but allow --targets to override it
     if not args.targets:
@@ -265,19 +290,49 @@ def is_stale(vm, expiration_period):
     return False
 
 
+def run_admin_update(admin_vm, args, log):
+    cmd = ["qubes-dom0-update", "-y"]
+    if args.quiet:
+        cmd.append('--quiet')
+    if args.just_print_progress:
+        cmd.append("--just-print-progress")
+    elif args.signal_no_updates:
+        # --just-print-progress checks it by default
+        proc = subprocess.Popen(["qubes-dom0-update", "--check-only"])
+        proc.wait()
+        if proc.returncode == 0:
+            return proc.returncode, {admin_vm.name: FinalStatus.NO_UPDATES}
+    proc = subprocess.Popen(cmd, stdout=sys.stdout, stderr=sys.stderr)
+    proc.wait()
+    if proc.returncode == 0:
+        status = FinalStatus.SUCCESS
+    elif proc.returncode == 100:
+        status = FinalStatus.NO_UPDATES
+    else:
+        status = FinalStatus.ERROR
+    return proc.returncode, {admin_vm.name: status}
+
+
 def run_update(
         targets, args, log, qube_klass="qubes"
 ) -> Tuple[int, Dict[str, FinalStatus]]:
-    if not targets:
-        return EXIT.OK, {}
-
-    message = f"Following {qube_klass} will be updated:" + \
-              ",".join((target.name for target in targets))
+    if targets:
+        message = f"Following {qube_klass} will be updated: " + \
+                  ", ".join((target.name for target in targets))
+    else:
+        if qube_klass == "qubes":
+            message = ""  # no need to inform about app VMs etc.
+        else:
+            message = f"No {qube_klass} will be updated."
     if args.dry_run:
-        print(message)
+        if message:
+            print(message)
         return EXIT.OK, {target.name: FinalStatus.SUCCESS for target in targets}
     else:
         log.debug(message)
+
+    if not targets:
+        return EXIT.OK, {}
 
     runner = update_manager.UpdateManager(targets, args, log=log)
     ret_code, statuses = runner.run(agent_args=args)
