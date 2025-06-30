@@ -59,3 +59,13 @@ class StatusInfo:
     @staticmethod
     def done(qube, status: FinalStatus):
         return StatusInfo(qube, Status.DONE, info=status)
+
+
+class FormatedLine:
+    def __init__(self, qube_name, stream: str, message: str):
+        self.qname = qube_name
+        self.stream = stream
+        self.message = message
+
+    def __str__(self):
+        return f"{self.qname}:{self.stream}: {self.message}"
