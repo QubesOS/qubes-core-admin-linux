@@ -186,7 +186,7 @@ def preselect_targets(args, app) -> Set[qubesadmin.vm.QubesVM]:
             targets.update([vm for vm in updatable
                             if vm.klass == 'StandaloneVM'])
         if args.apps:
-            targets.update({vm for vm in updatable
+            targets.update({vm for vm in app.domains
                             if vm.klass == 'AppVM' and vm.is_running()})
 
     # user can target non-updatable vm if she like
