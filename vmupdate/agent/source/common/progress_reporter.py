@@ -66,8 +66,8 @@ class Progress:
 
     @staticmethod
     def _format_bytes(size):
-        units = ["B", "KB", "MB", "GB", "TB", "PB"]
-        factor = 1000
+        units = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"]
+        factor = 1024
         for unit in units:
             if size < factor:
                 return f"{size:.2f} {unit}"
