@@ -32,6 +32,11 @@ def fix_meminfo_writer_label(os_data, log, **kwargs):
                             f"SELinux label for {meminfo_path} changed to '{expected_label}'"
                         )
                         label_changed = True
+                    # Disable SELinux for the update time, to avoid
+                    # half-updated policy interrupting the process. This is
+                    # workaround for
+                    # https://bugzilla.redhat.com/show_bug.cgi?id=2380156
+                    subprocess.check_call(["setenforce", "0"])
             except subprocess.CalledProcessError as e:
                 log.error(f"Error processing {meminfo_path}: {e}")
 
