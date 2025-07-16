@@ -71,7 +71,7 @@ def test_preselection(
     stand = domains["klass"]["StandaloneVM"]
     app = domains["klass"]["AppVM"]
     disp = domains["klass"]["DispVM"]
-    run_up_app = updatable & app & is_running
+    run_app = app & is_running
     default = updatable & ((templ | stand) | (is_running & (disp | app)))
 
     AdminVM = next(iter(admin))
@@ -79,8 +79,6 @@ def test_preselection(
     StandVM = next(iter(stand))
     UpStandVM = next(iter(updatable & stand))
     NUpStandVM = next(iter(domains["updatable"][False] & stand))
-    RunUpAppVM = next(iter(updatable & app & is_running))
-    RunNUpAppVM = next(iter(domains["updatable"][False] & is_running & app))
     NRunAppVM = next(iter(domains["is_running"][False] & app))
 
     expected = {
@@ -92,16 +90,15 @@ def test_preselection(
         ("--all", "--standalones",): default,
         ("--all", "--skip", UpStandVM.name,): default - {UpStandVM},
         ("--all", "--targets", UpStandVM.name,): default,
-        ("--all", "--targets", RunNUpAppVM.name,): default | {RunNUpAppVM},
         ("--all", "--targets", NRunAppVM.name,): default | {NRunAppVM},
         ("--all", "--targets", NUpStandVM.name,): default | {NUpStandVM},
-        ("--apps",): updatable & app & is_running,
+        ("--apps",): app & is_running,
         ("--templates",): updatable & templ,
         ("--standalones",): updatable & stand,
-        ("--templates", "--apps",): updatable & (templ | (app & is_running)),
+        ("--templates", "--apps",): (updatable & templ) | run_app,
         ("--templates", "--standalones",): updatable & (templ | stand),
         ("--templates", "--standalones", "--apps",):
-            updatable & (templ | stand | (app & is_running)),
+            (updatable & (templ | stand)) | (app & is_running),
         ("--standalones", "--skip", StandVM.name,):
             (updatable & stand) - {StandVM},
         ("--standalones", "--skip", TemplVM.name,): (updatable & stand),
@@ -110,20 +107,10 @@ def test_preselection(
             (updatable & stand) | {NUpStandVM},
         ("--standalones", "--targets", TemplVM.name,):
             (updatable & stand) | {TemplVM},
-        ("--apps", "--skip", RunUpAppVM.name,):  run_up_app - {RunUpAppVM},
-        ("--apps", "--skip", RunNUpAppVM.name,):  run_up_app,
-        ("--apps", "--skip", NRunAppVM.name,): run_up_app,
-        ("--apps", "--skip", StandVM.name,): run_up_app,
-        ("--apps", "--targets", RunUpAppVM.name,):
-            (updatable & app & is_running),
-        ("--apps", "--targets", RunNUpAppVM.name,):
-            (updatable & app & is_running) | {RunNUpAppVM},
-        ("--apps", "--targets", NRunAppVM.name,):
-            (updatable & app & is_running) | {NRunAppVM},
-        ("--apps", "--targets", TemplVM.name,):
-            (updatable & app & is_running) | {TemplVM},
-        ("--targets", RunUpAppVM.name,): {RunUpAppVM},
-        ("--targets", RunNUpAppVM.name,): {RunNUpAppVM},
+        ("--apps", "--skip", NRunAppVM.name,): run_app,
+        ("--apps", "--skip", StandVM.name,): run_app,
+        ("--apps", "--targets", NRunAppVM.name,): run_app | {NRunAppVM},
+        ("--apps", "--targets", TemplVM.name,): run_app | {TemplVM},
         ("--targets", NRunAppVM.name,): {NRunAppVM},
         ("--targets", StandVM.name,): {StandVM},
         # dom0 skipped, user warning
