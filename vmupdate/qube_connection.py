@@ -21,6 +21,7 @@
 import os
 import shutil
 import signal
+import subprocess
 import tempfile
 import concurrent.futures
 from os.path import join
@@ -30,7 +31,7 @@ from typing import List
 import qubesadmin
 from vmupdate.agent.source.args import AgentArgs
 from vmupdate.agent.source.log_congfig import LOGPATH, LOG_FILE
-from vmupdate.agent.source.status import StatusInfo, FinalStatus
+from vmupdate.agent.source.status import StatusInfo, FinalStatus, FormatedLine
 from vmupdate.agent.source.common.process_result import ProcessResult
 
 
@@ -157,14 +158,9 @@ class QubeConnection:
         :param agent_args: args for agent entrypoint
         :return: return code and output of the script
         """
-        # make sure entrypoint is executable
-        command = ['chmod', 'u+x', entrypoint_path]
-        result = self._run_shell_command_in_qube(self.qube, command)
-
-        # run entrypoint
         command = [QubeConnection.PYTHON_PATH, entrypoint_path,
                    *AgentArgs.to_cli_args(agent_args)]
-        result += self._run_shell_command_in_qube(
+        result = self._run_shell_command_in_qube(
             self.qube, command, show=self.show_progress)
 
         return result
@@ -215,11 +211,21 @@ class QubeConnection:
     def _run_command_and_actively_report_progress(
             self, target, command: List[str]
     ) -> ProcessResult:
-        proc = target.run_service(
-            'qubes.VMExec+' + qubesadmin.utils.encode_for_vmexec(command),
-            user='root',
-            preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_IGN)
-        )
+        if self.qube.klass == "AdminVM":
+            proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        elif "--download-only" in command:
+            # for download-only commands, run with fakeroot
+            proc = target.run_service(
+                'qubes.VMExec+' + qubesadmin.utils.encode_for_vmexec(["fakeroot"] + command),
+                user='user',
+                preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_IGN)
+            )
+        else:
+            proc = target.run_service(
+                'qubes.VMExec+' + qubesadmin.utils.encode_for_vmexec(command),
+                user='root',
+                preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_IGN)
+            )
 
         self.logger.debug("Fetching agent process stdout/stderr.")
         with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -249,7 +255,7 @@ class QubeConnection:
                 try:
                     progress = float(line)
                 except ValueError:
-                    self._print('err', line)
+                    self.status_notifier.put(FormatedLine(self.qube.name, 'err', line))
                     continue
 
                 if progress == 100.:
@@ -257,7 +263,7 @@ class QubeConnection:
                 self.status_notifier.put(
                     StatusInfo.updating(self.qube, progress))
             else:
-                self._print('err', line)
+                self.status_notifier.put(FormatedLine(self.qube.name, 'err', line))
 
         proc.stderr.close()
         self.logger.debug("Agent stderr closed.")
@@ -270,12 +276,9 @@ class QubeConnection:
                 line = ProcessResult.sanitize_output(
                     untrusted_line, single=True)
                 if line:
-                    self._print('out', line)
+                    self.status_notifier.put(FormatedLine(self.qube.name, 'out', line))
 
-        proc.stderr.close()
+        proc.stdout.close()
         self.logger.debug("Agent stdout closed.")
 
         return b''
-
-    def _print(self, stream: str, line: str):
-        self.status_notifier.put(f"{self.qube.name}:{stream}: {line}")
