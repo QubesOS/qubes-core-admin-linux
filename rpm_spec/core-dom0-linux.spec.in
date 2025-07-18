@@ -156,6 +156,8 @@ install -m 644 system-config/12-qubes-ignore-lvm-devices.rules $RPM_BUILD_ROOT%_
 install -m 644 system-config/11-qubes-ignore-zvol-devices.rules $RPM_BUILD_ROOT%_udevrulesdir
 install -m 644 system-config/99z-qubes-mark-ready.rules $RPM_BUILD_ROOT%_udevrulesdir
 install -m 644 -D system-config/disable-lesspipe.sh $RPM_BUILD_ROOT/etc/profile.d/zz-disable-lesspipe.sh
+install -m 644 -D system-config/systemd-cryptsetup@swap.service $RPM_BUILD_ROOT%_unitdir/systemd-cryptsetup@swap.service
+
 install -m 755 -D system-config/kernel-grub2.install $RPM_BUILD_ROOT/usr/lib/kernel/install.d/80-grub2.install
 install -m 755 -D system-config/kernel-xen-efi.install $RPM_BUILD_ROOT/usr/lib/kernel/install.d/90-xen-efi.install
 install -m 755 -D system-config/kernel-remove-bls.install $RPM_BUILD_ROOT/usr/lib/kernel/install.d/99-remove-bls.install
