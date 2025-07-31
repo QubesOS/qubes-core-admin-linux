@@ -38,7 +38,7 @@ comps_file = None
 if os.path.exists('/usr/share/qubes/Qubes-comps.xml'):
     comps_file = '/usr/share/qubes/Qubes-comps.xml'
 
-package_regex = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._+^~-]*\.rpm\Z")
+package_regex = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._+^~-]{0,255}\.rpm\Z")
 # example valid outputs:
 #  .....rpm: digests signatures OK
 # example INVALID outputs:
