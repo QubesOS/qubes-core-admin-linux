@@ -67,6 +67,7 @@ enable qubes-qmemman.service
 enable qubes-suspend.service
 enable qubes-setupdvm.service
 enable qubes-qrexec-policy-daemon.service
+enable qubes-preload-dispvm.service
 enable qubesd.service
 enable anti-evil-maid-unseal.service
 enable anti-evil-maid-check-mount-devs.service
