@@ -312,6 +312,9 @@ qvm-run --nogui -q -- "$UPDATEVM" "rm -rf -- '$dom0_updates_dir/etc' '$dom0_upda
 
 CMD="/usr/lib/qubes/qubes-download-dom0-updates.sh --doit --nogui"
 
+# Properly pass dom0 qubes version to DNF in UpdateVM
+CMD="$CMD --releasever=$(awk -F'=' '/VERSION_ID/ {print $2}' /etc/os-release)"
+
 # We avoid using bash’s own facilities for this, as they produce $'\n'-style
 # strings in certain cases.  These are not portable, whereas the string produced
 # by the following is.
