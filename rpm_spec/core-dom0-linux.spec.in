@@ -108,7 +108,7 @@ make install DESTDIR=$RPM_BUILD_ROOT
 install -m 0755 -D -- dom0-updates/qubes-dom0-updates.cron "$RPM_BUILD_ROOT/etc/cron.daily/qubes-dom0-updates.cron"
 install -D dom0-updates/qubes-dom0-update $RPM_BUILD_ROOT/usr/bin/qubes-dom0-update
 install -D dom0-updates/qubes-receive-updates $RPM_BUILD_ROOT/usr/libexec/qubes/qubes-receive-updates
-install -D dom0-updates/patch-dnf-yum-config $RPM_BUILD_ROOT/usr/lib/qubes/patch-dnf-yum-config
+install -m 0644 -D dom0-updates/20-qubes-dom0.conf $RPM_BUILD_ROOT/usr/share/dnf5/libdnf.conf.d/20-qubes-dom0.conf
 install -m 0644 -D dom0-updates/qubes-cached.repo $RPM_BUILD_ROOT/etc/yum.real.repos.d/qubes-cached.repo
 install -D dom0-updates/qfile-dom0-unpacker $RPM_BUILD_ROOT/usr/libexec/qubes/qfile-dom0-unpacker
 install -d $RPM_BUILD_ROOT/etc/qubes-rpc
@@ -210,7 +210,7 @@ fi
 %post
 set -eo pipefail
 
-/usr/lib/qubes/patch-dnf-yum-config
+[ -f /etc/dnf/dnf.conf ]; sed -i -e "/^### QUBES BEGIN ###$/,/^### QUBES END ###$/{d}" /etc/dnf/dnf.conf
 
 systemctl --quiet enable qubes-suspend.service
 systemctl --quiet preset usbguard.service
@@ -270,7 +270,7 @@ chmod -x /etc/grub.d/10_linux
 /etc/cron.daily/qubes-dom0-updates.cron
 /etc/yum.real.repos.d/qubes-cached.repo
 %_bindir/qubes-dom0-update
-/usr/lib/qubes/patch-dnf-yum-config
+/usr/share/dnf5/libdnf.conf.d/20-qubes-dom0.conf
 %attr(4750,root,qubes) /usr/libexec/qubes/qfile-dom0-unpacker
 /usr/libexec/qubes/qubes-receive-updates
 /etc/qubes-rpc/qubes.ReceiveUpdates
