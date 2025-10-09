@@ -101,6 +101,9 @@ def get_package_manager(os_data, log, log_handler, log_level, no_progress):
     elif os_data["os_family"] == "ArchLinux":
         from source.pacman.pacman_cli import PACMANCLI as PackageManager
         print(f"Progress reporting not supported.", flush=True)
+    elif os_data["os_family"] == "Alpine":
+        from source.apk.apk_cli import APKCLI as PackageManager
+        print(f"Progress reporting not supported.", flush=True)
     else:
         raise NotImplementedError(
             "Only Debian, RedHat and ArchLinux based OS is supported.")
