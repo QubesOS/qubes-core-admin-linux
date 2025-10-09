@@ -19,8 +19,11 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
 # USA.
 
+import os
 import subprocess
 import dnf
+import dnf.conf
+import dnf.rpm
 from dnf.yum.rpmtrans import TransactionDisplay
 from dnf.callback import DownloadProgress
 import dnf.transaction
@@ -28,18 +31,54 @@ import dnf.transaction
 from source.common.process_result import ProcessResult
 from source.common.exit_codes import EXIT
 from source.common.progress_reporter import ProgressReporter, Progress
+from source.common.package_manager import AgentType
 
 from .dnf_cli import DNFCLI
 
 
 class DNF(DNFCLI):
-    def __init__(self, log_handler, log_level):
-        super().__init__(log_handler, log_level)
-        self.base = dnf.Base()
-        self.base.conf.read()  # load dnf.conf
-        update = FetchProgress(weight=0, log=self.log)  # % of total time
-        fetch = FetchProgress(weight=50, log=self.log)  # % of total time
-        upgrade = UpgradeProgress(weight=50, log=self.log)  # % of total time
+    PROGRESS_REPORTING = True
+
+    def __init__(self, log_handler, log_level, agent_type: AgentType):
+        super().__init__(log_handler, log_level, agent_type)
+
+        if self.type == AgentType.UPDATE_VM:
+            dnfconf = self.UPDATE_VM_INSTALLROOT + "/etc/dnf/dnf.conf"
+        else:
+            dnfconf = None
+        conf = dnf.conf.Conf()
+        conf.read(filename=dnfconf)
+
+        if self.type == AgentType.UPDATE_VM:
+            conf.best = True
+            conf.plugins = False
+            conf.installroot = self.UPDATE_VM_INSTALLROOT
+            for opt in ('cachedir', 'logdir', 'persistdir'):
+                conf.prepend_installroot(opt)
+            conf.reposdir = [self.UPDATE_VM_INSTALLROOT + "/etc/yum.repos.d"]
+            conf.excludepkgs = ["qubes-template-*"]
+
+            # make sure log file exists
+            log_dir = self.UPDATE_VM_INSTALLROOT + "/var/log"
+            log_file = os.path.join(log_dir, "hawkey.log")
+            os.makedirs(log_dir, exist_ok=True)
+            if not os.path.exists(log_file):
+                with open(log_file, 'w'):
+                    pass
+
+        # Passing `conf` to `base` causes `releasever` not to be set
+        subst = conf.substitutions
+        if 'releasever' not in subst:
+            releasever = dnf.rpm.detect_releasever(conf.installroot)
+        subst['releasever'] = releasever
+
+        self.base = dnf.Base(conf)
+        # Repositories serve as sources of information about packages.
+        self.base.read_all_repos()
+
+        update = FetchProgress(weight=10, log=self.log, refresh=True)  # % of total time
+        fetch = FetchProgress(weight=45, log=self.log)  # % of total time
+        upgrade = UpgradeProgress(weight=45, log=self.log)  # % of total time
         self.progress = ProgressReporter(update, fetch, upgrade)
 
     def refresh(self, hard_fail: bool) -> ProcessResult:
@@ -49,16 +88,18 @@ class DNF(DNFCLI):
         :param hard_fail: raise error if some repo is unavailable
         :return: (exit_code, stdout, stderr)
         """
-        self.base.conf.skip_if_unavailable = int(not hard_fail)
-
         result = ProcessResult()
+        self.base.conf.skip_if_unavailable = True
         try:
             self.log.debug("Refreshing available packages...")
-            # Repositories serve as sources of information about packages.
-            self.base.read_all_repos()
+            repos = [r for r in self.base.repos.iter_enabled()]
+            # we do not know the size of the repositories
+            self.progress.update_progress.start(len(repos), len(repos))
+            for i, repo in enumerate(repos):
+                self.progress.update_progress.progress(repo.id, 1)
+                repo.load()
+                self.progress.update_progress.end(repo.id, 0, "")
             updated = self.base.update_cache()
-            # A sack is needed for querying.
-            self.base.fill_sack()
             if updated:
                 self.log.debug("Cache refresh successful.")
             else:
@@ -68,7 +109,6 @@ class DNF(DNFCLI):
             self.log.error(
                 "An error occurred while refreshing packages: %s", str(exc))
             result += ProcessResult(EXIT.ERR_VM_REFRESH, out="", err=str(exc))
-
         return result
 
     def upgrade_internal(self, remove_obsolete: bool) -> ProcessResult:
@@ -80,16 +120,19 @@ class DNF(DNFCLI):
         result = ProcessResult()
         try:
             self.log.debug("Performing package upgrade...")
+            # A sack is needed for querying.
+            self.base.fill_sack()
+
             self.base.upgrade_all()
 
             # fill empty `Command line` column in dnf history
             self.base.cmds = ["qubes-vm-update"]
 
-            self.base.resolve()
+            self.base.resolve(allow_erasing=self.type == AgentType.UPDATE_VM)
             trans = self.base.transaction
             if not trans:
                 self.log.info("No packages to upgrade, quitting.")
-                return ProcessResult(EXIT.OK, out="", err="")
+                return ProcessResult(EXIT.OK_NO_UPDATES, out="", err="")
 
             self.base.download_packages(
                 trans.install_set,
@@ -97,13 +140,14 @@ class DNF(DNFCLI):
             )
             result += sign_check(self.base, trans.install_set, self.log)
 
-            if result.code == EXIT.OK:
+            if result.code == EXIT.OK and self.type is not AgentType.UPDATE_VM:
                 print("Updating packages.", flush=True)
                 self.log.debug("Committing upgrade...")
                 self.base.do_transaction(self.progress.upgrade_progress)
                 self.log.debug("Package upgrade successful.")
-                self.log.info("Notifying dom0 about installed applications")
-                subprocess.call(['/etc/qubes-rpc/qubes.PostInstall'])
+                if self.type is AgentType.VM:
+                    self.log.info("Notifying dom0 about installed applications")
+                    subprocess.call(['/etc/qubes-rpc/qubes.PostInstall'])
                 print("Updated", flush=True)
         except Exception as exc:
             self.log.error(
@@ -143,10 +187,11 @@ def sign_check(base, packages, log) -> ProcessResult:
 
 
 class FetchProgress(DownloadProgress, Progress):
-    def __init__(self, weight: int, log):
+    def __init__(self, weight: int, log, refresh: bool = False):
         Progress.__init__(self, weight, log)
         self.bytes_to_fetch = None
         self.bytes_fetched = 0
+        self.action = "refresh" if refresh else "fetch"
         self.package_bytes = {}
 
     def end(self, payload, status, msg):
@@ -155,12 +200,19 @@ class FetchProgress(DownloadProgress, Progress):
         :api, `status` is a constant denoting the type of outcome, `err_msg` is
         an error message in case the outcome was an error.
         """
-        print(f"{payload}: Fetched", flush=True)
+        if status != 0:
+            if isinstance(msg, bytes):
+                msg = msg.decode('ascii', errors='ignore')
+            if msg:
+                print(msg, flush=True, file=self._stdout)
+        else:
+            print(f"{payload}: {self.action.capitalize()}ed", flush=True)
 
     def message(self, msg):
         if isinstance(msg, bytes):
             msg = msg.decode('ascii', errors='ignore')
-        print(msg, flush=True, file=self._stdout)
+        if msg:
+            print(msg, flush=True, file=self._stdout)
 
     def progress(self, payload, done):
         """Update the progress display. :api
@@ -181,12 +233,15 @@ class FetchProgress(DownloadProgress, Progress):
         `total_size` total size of all files.
 
         """
-        self.log.info("Fetch started.")
+        self.log.info(f"{self.action.capitalize()} started.")
         self.bytes_to_fetch = total_size
-        print(f"Fetching {total_files} packages "
-              f"[{self._format_bytes(self.bytes_to_fetch)}]",
-              flush=True)
-        self.package_bytes = {}
+        if self.action == "refresh":
+            print("Refreshing available packages.", flush=True)
+        else:
+            print(f"Fetching {total_files} packages "
+                  f"[{self._format_bytes(self.bytes_to_fetch)}]",
+                  flush=True)
+            self.package_bytes = {}
         self.notify_callback(0)
 
 
@@ -207,11 +262,12 @@ class UpgradeProgress(TransactionDisplay, Progress):
         :param ts_done: number of actions processed in the whole transaction
         :param ts_total: total number of actions in the whole transaction
         """
+        self.log.info(_package)
         fetch = 6
         install = 7
         if action not in (fetch, install):
             return
-        percent = ti_done / ti_total * ts_done / ts_total * 100
+        percent = (ti_done / ti_total + ts_done - 1) / ts_total * 100
         self.notify_callback(percent)
 
     def scriptout(self, msgs):

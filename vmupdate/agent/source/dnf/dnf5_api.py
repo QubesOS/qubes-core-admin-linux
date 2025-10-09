@@ -25,11 +25,12 @@ import subprocess
 import libdnf5
 from libdnf5.repo import DownloadCallbacks
 from libdnf5.rpm import TransactionCallbacks
-from libdnf5.base import Base, Goal
+from libdnf5.base import Goal
 
 from source.common.process_result import ProcessResult
 from source.common.exit_codes import EXIT
 from source.common.progress_reporter import ProgressReporter, Progress
+from source.common.package_manager import AgentType
 
 from .dnf_cli import DNFCLI
 
@@ -38,16 +39,32 @@ class TransactionError(RuntimeError):
     pass
 
 
-class DNF(DNFCLI):
-    def __init__(self, log_handler, log_level):
-        super().__init__(log_handler, log_level)
-        self.base = Base()
+class DNF5(DNFCLI):
+    PROGRESS_REPORTING = True
+
+    def __init__(self, log_handler, log_level, agent_type: AgentType):
+        super().__init__(log_handler, log_level, agent_type)
+
+        self.base = libdnf5.base.Base()
+        conf = self.base.get_config()
+
+        if self.type == AgentType.UPDATE_VM:
+            conf.config_file_path = self.UPDATE_VM_INSTALLROOT + "/etc/dnf/dnf.conf"
+            conf.best = True
+            conf.plugins = False
+            conf.installroot = self.UPDATE_VM_INSTALLROOT
+            for opt in ('cachedir', 'logdir', 'persistdir'):
+                setattr(conf, opt, self.UPDATE_VM_INSTALLROOT + getattr(conf, opt))
+            conf.reposdir = [self.UPDATE_VM_INSTALLROOT + "/etc/yum.repos.d"]
+            conf.excludepkgs = ["qubes-template-*"]
         self.base.load_config()
+
+        # Create base object with the loaded config
         self.base.setup()
         self.config = self.base.get_config()
         update = FetchProgress(weight=0, log=self.log)  # % of total time
-        fetch = FetchProgress(weight=50, log=self.log)  # % of total time
-        upgrade = UpgradeProgress(weight=50, log=self.log)  # % of total time
+        fetch = FetchProgress(weight=55, log=self.log)  # % of total time
+        upgrade = UpgradeProgress(weight=45, log=self.log)  # % of total time
         self.progress = ProgressReporter(update, fetch, upgrade)
 
     def refresh(self, hard_fail: bool) -> ProcessResult:
@@ -85,6 +102,8 @@ class DNF(DNFCLI):
         try:
             self.log.debug("Performing package upgrade...")
             goal = Goal(self.base)
+            if self.type == AgentType.UPDATE_VM:
+                goal.set_allow_erasing(True)
             goal.add_upgrade("*")
             transaction = goal.resolve()
             # fill empty `Command line` column in dnf history
@@ -93,7 +112,7 @@ class DNF(DNFCLI):
             if transaction.get_transaction_packages_count() == 0:
                 self.log.info("No packages to upgrade, quitting.")
                 return ProcessResult(
-                    EXIT.OK, out="",
+                    EXIT.OK_NO_UPDATES, out="",
                     err="\n".join(transaction.get_resolve_logs_as_strings()))
 
             self.base.set_download_callbacks(
@@ -106,8 +125,7 @@ class DNF(DNFCLI):
                 raise TransactionError(
                     f"GPG signatures check failed: {problems}")
 
-            if result.code == EXIT.OK:
-                print("Updating packages.", flush=True)
+            if result.code == EXIT.OK and self.type is not AgentType.UPDATE_VM:
                 self.log.debug("Committing upgrade...")
                 transaction.set_callbacks(
                     libdnf5.rpm.TransactionCallbacksUniquePtr(
@@ -117,9 +135,9 @@ class DNF(DNFCLI):
                     raise TransactionError(
                         transaction.transaction_result_to_string(tnx_result))
                 self.log.debug("Package upgrade successful.")
-                self.log.info("Notifying dom0 about installed applications")
-                subprocess.call(['/etc/qubes-rpc/qubes.PostInstall'])
-                print("Updated", flush=True)
+                if self.type is AgentType.VM:
+                    self.log.info("Notifying dom0 about installed applications")
+                    subprocess.call(['/etc/qubes-rpc/qubes.PostInstall'])
         except Exception as exc:
             self.log.error(
                 "An error occurred while upgrading packages: %s", str(exc))
@@ -194,7 +212,10 @@ class FetchProgress(DownloadCallbacks, Progress):
         :param msg: The error message in case of error.
         """
         if status != 0:
-            print(msg, flush=True, file=self._stdout)
+            if isinstance(msg, bytes):
+                msg = msg.decode('ascii', errors='ignore')
+            if msg:
+                print(msg, flush=True, file=self._stdout)
         return DownloadCallbacks.end(self, user_cb_data, status, msg)
 
     def mirror_failure(
@@ -208,6 +229,8 @@ class FetchProgress(DownloadCallbacks, Progress):
         :param url: Failed mirror URL.
         :param metadata: the type of metadata that is being downloaded
         """
+        if isinstance(msg, bytes):
+            msg = msg.decode('ascii', errors='ignore')
         print(f"Fetching {metadata} failure "
               f"({self.package_names[user_cb_data]}) {msg}",
               flush=True, file=self._stdout)

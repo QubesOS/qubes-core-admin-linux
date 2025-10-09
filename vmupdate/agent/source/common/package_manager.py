@@ -23,14 +23,21 @@ import io
 import logging
 import subprocess
 import sys
+import enum
 from typing import Optional, Dict, List
 from .process_result import ProcessResult
 from .exit_codes import EXIT
 
 
+class AgentType(enum.Enum):
+    VM = "Downloads and install updates in VM"
+    DOM0 = "Install downloaded updates in dom0"
+    UPDATE_VM = "Downloads updates for dom0"
+
+
 class PackageManager:
     """ main package manager class """
-    def __init__(self, log_handler, log_level):
+    def __init__(self, log_handler, log_level, agent_type: AgentType):
         self.package_manager: Optional[str] = None
         self.log = logging.getLogger(
             f'vm-update.agent.{self.__class__.__name__}')
@@ -38,13 +45,14 @@ class PackageManager:
         self.log.addHandler(log_handler)
         self.log.propagate = False
         self.requirements: Optional[Dict[str, str]] = None
+        self.type = agent_type
 
     def upgrade(
             self,
             refresh: bool,
             hard_fail: bool,
             remove_obsolete: bool,
-            print_streams: bool = False
+            print_streams: bool = False,
     ):
         """
         Upgrade packages using system package manager.
@@ -105,9 +113,15 @@ class PackageManager:
                 return result
 
         result_upgrade = self.upgrade_internal(remove_obsolete)
-        if result_upgrade:
+        if result_upgrade.code not in (EXIT.OK, EXIT.OK_NO_UPDATES):
             result_upgrade.code = EXIT.ERR_VM_UPDATE
         result += result_upgrade
+        if result:
+            return result
+
+        if self.type == AgentType.UPDATE_VM:
+            # No package installation is required in UpdateVM, so changes are not checked.
+            return result
 
         new_pkg = self.get_packages()
 
