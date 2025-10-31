@@ -29,7 +29,7 @@ from typing import List
 
 import qubesadmin
 from vmupdate.agent.source.args import AgentArgs
-from vmupdate.agent.source.log_congfig import LOGPATH, LOG_FILE
+from vmupdate.agent.source.log_config import LOGPATH, LOG_FILE
 from vmupdate.agent.source.status import StatusInfo, FinalStatus
 from vmupdate.agent.source.common.process_result import ProcessResult
 

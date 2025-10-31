@@ -6,7 +6,7 @@ import argparse
 from source import plugins
 from source.args import AgentArgs
 from source.utils import get_os_data
-from source.log_congfig import init_logs
+from source.log_config import init_logs
 from source.common.exit_codes import EXIT
 
 

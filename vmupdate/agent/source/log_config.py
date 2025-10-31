@@ -21,6 +21,7 @@
 
 import os
 import logging
+import grp
 from pathlib import Path
 
 LOGPATH = '/var/log/qubes/qubes-update'
@@ -62,5 +63,13 @@ def init_logs(
     except (ValueError, TypeError):
         log_level = "DEBUG"
         log.setLevel(log_level)
+
+    try:
+        gid = grp.getgrnam("qubes").gr_gid
+        os.chown(log_path, -1, gid)
+        os.chmod(log_path, 0o664)
+    except (PermissionError, KeyError):
+        # do it on the best effort basis
+        pass
 
     return log, log_handler, log_level, log_path, log_formatter

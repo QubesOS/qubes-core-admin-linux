@@ -34,7 +34,7 @@ from tqdm import tqdm
 
 from .agent.source.status import StatusInfo, FinalStatus, Status
 from .qube_connection import QubeConnection
-from vmupdate.agent.source.log_congfig import init_logs
+from vmupdate.agent.source.log_config import init_logs
 from vmupdate.agent.source.common.process_result import ProcessResult
 from vmupdate.agent.source.common.exit_codes import EXIT
 
