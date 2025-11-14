@@ -2,6 +2,7 @@
 """
 Update qubes.
 """
+
 import argparse
 import asyncio
 import logging
@@ -291,7 +292,7 @@ def is_stale(vm, expiration_period):
 
 
 def run_admin_update(admin_vm, args, log):
-    cmd = ["qubes-dom0-update", "-y"]
+    cmd = ["sudo", "qubes-dom0-update", "-y"]
     if args.quiet:
         cmd.append('--quiet')
     if args.just_print_progress:

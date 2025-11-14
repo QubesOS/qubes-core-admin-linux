@@ -31,7 +31,7 @@ def main(args=None):
         os_data, log, log_handler, log_level, agent_type, args.no_progress)
 
     log.debug("Running upgrades.")
-    return_code = pkg_mng.upgrade(refresh=not args.no_refresh,
+    return_code = pkg_mng.upgrade(refresh=not args.no_refresh or agent_type is AgentType.DOM0,
                                   hard_fail=not args.force_upgrade,
                                   remove_obsolete=not args.leave_obsolete,
                                   print_streams=args.show_output,
@@ -113,6 +113,7 @@ def import_rhel_package_manager(os_data, log, no_progress):
         try:
             from source.dnf.dnf5_api import DNF5 as PackageManager
             loaded = True
+            log.info("Using dnf5.")
         except ImportError:
             log.warning("Failed to load dnf5.")
 

@@ -115,9 +115,11 @@ class DNF5(DNFCLI):
                     EXIT.OK_NO_UPDATES, out="",
                     err="\n".join(transaction.get_resolve_logs_as_strings()))
 
-            self.base.set_download_callbacks(
-                libdnf5.repo.DownloadCallbacksUniquePtr(
-                    self.progress.fetch_progress))
+            if self.type != AgentType.DOM0:
+                #
+                self.base.set_download_callbacks(
+                    libdnf5.repo.DownloadCallbacksUniquePtr(
+                        self.progress.fetch_progress))
             transaction.download()
 
             if not transaction.check_gpg_signatures():
