@@ -81,11 +81,6 @@ class DNF5(DNFCLI):
             self.log.debug("Refreshing available packages...")
 
             result += self.expire_cache()
-
-            repo_sack = self.base.get_repo_sack()
-            repo_sack.create_repos_from_system_configuration()
-            repo_sack.load_repos()
-            self.log.debug("Cache refresh successful.")
         except Exception as exc:
             self.log.error(
                 "An error occurred while refreshing packages: %s", str(exc))
@@ -101,6 +96,10 @@ class DNF5(DNFCLI):
         result = ProcessResult()
         try:
             self.log.debug("Performing package upgrade...")
+            repo_sack = self.base.get_repo_sack()
+            repo_sack.create_repos_from_system_configuration()
+            repo_sack.load_repos()
+
             goal = Goal(self.base)
             if self.type == AgentType.UPDATE_VM:
                 goal.set_allow_erasing(True)

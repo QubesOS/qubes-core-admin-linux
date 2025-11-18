@@ -149,7 +149,7 @@ class QubeConnection:
         return result
 
     def run_entrypoint(
-            self, entrypoint_path: str, agent_args
+            self, entrypoint_path: str | List, agent_args
     ) -> ProcessResult:
         """
         Run a script in the qube.
@@ -158,8 +158,12 @@ class QubeConnection:
         :param agent_args: args for agent entrypoint
         :return: return code and output of the script
         """
-        command = [QubeConnection.PYTHON_PATH, entrypoint_path,
-                   *AgentArgs.to_cli_args(agent_args)]
+        if isinstance(entrypoint_path, str):
+            command = [QubeConnection.PYTHON_PATH, entrypoint_path,
+                       *AgentArgs.to_cli_args(agent_args)]
+        else:
+            command = entrypoint_path
+
         result = self._run_shell_command_in_qube(
             self.qube, command, show=self.show_progress)
 
@@ -188,11 +192,25 @@ class QubeConnection:
     def _run_command_and_wait_for_output(
             self, target, command: List[str]
     ) -> ProcessResult:
+        self.logger.debug("Wait for output")
+        result = ProcessResult()
         try:
-            untrusted_stdout_and_stderr = target.run_with_args(
-                *command, user='root'
-            )
-            result = ProcessResult.from_untrusted_out_err(
+            if self.qube.klass == "AdminVM":
+                proc = subprocess.Popen(command, stdout=subprocess.PIPE,
+                                        stderr=subprocess.PIPE)
+                untrusted_stdout_and_stderr = proc.communicate()
+                if proc.returncode:
+                    raise CalledProcessError(
+                        proc.returncode,
+                        command,
+                        output=untrusted_stdout_and_stderr[0] +
+                        untrusted_stdout_and_stderr[1]
+                    )
+            else:
+                untrusted_stdout_and_stderr = target.run_with_args(
+                    *command, user='root'
+                )
+            result += ProcessResult.from_untrusted_out_err(
                 *untrusted_stdout_and_stderr)
         except CalledProcessError as err:
             if err.returncode == 100:
@@ -211,6 +229,7 @@ class QubeConnection:
     def _run_command_and_actively_report_progress(
             self, target, command: List[str]
     ) -> ProcessResult:
+        self.logger.debug("Progress reporting enabled.")
         if self.qube.klass == "AdminVM":
             proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         elif "--download-only" in command:
@@ -255,8 +274,11 @@ class QubeConnection:
                 try:
                     progress = float(line)
                 except ValueError:
-                    self.status_notifier.put(FormatedLine(self.qube.name, 'err', line))
-                    continue
+                    try:
+                        progress = float(line.split()[-1])
+                    except ValueError:
+                        self.status_notifier.put(FormatedLine(self.qube.name, 'err', line))
+                        continue
 
                 if progress == 100.:
                     progress_finished = True

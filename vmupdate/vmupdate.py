@@ -82,7 +82,7 @@ def main(args=None, app=qubesadmin.Qubes()):
             ret_code_admin, admin_status = run_update(admin, args, log, "admin VM")
         else:
             # use qubes-dom0-update to update dom0
-            ret_code_admin, admin_status = run_admin_update(admin[0], args, log)
+            ret_code_admin, admin_status = run_update(admin, args, log, "admin VM", dom0=True)
         no_updates = all(stat == FinalStatus.NO_UPDATES
                          for stat in admin_status.values())
 
@@ -291,31 +291,8 @@ def is_stale(vm, expiration_period):
     return False
 
 
-def run_admin_update(admin_vm, args, log):
-    cmd = ["sudo", "qubes-dom0-update", "-y"]
-    if args.quiet:
-        cmd.append('--quiet')
-    if args.just_print_progress:
-        cmd.append("--just-print-progress")
-    elif args.signal_no_updates:
-        # --just-print-progress checks it by default
-        proc = subprocess.Popen(["qubes-dom0-update", "--check-only"])
-        proc.wait()
-        if proc.returncode == 0:
-            return proc.returncode, {admin_vm.name: FinalStatus.NO_UPDATES}
-    proc = subprocess.Popen(cmd, stdout=sys.stdout, stderr=sys.stderr)
-    proc.wait()
-    if proc.returncode == 0:
-        status = FinalStatus.SUCCESS
-    elif proc.returncode == 100:
-        status = FinalStatus.NO_UPDATES
-    else:
-        status = FinalStatus.ERROR
-    return proc.returncode, {admin_vm.name: status}
-
-
 def run_update(
-        targets, args, log, qube_klass="qubes"
+        targets, args, log, qube_klass="qubes", dom0=False
 ) -> Tuple[int, Dict[str, FinalStatus]]:
     if targets:
         message = f"Following {qube_klass} will be updated: " + \
@@ -335,7 +312,7 @@ def run_update(
     if not targets:
         return EXIT.OK, {}
 
-    runner = update_manager.UpdateManager(targets, args, log=log)
+    runner = update_manager.UpdateManager(targets, args, log=log, dom0=dom0)
     ret_code, statuses = runner.run(agent_args=args)
     if ret_code:
         log.error("Updating fails with code: %d", ret_code)

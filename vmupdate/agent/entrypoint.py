@@ -31,7 +31,7 @@ def main(args=None):
         os_data, log, log_handler, log_level, agent_type, args.no_progress)
 
     log.debug("Running upgrades.")
-    return_code = pkg_mng.upgrade(refresh=not args.no_refresh or agent_type is AgentType.DOM0,
+    return_code = pkg_mng.upgrade(refresh=not args.no_refresh,
                                   hard_fail=not args.force_upgrade,
                                   remove_obsolete=not args.leave_obsolete,
                                   print_streams=args.show_output,
