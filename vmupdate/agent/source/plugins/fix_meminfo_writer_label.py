@@ -3,6 +3,7 @@ import os
 import signal
 
 
+# pylint: disable=unused-argument
 def fix_meminfo_writer_label(os_data, log, **kwargs):
     """
     Fix meminfo-writer SELinux label to make memory ballooning work again
@@ -42,7 +43,9 @@ def fix_meminfo_writer_label(os_data, log, **kwargs):
 
             if label_changed:
                 try:
-                    with open("/run/meminfo-writer.pid", "r", encoding="utf-8") as f:
+                    with open(
+                        "/run/meminfo-writer.pid", "r", encoding="utf-8"
+                    ) as f:
                         target_pid = int(f.read().strip())
                         os.kill(target_pid, signal.SIGUSR1)
                         log.info(

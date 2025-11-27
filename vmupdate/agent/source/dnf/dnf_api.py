@@ -35,6 +35,7 @@ from .dnf_cli import DNFCLI
 class DNF(DNFCLI):
     def __init__(self, log_handler, log_level):
         super().__init__(log_handler, log_level)
+
         self.base = dnf.Base()
         self.base.conf.read()  # load dnf.conf
         self.configure_whonix_maybe(self.base.conf)
@@ -67,7 +68,8 @@ class DNF(DNFCLI):
                 result += ProcessResult(EXIT.ERR_VM_REFRESH)
         except Exception as exc:
             self.log.error(
-                "An error occurred while refreshing packages: %s", str(exc))
+                "An error occurred while refreshing packages: %s", str(exc)
+            )
             result += ProcessResult(EXIT.ERR_VM_REFRESH, out="", err=str(exc))
 
         return result
@@ -93,8 +95,7 @@ class DNF(DNFCLI):
                 return ProcessResult(EXIT.OK, out="", err="")
 
             self.base.download_packages(
-                trans.install_set,
-                progress=self.progress.fetch_progress
+                trans.install_set, progress=self.progress.fetch_progress
             )
             result += sign_check(self.base, trans.install_set, self.log)
 
@@ -104,11 +105,12 @@ class DNF(DNFCLI):
                 self.base.do_transaction(self.progress.upgrade_progress)
                 self.log.debug("Package upgrade successful.")
                 self.log.info("Notifying dom0 about installed applications")
-                subprocess.call(['/etc/qubes-rpc/qubes.PostInstall'])
+                subprocess.call(["/etc/qubes-rpc/qubes.PostInstall"])
                 print("Updated", flush=True)
         except Exception as exc:
             self.log.error(
-                "An error occurred while upgrading packages: %s", str(exc))
+                "An error occurred while upgrading packages: %s", str(exc)
+            )
             result += ProcessResult(EXIT.ERR_VM_UPDATE, out="", err=str(exc))
         finally:
             self.base.close()
@@ -160,7 +162,7 @@ class FetchProgress(DownloadProgress, Progress):
 
     def message(self, msg):
         if isinstance(msg, bytes):
-            msg = msg.decode('ascii', errors='ignore')
+            msg = msg.decode("ascii", errors="ignore")
         print(msg, flush=True, file=self._stdout)
 
     def progress(self, payload, done):
@@ -184,9 +186,11 @@ class FetchProgress(DownloadProgress, Progress):
         """
         self.log.info("Fetch started.")
         self.bytes_to_fetch = total_size
-        print(f"Fetching {total_files} packages "
-              f"[{self._format_bytes(self.bytes_to_fetch)}]",
-              flush=True)
+        print(
+            f"Fetching {total_files} packages "
+            f"[{self._format_bytes(self.bytes_to_fetch)}]",
+            flush=True,
+        )
         self.package_bytes = {}
         self.notify_callback(0)
 
@@ -196,8 +200,7 @@ class UpgradeProgress(TransactionDisplay, Progress):
         TransactionDisplay.__init__(self)
         Progress.__init__(self, weight, log)
 
-    def progress(self, _package, action, ti_done, ti_total, ts_done,
-                 ts_total):
+    def progress(self, _package, action, ti_done, ti_total, ts_done, ts_total):
         """
         Report ongoing progress on a transaction item.
 
@@ -221,7 +224,7 @@ class UpgradeProgress(TransactionDisplay, Progress):
         """
         if msgs:
             if isinstance(msgs, bytes):
-                msgs = msgs.decode('ascii', errors='ignore')
+                msgs = msgs.decode("ascii", errors="ignore")
             print(msgs, flush=True)
 
     def filelog(self, package, action):
@@ -232,6 +235,9 @@ class UpgradeProgress(TransactionDisplay, Progress):
         Write an error message to the fake stderr.
         """
         if isinstance(message, bytes):
-            message = message.decode('ascii', errors='ignore')
-        print("Error during installation :" + message,
-              flush=True, file=self._stderr)
+            message = message.decode("ascii", errors="ignore")
+        print(
+            "Error during installation :" + message,
+            flush=True,
+            file=self._stderr,
+        )

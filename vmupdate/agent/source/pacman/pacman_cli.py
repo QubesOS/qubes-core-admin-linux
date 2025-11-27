@@ -31,6 +31,7 @@ class PACMANCLI(PackageManager):
         super().__init__(log_handler, log_level)
         self.package_manager = "pacman"
 
+    # pylint: disable=unused-argument
     def refresh(self, hard_fail: bool) -> ProcessResult:
         """
         Use package manager to refresh available packages.
@@ -61,6 +62,7 @@ class PACMANCLI(PackageManager):
 
         return packages
 
+    # pylint: disable=unused-argument
     def get_action(self, remove_obsolete) -> List[str]:
         """
         Pacman will handle obsoletions itself

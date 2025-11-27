@@ -20,6 +20,7 @@
 # USA.
 
 
+# pylint: disable=unused-argument
 def disable_deltarpm(os_data, log, dnf_conf="/etc/dnf/dnf.conf", **kwargs):
     """
     Modify dnf.conf file to disable `deltarpm`.

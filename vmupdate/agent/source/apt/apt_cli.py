@@ -32,12 +32,19 @@ from source.common.exit_codes import EXIT
 
 
 class APTCLI(PackageManager):
-    def __init__(self, log_handler, log_level,):
-        super().__init__(log_handler, log_level,)
+    def __init__(
+        self,
+        log_handler,
+        log_level,
+    ):
+        super().__init__(
+            log_handler,
+            log_level,
+        )
         self.package_manager: str = "apt-get"
 
         # to prevent a warning: `debconf: unable to initialize frontend: Dialog`
-        os.environ['DEBIAN_FRONTEND'] = 'noninteractive'
+        os.environ["DEBIAN_FRONTEND"] = "noninteractive"
 
     @contextlib.contextmanager
     def apt_lock(self):
@@ -67,8 +74,13 @@ class APTCLI(PackageManager):
         # apply lock externally to wait for it, until
         # https://bugs.debian.org/1069167 gets implemented
         with self.apt_lock():
-            cmd = [self.package_manager,
-                   "-o", "Debug::NoLocking=true", "-q", "update"]
+            cmd = [
+                self.package_manager,
+                "-o",
+                "Debug::NoLocking=true",
+                "-q",
+                "update",
+            ]
             result = self.run_cmd(cmd)
         # 'apt-get update' reports error with exit code 100, but updater as a
         # whole reserves it for "no updates"
@@ -115,10 +127,13 @@ class APTCLI(PackageManager):
         """
         Return command `upgrade` or `dist-upgrade` if `remove_obsolete`.
         """
-        result = ["-y",
-                   "-o", 'Dpkg::Options::=--force-confdef',
-                   "-o", 'Dpkg::Options::=--force-confold'
-                  ]
+        result = [
+            "-y",
+            "-o",
+            "Dpkg::Options::=--force-confdef",
+            "-o",
+            "Dpkg::Options::=--force-confold",
+        ]
         result += ["dist-upgrade"] if remove_obsolete else ["upgrade"]
         return result
 
@@ -149,7 +164,7 @@ class APTCLI(PackageManager):
             obsoletes = set()
             for line in result.out.splitlines():
                 if line.startswith("Remv"):
-                    package_name = line[len("Remv "):]
+                    package_name = line[len("Remv ") :]
                     # consider using wider pattern
                     if package_name.startswith("linux-image"):
                         obsoletes.add(package_name.split(" ")[0])

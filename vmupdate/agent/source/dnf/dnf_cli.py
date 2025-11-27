@@ -95,11 +95,13 @@ class DNFCLI(PackageManager):
         """
         result = self.expire_cache()
 
-        cmd = [self.package_manager,
-               "-q",
-               "check-update",
-               "--assumeyes",
-               f"--setopt=skip_if_unavailable={int(not hard_fail)}"]
+        cmd = [
+            self.package_manager,
+            "-q",
+            "check-update",
+            "--assumeyes",
+            f"--setopt=skip_if_unavailable={int(not hard_fail)}",
+        ]
         result_check = self.run_cmd(cmd)
         # ret_code == 100 is not an error
         # It means there are packages to be updated
@@ -113,10 +115,7 @@ class DNFCLI(PackageManager):
         """
         Use package manager to expire cache.
         """
-        cmd = [self.package_manager,
-               "-q",
-               "clean",
-               "expire-cache"]
+        cmd = [self.package_manager, "-q", "clean", "expire-cache"]
         result = self.run_cmd(cmd)
         return result
 
@@ -149,8 +148,11 @@ class DNFCLI(PackageManager):
         """
         if remove_obsolete:
             return ["-y", "--setopt=obsoletes=1", "upgrade"]
-        return ["-y", "--setopt=obsoletes=0",
-                "upgrade" if self.package_manager == "dnf" else "update"]
+        return [
+            "-y",
+            "--setopt=obsoletes=0",
+            "upgrade" if self.package_manager == "dnf" else "update",
+        ]
 
     def clean(self) -> int:
         """

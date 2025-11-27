@@ -20,10 +20,10 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
 # USA.
 
-import os
 import pathlib
 
 
+# pylint: disable=unused-argument
 def updatesproxy_fix(os_data, log, **kwargs):
     """
     Deploy #9025 fix

@@ -19,15 +19,18 @@
 
 import subprocess
 
+
+# pylint: disable=unused-argument
 def pipewire_archlinux(os_data, log, **kwargs):
     """Help with unattended switch from pulseaudio to pipewire-pulse"""
     # pacman proposes to remove pulseaudio when installing pipewire-pulse,
     # but the default answer is "n", so the update with --noconfirm fails
     # workaround it by removing pulseaudio before the update
-    if os_data["os_family"] != 'ArchLinux':
+    if os_data["os_family"] != "ArchLinux":
         return
     # check if pulseaudio is installed
-    p = subprocess.call(["pacman", "-Q", "pulseaudio"],
+    p = subprocess.call(
+        ["pacman", "-Q", "pulseaudio"],
         stderr=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
     )
@@ -36,12 +39,15 @@ def pipewire_archlinux(os_data, log, **kwargs):
     # ... and whether pipewire-pulse is going to be installed in the update
     # this will refresh metadata already, before starting progress reporting,
     # but well...
-    update_list = subprocess.check_output(["pacman", "-Syup"],
-        stderr=subprocess.DEVNULL).decode()
+    update_list = subprocess.check_output(
+        ["pacman", "-Syup"], stderr=subprocess.DEVNULL
+    ).decode()
     if not any("/pipewire-pulse-" in line for line in update_list.splitlines()):
         return
     # ... then remove pulseaudio beforehand (temporarily breaking the
     # dependencies)
-    log.info("Removing pulseaudio to allow update cleanly migrate to "
-             "pipewire-pulse")
+    log.info(
+        "Removing pulseaudio to allow update cleanly migrate to "
+        "pipewire-pulse"
+    )
     subprocess.check_call(["pacman", "-Rdd", "--noconfirm", "pulseaudio"])
