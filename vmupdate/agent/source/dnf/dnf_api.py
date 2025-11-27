@@ -53,7 +53,7 @@ class DNF(DNFCLI):
             conf.best = True
             conf.plugins = False
             conf.installroot = self.UPDATE_VM_INSTALLROOT
-            for opt in ('cachedir', 'logdir', 'persistdir'):
+            for opt in ("cachedir", "logdir", "persistdir"):
                 conf.prepend_installroot(opt)
             conf.reposdir = [self.UPDATE_VM_INSTALLROOT + "/etc/yum.repos.d"]
             conf.excludepkgs = ["qubes-template-*"]
@@ -63,20 +63,21 @@ class DNF(DNFCLI):
             log_file = os.path.join(log_dir, "hawkey.log")
             os.makedirs(log_dir, exist_ok=True)
             if not os.path.exists(log_file):
-                with open(log_file, 'w'):
+                with open(log_file, "w"):
                     pass
 
         # Passing `conf` to `base` causes `releasever` not to be set
         subst = conf.substitutions
-        if 'releasever' not in subst:
-            releasever = dnf.rpm.detect_releasever(conf.installroot)
-        subst['releasever'] = releasever
+        if "releasever" not in subst:
+            subst["releasever"] = dnf.rpm.detect_releasever(conf.installroot)
 
         self.base = dnf.Base(conf)
         # Repositories serve as sources of information about packages.
         self.base.read_all_repos()
 
-        update = FetchProgress(weight=10, log=self.log, refresh=True)  # % of total time
+        update = FetchProgress(
+            weight=10, log=self.log, refresh=True
+        )  # % of total time
         fetch = FetchProgress(weight=45, log=self.log)  # % of total time
         upgrade = UpgradeProgress(weight=45, log=self.log)  # % of total time
         self.progress = ProgressReporter(update, fetch, upgrade)
@@ -95,7 +96,7 @@ class DNF(DNFCLI):
             repos = tuple(self.base.repos.iter_enabled())
             # we do not know the size of the repositories
             self.progress.update_progress.start(len(repos), len(repos))
-            for i, repo in enumerate(repos):
+            for repo in repos:
                 self.progress.update_progress.progress(repo.id, 1)
                 repo.load()
                 self.progress.update_progress.end(repo.id, 0, "")
@@ -107,7 +108,8 @@ class DNF(DNFCLI):
                 result += ProcessResult(EXIT.ERR_VM_REFRESH)
         except Exception as exc:
             self.log.error(
-                "An error occurred while refreshing packages: %s", str(exc))
+                "An error occurred while refreshing packages: %s", str(exc)
+            )
             result += ProcessResult(EXIT.ERR_VM_REFRESH, out="", err=str(exc))
         return result
 
@@ -135,8 +137,7 @@ class DNF(DNFCLI):
                 return ProcessResult(EXIT.OK_NO_UPDATES, out="", err="")
 
             self.base.download_packages(
-                trans.install_set,
-                progress=self.progress.fetch_progress
+                trans.install_set, progress=self.progress.fetch_progress
             )
             result += sign_check(self.base, trans.install_set, self.log)
 
@@ -147,11 +148,12 @@ class DNF(DNFCLI):
                 self.log.debug("Package upgrade successful.")
                 if self.type is AgentType.VM:
                     self.log.info("Notifying dom0 about installed applications")
-                    subprocess.call(['/etc/qubes-rpc/qubes.PostInstall'])
+                    subprocess.call(["/etc/qubes-rpc/qubes.PostInstall"])
                 print("Updated", flush=True)
         except Exception as exc:
             self.log.error(
-                "An error occurred while upgrading packages: %s", str(exc))
+                "An error occurred while upgrading packages: %s", str(exc)
+            )
             result += ProcessResult(EXIT.ERR_VM_UPDATE, out="", err=str(exc))
         finally:
             self.base.close()
@@ -202,7 +204,7 @@ class FetchProgress(DownloadProgress, Progress):
         """
         if status != 0:
             if isinstance(msg, bytes):
-                msg = msg.decode('ascii', errors='ignore')
+                msg = msg.decode("ascii", errors="ignore")
             if msg:
                 print(msg, flush=True, file=self._stdout)
         else:
@@ -210,7 +212,7 @@ class FetchProgress(DownloadProgress, Progress):
 
     def message(self, msg):
         if isinstance(msg, bytes):
-            msg = msg.decode('ascii', errors='ignore')
+            msg = msg.decode("ascii", errors="ignore")
         if msg:
             print(msg, flush=True, file=self._stdout)
 
@@ -238,9 +240,11 @@ class FetchProgress(DownloadProgress, Progress):
         if self.action == "refresh":
             print("Refreshing available packages.", flush=True)
         else:
-            print(f"Fetching {total_files} packages "
-                  f"[{self._format_bytes(self.bytes_to_fetch)}]",
-                  flush=True)
+            print(
+                f"Fetching {total_files} packages "
+                f"[{self._format_bytes(self.bytes_to_fetch)}]",
+                flush=True,
+            )
             self.package_bytes = {}
         self.notify_callback(0)
 
@@ -250,8 +254,7 @@ class UpgradeProgress(TransactionDisplay, Progress):
         TransactionDisplay.__init__(self)
         Progress.__init__(self, weight, log)
 
-    def progress(self, _package, action, ti_done, ti_total, ts_done,
-                 ts_total):
+    def progress(self, _package, action, ti_done, ti_total, ts_done, ts_total):
         """
         Report ongoing progress on a transaction item.
 
@@ -276,7 +279,7 @@ class UpgradeProgress(TransactionDisplay, Progress):
         """
         if msgs:
             if isinstance(msgs, bytes):
-                msgs = msgs.decode('ascii', errors='ignore')
+                msgs = msgs.decode("ascii", errors="ignore")
             print(msgs, flush=True)
 
     def filelog(self, package, action):
@@ -287,6 +290,9 @@ class UpgradeProgress(TransactionDisplay, Progress):
         Write an error message to the fake stderr.
         """
         if isinstance(message, bytes):
-            message = message.decode('ascii', errors='ignore')
-        print("Error during installation :" + message,
-              flush=True, file=self._stderr)
+            message = message.decode("ascii", errors="ignore")
+        print(
+            "Error during installation :" + message,
+            flush=True,
+            file=self._stderr,
+        )

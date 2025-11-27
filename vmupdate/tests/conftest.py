@@ -44,7 +44,7 @@ class TestVM:
         self.app.domains[name] = self
         self.klass = klass
         self.running = True
-        if self.klass in ('AppVM', 'DispVM'):
+        if self.klass in ("AppVM", "DispVM"):
             template.derived_vms.append(self)
         self.derived_vms = []
         self.auto_cleanup = False
@@ -130,12 +130,12 @@ def test_agent():
             def run_agent(self, agent_args, status_notifier, termination):
                 if self.qube.name not in results:
                     status_notifier.put(
-                        StatusInfo.done(self.qube, FinalStatus.UNKNOWN))
+                        StatusInfo.done(self.qube, FinalStatus.UNKNOWN)
+                    )
                     unexpected.append(self.qube.name)
                     return ProcessResult(code=99)
                 for status in results[self.qube.name]["statuses"]:
-                    status_notifier.put(
-                        StatusInfo.done(self.qube, status))
+                    status_notifier.put(StatusInfo.done(self.qube, status))
                 result = ProcessResult(code=results[self.qube.name]["retcode"])
                 del results[self.qube.name]
                 return result
@@ -149,41 +149,75 @@ def generate_vm_variations(app, variations):
     """
     Generate all possible variations of vms for the given list of features.
     """
-    dom0 = TestVM("dom0", app, klass="AdminVM", updateable=True, running=True,
-                  update_result=FinalStatus.UNKNOWN,
-                  features=Features("dom0", app, {'updates-available': True}))
+    dom0 = TestVM(
+        "dom0",
+        app,
+        klass="AdminVM",
+        updateable=True,
+        running=True,
+        update_result=FinalStatus.UNKNOWN,
+        features=Features("dom0", app, {"updates-available": True}),
+    )
     domains = {
-        "klass": {"TemplateVM": set(), "StandaloneVM": set(), "AppVM": set(),
-                  "DispVM": set()},
+        "klass": {
+            "TemplateVM": set(),
+            "StandaloneVM": set(),
+            "AppVM": set(),
+            "DispVM": set(),
+        },
         "is_running": {False: set(), True: set()},
         "servicevm": {False: set(), True: set()},
         "auto_cleanup": {False: set(), True: set()},
         "updatable": {True: set(), False: set()},
         "updates_available": {False: set(), True: set()},
-        "last_updates_check": {None: set(), '2020-01-01 00:00:00': set(),
-                               '3020-01-01 00:00:00': set()},
+        "last_updates_check": {
+            None: set(),
+            "2020-01-01 00:00:00": set(),
+            "3020-01-01 00:00:00": set(),
+        },
         "qrexec": {False: set(), True: set()},
-        "os": {'Linux': set(), 'BSD': set()},
-        "updated": {FinalStatus.UNKNOWN: set(), FinalStatus.SUCCESS: set(),
-                    FinalStatus.NO_UPDATES: set(), FinalStatus.ERROR: set(),
-                    FinalStatus.CANCELLED: set(),
-                    },
+        "os": {"Linux": set(), "BSD": set()},
+        "updated": {
+            FinalStatus.UNKNOWN: set(),
+            FinalStatus.SUCCESS: set(),
+            FinalStatus.NO_UPDATES: set(),
+            FinalStatus.ERROR: set(),
+            FinalStatus.CANCELLED: set(),
+        },
         "has_template_updated": {
-            FinalStatus.SUCCESS: set(), FinalStatus.NO_UPDATES: set(),
-            FinalStatus.ERROR: set(), FinalStatus.CANCELLED: set(),
-            FinalStatus.UNKNOWN: set()},
+            FinalStatus.SUCCESS: set(),
+            FinalStatus.NO_UPDATES: set(),
+            FinalStatus.ERROR: set(),
+            FinalStatus.CANCELLED: set(),
+            FinalStatus.UNKNOWN: set(),
+        },
     }
 
-    klasses = list(reversed(sorted(list(domains['klass'].keys()))))
+    klasses = list(reversed(sorted(list(domains["klass"].keys()))))
     if "klass" not in variations:
         klasses = klasses[:1]
-    rest = [list(domains[key].keys())
-            if key in variations else list(domains[key].keys())[:1]
-            for key in domains.keys() if key != "klass"]
+    rest = [
+        (
+            list(domains[key].keys())
+            if key in variations
+            else list(domains[key].keys())[:1]
+        )
+        for key in domains.keys()
+        if key != "klass"
+    ]
     for k in klasses:
-        for (running, servicevm, auto_cleanup, updatable, updates_available,
-             last_check, qrexec, os, updated, template_updated
-             ) in itertools.product(*rest):
+        for (
+            running,
+            servicevm,
+            auto_cleanup,
+            updatable,
+            updates_available,
+            last_check,
+            qrexec,
+            os,
+            updated,
+            template_updated,
+        ) in itertools.product(*rest):
 
             if not updatable and (updates_available or last_check):
                 # do not consider features about updates for non-updatable vms
@@ -199,19 +233,34 @@ def generate_vm_variations(app, variations):
                 # `template_updated`
                 continue
 
-            lc_enc = {None: '0', '2020-01-01 00:00:00': '1',
-                              '3020-01-01 00:00:00': '2'}
-            os_enc = {'Linux': '0', 'BSD': '1'}
-            f_map = {FinalStatus.SUCCESS: "0", FinalStatus.ERROR: "1",
-                     FinalStatus.CANCELLED: "2", FinalStatus.NO_UPDATES: "3",
-                     FinalStatus.UNKNOWN: "4"}
+            lc_enc = {
+                None: "0",
+                "2020-01-01 00:00:00": "1",
+                "3020-01-01 00:00:00": "2",
+            }
+            os_enc = {"Linux": "0", "BSD": "1"}
+            f_map = {
+                FinalStatus.SUCCESS: "0",
+                FinalStatus.ERROR: "1",
+                FinalStatus.CANCELLED: "2",
+                FinalStatus.NO_UPDATES: "3",
+                FinalStatus.UNKNOWN: "4",
+            }
             txt = lambda x: str(int(x))
-            suffix = (txt(running) + txt(servicevm) + lc_enc[last_check] +
-                      txt(updates_available) + txt(qrexec) + os_enc[os] +
-                      txt(updatable) + txt(auto_cleanup))
-            if k in ('DispVM', 'AppVM'):
+            suffix = (
+                txt(running)
+                + txt(servicevm)
+                + lc_enc[last_check]
+                + txt(updates_available)
+                + txt(qrexec)
+                + os_enc[os]
+                + txt(updatable)
+                + txt(auto_cleanup)
+            )
+            if k in ("DispVM", "AppVM"):
                 template = app.domains[
-                    'T' + f_map[template_updated] + "4" + suffix[:-1] + "0"]
+                    "T" + f_map[template_updated] + "4" + suffix[:-1] + "0"
+                ]
                 ext_suffix = f_map[updated] + f_map[template_updated] + suffix
                 update_result = updated
             else:
@@ -221,21 +270,27 @@ def generate_vm_variations(app, variations):
 
             features = {}
             if servicevm:
-                features['servicevm'] = True
+                features["servicevm"] = True
             if updates_available:
-                features['updates-available'] = True
+                features["updates-available"] = True
             if last_check:
-                features['last-updates-check'] = last_check
+                features["last-updates-check"] = last_check
             if qrexec:
-                features['qrexec'] = qrexec
+                features["qrexec"] = qrexec
             if os:
-                features['os'] = os
+                features["os"] = os
 
             vm = TestVM(
-                k[0] + ext_suffix, app, klass=k, updateable=updatable,
-                running=running, auto_cleanup=auto_cleanup, template=template,
+                k[0] + ext_suffix,
+                app,
+                klass=k,
+                updateable=updatable,
+                running=running,
+                auto_cleanup=auto_cleanup,
+                template=template,
                 features=Features(k[0] + ext_suffix, app, features),
-                update_result=update_result)
+                update_result=update_result,
+            )
 
             domains["klass"][k].add(vm)
             domains["is_running"][running].add(vm)
@@ -246,7 +301,7 @@ def generate_vm_variations(app, variations):
             domains["last_updates_check"][last_check].add(vm)
             domains["qrexec"][qrexec].add(vm)
             domains["os"][os].add(vm)
-            if k in ('DispVM', 'AppVM'):
+            if k in ("DispVM", "AppVM"):
                 domains["updated"][updated].add(vm)
                 domains["has_template_updated"][template_updated].add(vm)
             else:
@@ -255,10 +310,15 @@ def generate_vm_variations(app, variations):
 
     domains["klass"]["AdminVM"] = {dom0}
     dom_prop = {
-        "is_running": True, "servicevm": False, "auto_cleanup": False,
-        "updatable": True, "updates_available": True,
-        "last_updates_check": None, "updated": FinalStatus.UNKNOWN,
-        "has_template_updated": FinalStatus.UNKNOWN}
+        "is_running": True,
+        "servicevm": False,
+        "auto_cleanup": False,
+        "updatable": True,
+        "updates_available": True,
+        "last_updates_check": None,
+        "updated": FinalStatus.UNKNOWN,
+        "has_template_updated": FinalStatus.UNKNOWN,
+    }
     for key, subkey in dom_prop.items():
         try:
             domains[key][subkey].add(dom0)

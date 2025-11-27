@@ -41,13 +41,14 @@ class APT(APTCLI):
         super().__init__(log_handler, log_level, agent_type)
         self.apt_cache = apt.Cache()
         update = FetchProgress(
-            weight=4, log=self.log, refresh=True)  # 4% of total time
+            weight=4, log=self.log, refresh=True
+        )  # 4% of total time
         fetch = FetchProgress(weight=48, log=self.log)  # 48% of total time
         upgrade = UpgradeProgress(weight=48, log=self.log)  # 48% of total time
         self.progress = ProgressReporter(update, fetch, upgrade)
 
         # to prevent a warning: `debconf: unable to initialize frontend: Dialog`
-        os.environ['DEBIAN_FRONTEND'] = 'noninteractive'
+        os.environ["DEBIAN_FRONTEND"] = "noninteractive"
 
     def refresh(self, hard_fail: bool) -> ProcessResult:
         """
@@ -62,7 +63,7 @@ class APT(APTCLI):
             self.log.debug("Refreshing available packages...")
             success = self.apt_cache.update(
                 self.progress.update_progress,
-                pulse_interval=1000  # microseconds
+                pulse_interval=1000,  # microseconds
             )
             self.apt_cache.open()
             if success:
@@ -72,7 +73,8 @@ class APT(APTCLI):
                 result += ProcessResult(EXIT.ERR_VM_REFRESH)
         except Exception as exc:
             self.log.error(
-                "An error occurred while refreshing packages: %s", str(exc))
+                "An error occurred while refreshing packages: %s", str(exc)
+            )
             result += ProcessResult(EXIT.ERR_VM_REFRESH, out="", err=str(exc))
 
         return result
@@ -85,20 +87,22 @@ class APT(APTCLI):
         try:
             self.log.debug("Performing package upgrade...")
             self.apt_cache.upgrade(dist_upgrade=remove_obsolete)
-            Path(os.path.join(
-                apt_pkg.config.find_dir("Dir::Cache::Archives"), "partial")
+            Path(
+                os.path.join(
+                    apt_pkg.config.find_dir("Dir::Cache::Archives"), "partial"
+                )
             ).mkdir(parents=True, exist_ok=True)
-            apt_pkg.config.set('Dpkg::Options::', "--force-confdef")
-            apt_pkg.config.set('Dpkg::Options::', "--force-confold")
+            apt_pkg.config.set("Dpkg::Options::", "--force-confdef")
+            apt_pkg.config.set("Dpkg::Options::", "--force-confold")
             self.log.debug("Committing upgrade...")
             self.apt_cache.commit(
-                self.progress.fetch_progress,
-                self.progress.upgrade_progress
+                self.progress.fetch_progress, self.progress.upgrade_progress
             )
             self.log.debug("Package upgrade successful.")
         except Exception as exc:
             self.log.error(
-                "An error occurred while upgrading packages: %s", str(exc))
+                "An error occurred while upgrading packages: %s", str(exc)
+            )
             result += ProcessResult(EXIT.ERR_VM_UPDATE, out="", err=str(exc))
 
         if remove_obsolete:
@@ -118,9 +122,12 @@ class FetchProgress(apt.progress.base.AcquireProgress, Progress):
         Write an error message to the fake stderr.
         """
         self.log.info(f"{self.action.capitalize()} failed.")
-        print(f"Fail to {self.action} {item.shortdesc}: "
-              f"{item.description} from {item.uri}",
-              flush=True, file=self._stderr)
+        print(
+            f"Fail to {self.action} {item.shortdesc}: "
+            f"{item.description} from {item.uri}",
+            flush=True,
+            file=self._stderr,
+        )
 
     def pulse(self, _owner):
         """
@@ -131,9 +138,11 @@ class FetchProgress(apt.progress.base.AcquireProgress, Progress):
         acquisition should be continued (True) or cancelled (False).
         """
         if self.action == "fetch" and not self.fetching_notified:
-            print(f"Fetching {self.total_items} packages "
-                  f"[{self._format_bytes(self.total_bytes)}]",
-                  flush=True)
+            print(
+                f"Fetching {self.total_items} packages "
+                f"[{self._format_bytes(self.total_bytes)}]",
+                flush=True,
+            )
             self.fetching_notified = True
         self.notify_callback(self.current_bytes / self.total_bytes * 100)
         return True
@@ -169,8 +178,11 @@ class UpgradeProgress(apt.progress.base.InstallProgress, Progress):
         """
         Write an error message to the fake stderr.
         """
-        print("Error during installation " + str(pkg) + ":" + str(errormsg),
-              flush=True, file=self._stderr)
+        print(
+            "Error during installation " + str(pkg) + ":" + str(errormsg),
+            flush=True,
+            file=self._stderr,
+        )
 
     def start_update(self):
         print("Updating packages.", flush=True)

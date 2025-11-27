@@ -49,12 +49,16 @@ class DNF5(DNFCLI):
         conf = self.base.get_config()
 
         if self.type == AgentType.UPDATE_VM:
-            conf.config_file_path = self.UPDATE_VM_INSTALLROOT + "/etc/dnf/dnf.conf"
+            conf.config_file_path = (
+                self.UPDATE_VM_INSTALLROOT + "/etc/dnf/dnf.conf"
+            )
             conf.best = True
             conf.plugins = False
             conf.installroot = self.UPDATE_VM_INSTALLROOT
-            for opt in ('cachedir', 'logdir', 'persistdir'):
-                setattr(conf, opt, self.UPDATE_VM_INSTALLROOT + getattr(conf, opt))
+            for opt in ("cachedir", "logdir", "persistdir"):
+                setattr(
+                    conf, opt, self.UPDATE_VM_INSTALLROOT + getattr(conf, opt)
+                )
             conf.reposdir = [self.UPDATE_VM_INSTALLROOT + "/etc/yum.repos.d"]
             conf.excludepkgs = ["qubes-template-*"]
         self.base.load_config()
@@ -83,7 +87,8 @@ class DNF5(DNFCLI):
             result += self.expire_cache()
         except Exception as exc:
             self.log.error(
-                "An error occurred while refreshing packages: %s", str(exc))
+                "An error occurred while refreshing packages: %s", str(exc)
+            )
             result += ProcessResult(EXIT.ERR_VM_REFRESH, out="", err=str(exc))
 
         return result
@@ -111,37 +116,46 @@ class DNF5(DNFCLI):
             if transaction.get_transaction_packages_count() == 0:
                 self.log.info("No packages to upgrade, quitting.")
                 return ProcessResult(
-                    EXIT.OK_NO_UPDATES, out="",
-                    err="\n".join(transaction.get_resolve_logs_as_strings()))
+                    EXIT.OK_NO_UPDATES,
+                    out="",
+                    err="\n".join(transaction.get_resolve_logs_as_strings()),
+                )
 
             if self.type != AgentType.DOM0:
                 #
                 self.base.set_download_callbacks(
                     libdnf5.repo.DownloadCallbacksUniquePtr(
-                        self.progress.fetch_progress))
+                        self.progress.fetch_progress
+                    )
+                )
             transaction.download()
 
             if not transaction.check_gpg_signatures():
                 problems = transaction.get_gpg_signature_problems()
                 raise TransactionError(
-                    f"GPG signatures check failed: {problems}")
+                    f"GPG signatures check failed: {problems}"
+                )
 
             if result.code == EXIT.OK and self.type is not AgentType.UPDATE_VM:
                 self.log.debug("Committing upgrade...")
                 transaction.set_callbacks(
                     libdnf5.rpm.TransactionCallbacksUniquePtr(
-                        self.progress.upgrade_progress))
+                        self.progress.upgrade_progress
+                    )
+                )
                 tnx_result = transaction.run()
                 if tnx_result != transaction.TransactionRunResult_SUCCESS:
                     raise TransactionError(
-                        transaction.transaction_result_to_string(tnx_result))
+                        transaction.transaction_result_to_string(tnx_result)
+                    )
                 self.log.debug("Package upgrade successful.")
                 if self.type is AgentType.VM:
                     self.log.info("Notifying dom0 about installed applications")
-                    subprocess.call(['/etc/qubes-rpc/qubes.PostInstall'])
+                    subprocess.call(["/etc/qubes-rpc/qubes.PostInstall"])
         except Exception as exc:
             self.log.error(
-                "An error occurred while upgrading packages: %s", str(exc))
+                "An error occurred while upgrading packages: %s", str(exc)
+            )
             result += ProcessResult(EXIT.ERR_VM_UPDATE, out="", err=str(exc))
         return result
 
@@ -158,7 +172,7 @@ class FetchProgress(DownloadCallbacks, Progress):
         self.fetching_notified = False
 
     def add_new_download(
-            self, _user_data, description: str, total_to_download: float
+        self, _user_data, description: str, total_to_download: float
     ) -> int:
         """
         Notify the client that a new download has been created.
@@ -177,7 +191,7 @@ class FetchProgress(DownloadCallbacks, Progress):
         return self.count
 
     def progress(
-            self, user_cb_data: int, total_to_download: float, downloaded: float
+        self, user_cb_data: int, total_to_download: float, downloaded: float
     ) -> int:
         """
         Download progress callback.
@@ -187,22 +201,28 @@ class FetchProgress(DownloadCallbacks, Progress):
         :param downloaded: Number of bytes downloaded.
         """
         if not self.fetching_notified:
-            print(f"Fetching {self.count} packages "
-                  f"[{self._format_bytes(self.bytes_to_fetch)}]",
-                  flush=True)
+            print(
+                f"Fetching {self.count} packages "
+                f"[{self._format_bytes(self.bytes_to_fetch)}]",
+                flush=True,
+            )
             self.fetching_notified = True
         self.bytes_fetched += downloaded - self.package_bytes[user_cb_data]
         if downloaded > self.package_bytes[user_cb_data]:
             if self.package_bytes[user_cb_data] == 0:
-                print(f"Fetching {self.package_names[user_cb_data]} [{self._format_bytes(total_to_download)}]",
-                      flush=True)
+                print(
+                    f"Fetching {self.package_names[user_cb_data]} "
+                    f"[{self._format_bytes(total_to_download)}]",
+                    flush=True,
+                )
             self.package_bytes[user_cb_data] = downloaded
             percent = self.bytes_fetched / self.bytes_to_fetch * 100
             self.notify_callback(percent)
         # Should return 0 on success,
         # in case anything in dnf5 changed we return their default value
         return DownloadCallbacks.progress(
-            self, user_cb_data, total_to_download, downloaded)
+            self, user_cb_data, total_to_download, downloaded
+        )
 
     def end(self, user_cb_data: int, status: int, msg: str) -> int:
         """
@@ -214,13 +234,13 @@ class FetchProgress(DownloadCallbacks, Progress):
         """
         if status != 0:
             if isinstance(msg, bytes):
-                msg = msg.decode('ascii', errors='ignore')
+                msg = msg.decode("ascii", errors="ignore")
             if msg:
                 print(msg, flush=True, file=self._stdout)
         return DownloadCallbacks.end(self, user_cb_data, status, msg)
 
     def mirror_failure(
-            self, user_cb_data: int, msg: str, url: str, metadata: str
+        self, user_cb_data: int, msg: str, url: str, metadata: str
     ) -> int:
         """
         Mirror failure callback.
@@ -231,12 +251,16 @@ class FetchProgress(DownloadCallbacks, Progress):
         :param metadata: the type of metadata that is being downloaded
         """
         if isinstance(msg, bytes):
-            msg = msg.decode('ascii', errors='ignore')
-        print(f"Fetching {metadata} failure "
-              f"({self.package_names[user_cb_data]}) {msg}",
-              flush=True, file=self._stdout)
+            msg = msg.decode("ascii", errors="ignore")
+        print(
+            f"Fetching {metadata} failure "
+            f"({self.package_names[user_cb_data]}) {msg}",
+            flush=True,
+            file=self._stdout,
+        )
         return DownloadCallbacks.mirror_failure(
-            self, user_cb_data, msg, url, metadata)
+            self, user_cb_data, msg, url, metadata
+        )
 
 
 class UpgradeProgress(TransactionCallbacks, Progress):
@@ -248,12 +272,13 @@ class UpgradeProgress(TransactionCallbacks, Progress):
         self.processed_packages = set()
 
     def install_progress(
-            self, item: libdnf5.base.TransactionPackage, amount: int, total: int
+        self, item: libdnf5.base.TransactionPackage, amount: int, total: int
     ):
         r"""
         Report the package installation progress periodically.
 
-        :param item: The TransactionPackage class instance for the package currently being installed
+        :param item: The TransactionPackage class instance for the package
+                     currently being installed
         :param amount: The portion of the package already installed
         :param total: The disk space used by the package after installation
         """
@@ -275,7 +300,7 @@ class UpgradeProgress(TransactionCallbacks, Progress):
         self.pgks = total
 
     def uninstall_progress(
-            self, item: libdnf5.base.TransactionPackage, amount: int, total: int
+        self, item: libdnf5.base.TransactionPackage, amount: int, total: int
     ):
         """
         Report the package removal progress periodically.
@@ -292,27 +317,39 @@ class UpgradeProgress(TransactionCallbacks, Progress):
         percent = (self.pgks_done + pkg_progress) / self.pgks * 100
         self.notify_callback(percent)
 
+    # pylint: disable=unused-argument
     def elem_progress(self, item, amount: int, total: int):
         r"""
         The installation/removal process for the item has started
 
-        :param item: The TransactionPackage class instance for the package currently being (un)installed
-        :param amount: Index of the package currently being processed. Items are indexed starting from 0.
+        :param item: The TransactionPackage class instance for the package
+                     currently being (un)installed
+        :param amount: Index of the package currently being processed.
+                       Items are indexed starting from 0.
         :param total: The total number of packages in the transaction
         """
         self.pgks_done = amount
         percent = amount / total * 100
         self.notify_callback(percent)
 
-    def script_start(self, item: libdnf5.base.TransactionPackage, nevra, type: int):
+    # pylint: disable=unused-argument,redefined-builtin
+    def script_start(
+        self, item: libdnf5.base.TransactionPackage, nevra, type: int
+    ):
         r"""
         Execution of the rpm scriptlet has started
 
-        :param item: The TransactionPackage class instance for the package that owns the executed or triggered
-                     scriptlet. It can be `nullptr` if the scriptlet owner is not part of the transaction
-                     (e.g., a package installation triggered an update of the man database, owned by man-db package).
-        :param nevra: Nevra of the package that owns the executed or triggered scriptlet.
+        :param item: The TransactionPackage class instance for the package that
+                     owns the executed or triggered scriptlet. It can be
+                     `nullptr` if the scriptlet owner is not part of
+                     the transaction (e.g., a package installation triggered
+                     an update of the man database, owned by man-db package).
+        :param nevra: Nevra of the package that owns the executed or triggered
+                      scriptlet.
         :param type: Type of the scriptlet
         """
-        print(f"Running rpm scriptlet for {nevra.get_name()}-{nevra.get_epoch()}:{nevra.get_version()}"
-              f"-{nevra.get_release()}.{nevra.get_arch()}", flush=True)
+        print(
+            f"Running rpm scriptlet for {nevra.get_name()}-{nevra.get_epoch()}"
+            f":{nevra.get_version()}-{nevra.get_release()}.{nevra.get_arch()}",
+            flush=True,
+        )

@@ -17,7 +17,8 @@ def main(args=None):
     """
     args = parse_args(args)
     log, log_handler, log_level, _log_path, _log_formatter = init_logs(
-        level=args.log, truncate_file=True)
+        level=args.log, truncate_file=True
+    )
     log.debug("Run entrypoint with args: %s", str(args))
     os_data = get_os_data()
 
@@ -28,14 +29,16 @@ def main(args=None):
     if args.download_only:
         agent_type = AgentType.UPDATE_VM
     pkg_mng = get_package_manager(
-        os_data, log, log_handler, log_level, agent_type, args.no_progress)
+        os_data, log, log_handler, log_level, agent_type, args.no_progress
+    )
 
     log.debug("Running upgrades.")
-    return_code = pkg_mng.upgrade(refresh=not args.no_refresh,
-                                  hard_fail=not args.force_upgrade,
-                                  remove_obsolete=not args.leave_obsolete,
-                                  print_streams=args.show_output,
-                                  )
+    return_code = pkg_mng.upgrade(
+        refresh=not args.no_refresh,
+        hard_fail=not args.force_upgrade,
+        remove_obsolete=not args.leave_obsolete,
+        print_streams=args.show_output,
+    )
 
     if not pkg_mng.PROGRESS_REPORTING and not args.no_progress:
         # even if progress reporting is unavailable we want info that update finished
@@ -63,13 +66,16 @@ def parse_args(args):
     return args
 
 
-def get_package_manager(os_data, log, log_handler, log_level, agent_type, no_progress):
+def get_package_manager(
+    os_data, log, log_handler, log_level, agent_type, no_progress
+):
     """
     Returns instance of `PackageManager`.
 
     If appropriate python package is not installed or `no_progress` is `True`
     cli based version is returned.
     """
+    # pylint: disable=import-outside-toplevel
     requirements = {}
     # plugins MUST be applied before import anything from package managers.
     # in case of apt configuration is loaded on `import apt`.
@@ -83,12 +89,14 @@ def get_package_manager(os_data, log, log_handler, log_level, agent_type, no_pro
         PackageManager = import_debian_package_manager(log, no_progress)
     elif os_data["os_family"] == "ArchLinux":
         from source.pacman.pacman_cli import PACMANCLI as PackageManager
-        print(f"Progress reporting not supported.", flush=True)
+
+        print("Progress reporting not supported.", flush=True)
     elif os_data["os_family"] == "Qubes":
         PackageManager = import_dom0_package_manager(os_data, log, no_progress)
     else:
         raise NotImplementedError(
-            "Only Debian, RedHat and ArchLinux based OS is supported.")
+            "Only Debian, RedHat and ArchLinux based OS is supported."
+        )
 
     pkg_mng = PackageManager(log_handler, log_level, agent_type)
     pkg_mng.requirements = requirements
@@ -99,6 +107,7 @@ def import_rhel_package_manager(os_data, log, no_progress):
     """
     Import dnf package manager.
     """
+    # pylint: disable=import-outside-toplevel
     dnf5_fedora_version = 41
     if os_data["os_family"] == "RedHat":
         try:
@@ -112,6 +121,7 @@ def import_rhel_package_manager(os_data, log, no_progress):
     if version >= dnf5_fedora_version:
         try:
             from source.dnf.dnf5_api import DNF5 as PackageManager
+
             loaded = True
             log.info("Using dnf5.")
         except ImportError:
@@ -120,14 +130,14 @@ def import_rhel_package_manager(os_data, log, no_progress):
     if not loaded:
         try:
             from source.dnf.dnf_api import DNF as PackageManager
+
             loaded = True
             log.debug("Using dnf python API for progress reporting.")
         except ImportError:
-            print(f"Progress reporting not supported.", flush=True)
+            print("Progress reporting not supported.", flush=True)
 
     if no_progress or not loaded:
-        log.warning(
-            "Failed to load dnf with progress bar. Using dnf cli.")
+        log.warning("Failed to load dnf with progress bar. Using dnf cli.")
         from source.dnf.dnf_cli import DNFCLI as PackageManager
 
     return PackageManager
@@ -137,13 +147,15 @@ def import_debian_package_manager(log, no_progress):
     """
     Import apt package manager.
     """
+    # pylint: disable=import-outside-toplevel
     loaded = False
     try:
         from source.apt.apt_api import APT as PackageManager
+
         loaded = True
     except ImportError:
         log.warning("Failed to load apt with progress bar. Using apt cli.")
-        print(f"Progress reporting not supported.", flush=True)
+        print("Progress reporting not supported.", flush=True)
 
     if no_progress or not loaded:
         from source.apt.apt_cli import APTCLI as PackageManager
@@ -155,12 +167,14 @@ def import_dom0_package_manager(os_data, log, no_progress):
     """
     Import dnf package manager for dom0.
     """
+    # pylint: disable=import-outside-toplevel
     major, minor = os_data["release"].split(".")
     major, minor = int(major), int(minor)
     loaded = False
     if major >= 5 or (major == 4 and minor >= 3):
         try:
             from source.dnf.dnf5_api import DNF5 as PackageManager
+
             loaded = True
         except ImportError:
             log.warning("Failed to load dnf5.")
@@ -168,20 +182,20 @@ def import_dom0_package_manager(os_data, log, no_progress):
     if not loaded:
         try:
             from source.dnf.dnf_api import DNF as PackageManager
+
             loaded = True
             log.debug("Using dnf python API for progress reporting.")
         except ImportError:
             print(f"Progress reporting not supported.", flush=True)
 
     if no_progress or not loaded:
-        log.warning(
-            "Failed to load dnf with progress bar. Using dnf cli.")
+        log.warning("Failed to load dnf with progress bar. Using dnf cli.")
         from source.dnf.dnf_cli import DNFCLI as PackageManager
 
     return PackageManager
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         sys.exit(main())
     except RuntimeError as ex:

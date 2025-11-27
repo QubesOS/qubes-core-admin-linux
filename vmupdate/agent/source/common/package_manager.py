@@ -18,7 +18,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
 # USA.
-""" package manager for VMs """
+"""package manager for VMs"""
 import io
 import logging
 import subprocess
@@ -36,11 +36,13 @@ class AgentType(enum.Enum):
 
 
 class PackageManager:
-    """ main package manager class """
+    """main package manager class"""
+
     def __init__(self, log_handler, log_level, agent_type: AgentType):
         self.package_manager: Optional[str] = None
         self.log = logging.getLogger(
-            f'vm-update.agent.{self.__class__.__name__}')
+            f"vm-update.agent.{self.__class__.__name__}"
+        )
         self.log.setLevel(log_level)
         self.log.addHandler(log_handler)
         self.log.propagate = False
@@ -48,11 +50,11 @@ class PackageManager:
         self.type = agent_type
 
     def upgrade(
-            self,
-            refresh: bool,
-            hard_fail: bool,
-            remove_obsolete: bool,
-            print_streams: bool = False,
+        self,
+        refresh: bool,
+        hard_fail: bool,
+        remove_obsolete: bool,
+        print_streams: bool = False,
     ):
         """
         Upgrade packages using system package manager.
@@ -65,7 +67,8 @@ class PackageManager:
         :return: return code
         """
         result = self._upgrade(
-            refresh, hard_fail, remove_obsolete, self.requirements)
+            refresh, hard_fail, remove_obsolete, self.requirements
+        )
         self._log_output("agent", result)
         if print_streams and not result.posted:
             if result.out:
@@ -75,11 +78,11 @@ class PackageManager:
         return result.code
 
     def _upgrade(
-            self,
-            refresh: bool,
-            hard_fail: bool,
-            remove_obsolete: bool,
-            requirements: Optional[Dict[str, str]] = None
+        self,
+        refresh: bool,
+        hard_fail: bool,
+        remove_obsolete: bool,
+        requirements: Optional[Dict[str, str]] = None,
     ) -> ProcessResult:
         result = ProcessResult(realtime=True)
 
@@ -91,25 +94,31 @@ class PackageManager:
             if result_install:
                 self.log.warning(
                     "Installing requirements failed with exit code: %d",
-                    result_install.code)
+                    result_install.code,
+                )
                 result_install.code = EXIT.ERR_VM_PRE
             result += result_install
             if result and hard_fail:
-                self.log.error("Exiting due to a packages install error. "
-                               "Use --force-upgrade to upgrade anyway.")
+                self.log.error(
+                    "Exiting due to a packages install error. "
+                    "Use --force-upgrade to upgrade anyway."
+                )
                 return result
 
         if refresh:
             print("Refreshing package info", flush=True)
             result_refresh = self.refresh(hard_fail)
             if result_refresh:
-                self.log.warning("Refreshing failed with code: %d",
-                                 result_refresh.code)
+                self.log.warning(
+                    "Refreshing failed with code: %d", result_refresh.code
+                )
                 result_refresh.code = EXIT.ERR_VM_REFRESH
             result += result_refresh
             if result and hard_fail:
-                self.log.error("Exiting due to a refresh error. "
-                               "Use --force-upgrade to upgrade anyway.")
+                self.log.error(
+                    "Exiting due to a refresh error. "
+                    "Use --force-upgrade to upgrade anyway."
+                )
                 return result
 
         result_upgrade = self.upgrade_internal(remove_obsolete)
@@ -150,9 +159,9 @@ class PackageManager:
                 log("%s err: %s", title, err_line)
 
     def install_requirements(
-            self,
-            requirements: Optional[Dict[str, str]],
-            curr_pkg: Dict[str, List[str]]
+        self,
+        requirements: Optional[Dict[str, str]],
+        curr_pkg: Dict[str, List[str]],
     ) -> ProcessResult:
         """
         Make sure if required packages is installed before upgrading.
@@ -173,25 +182,24 @@ class PackageManager:
                 else:
                     to_upgrade[pkg] = version
         if to_install:
-            cmd = [self.package_manager,
-                   "-q",
-                   "-y",
-                   "install",
-                   *to_install]
+            cmd = [self.package_manager, "-q", "-y", "install", *to_install]
             result += self.run_cmd(cmd)
 
         if to_upgrade:
-            cmd = [self.package_manager,
-                   "-q",
-                   "-y",
-                   *self.get_action(remove_obsolete=False),
-                   *to_upgrade]
+            cmd = [
+                self.package_manager,
+                "-q",
+                "-y",
+                *self.get_action(remove_obsolete=False),
+                *to_upgrade,
+            ]
             result += self.run_cmd(cmd)
 
         return result
 
     def run_cmd(
-            self, command: List[str], realtime: bool = True) -> ProcessResult:
+        self, command: List[str], realtime: bool = True
+    ) -> ProcessResult:
         """
         Run command and wait.
 
@@ -204,10 +212,12 @@ class PackageManager:
                 result = ProcessResult.process_communicate(proc)
                 result.posted = True
         else:
-            with subprocess.Popen(command,
-                                  stdin=subprocess.PIPE,
-                                  stdout=subprocess.PIPE,
-                                  stderr=subprocess.PIPE) as proc:
+            with subprocess.Popen(
+                command,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            ) as proc:
                 result = ProcessResult.process_communicate(proc)
         self.log.debug("command exit code: %i", result.code)
 
@@ -221,12 +231,15 @@ class PackageManager:
         :param old: Dict[package_name, version] packages before update
         :param new: Dict[package_name, version] packages after update
         """
-        return {"installed": {pkg: new[pkg] for pkg in new if pkg not in old},
-                "updated": {pkg: {"old": old[pkg], "new": new[pkg]}
-                            for pkg in new
-                            if pkg in old and old[pkg] != new[pkg]
-                            },
-                "removed": {pkg: old[pkg] for pkg in old if pkg not in new}}
+        return {
+            "installed": {pkg: new[pkg] for pkg in new if pkg not in old},
+            "updated": {
+                pkg: {"old": old[pkg], "new": new[pkg]}
+                for pkg in new
+                if pkg in old and old[pkg] != new[pkg]
+            },
+            "removed": {pkg: old[pkg] for pkg in old if pkg not in new},
+        }
 
     def _print_changes(self, changes):
         result = ProcessResult()
@@ -234,7 +247,8 @@ class PackageManager:
         if changes["installed"]:
             for pkg in sorted(changes["installed"]):
                 result.out += self._print_to_string(
-                    pkg, changes["installed"][pkg])
+                    pkg, changes["installed"][pkg]
+                )
         else:
             result.out += self._print_to_string("None")
 
@@ -244,8 +258,9 @@ class PackageManager:
                 result.out += self._print_to_string(
                     pkg,
                     str(changes["updated"][pkg]["old"])[2:-2]
-                    + " -> " +
-                    str(changes["updated"][pkg]["new"])[2:-2])
+                    + " -> "
+                    + str(changes["updated"][pkg]["new"])[2:-2],
+                )
         else:
             result.out += self._print_to_string("None")
 
@@ -253,7 +268,8 @@ class PackageManager:
         if changes["removed"]:
             for pkg in sorted(changes["removed"]):
                 result.out += self._print_to_string(
-                    pkg, changes["removed"][pkg])
+                    pkg, changes["removed"][pkg]
+                )
         else:
             result.out += self._print_to_string("None")
         return result

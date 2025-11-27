@@ -49,13 +49,7 @@ class QubeConnection:
     PYTHON_PATH = "/usr/bin/python3"
 
     def __init__(
-            self,
-            qube,
-            dest_dir,
-            cleanup,
-            logger,
-            show_progress,
-            status_notifier
+        self, qube, dest_dir, cleanup, logger, show_progress, status_notifier
     ):
         self.qube = qube
         self.dest_dir = dest_dir
@@ -84,16 +78,20 @@ class QubeConnection:
         self.status_notifier.put(StatusInfo.done(self.qube, self.status))
 
         if self.cleanup:
-            self.logger.info('Remove %s', self.dest_dir)
+            self.logger.info("Remove %s", self.dest_dir)
             try:
                 self._run_shell_command_in_qube(
-                    self.qube, ['rm', '-r', self.dest_dir])
+                    self.qube, ["rm", "-r", self.dest_dir]
+                )
             except Exception as err:
-                self.logger.error('Cannot remove %s, because of error: %s',
-                                  self.dest_dir, str(err))
+                self.logger.error(
+                    "Cannot remove %s, because of error: %s",
+                    self.dest_dir,
+                    str(err),
+                )
 
         if self.qube.is_running() and not self._initially_running:
-            self.logger.info('Shutdown %s', self.qube.name)
+            self.logger.info("Shutdown %s", self.qube.name)
             self.qube.shutdown()
 
         self.__connected = False
@@ -113,11 +111,14 @@ class QubeConnection:
         base_dir = os.path.basename(src_dir.strip(os.sep))
         src_arch = join(arch_dir, base_dir + arch_format)
         dest_arch = join(self.dest_dir, base_dir + arch_format)
-        shutil.make_archive(base_name=join(arch_dir, base_dir),
-                            format='gztar', root_dir=root_dir,
-                            base_dir=base_dir)
+        shutil.make_archive(
+            base_name=join(arch_dir, base_dir),
+            format="gztar",
+            root_dir=root_dir,
+            base_dir=base_dir,
+        )
 
-        command = ['mkdir', '-p', self.dest_dir]
+        command = ["mkdir", "-p", self.dest_dir]
         result = self._run_shell_command_in_qube(self.qube, command)
         if result:
             return result
@@ -135,12 +136,13 @@ class QubeConnection:
         command = " ".join(write_dest)
         self.logger.debug("run command: %s < %s", command, src)
         try:
-            with open(src, 'rb') as file:
+            with open(src, "rb") as file:
                 untrusted_stdout_and_stderr = self.qube.run(
-                    command, user='root', input=file.read()
+                    command, user="root", input=file.read()
                 )
                 result = ProcessResult.from_untrusted_out_err(
-                    *untrusted_stdout_and_stderr)
+                    *untrusted_stdout_and_stderr
+                )
             if result.code:
                 raise OSError(f"Command returns code: {result.code}")
         except OSError as exc:
@@ -149,7 +151,7 @@ class QubeConnection:
         return result
 
     def run_entrypoint(
-            self, entrypoint_path: str | List, agent_args
+        self, entrypoint_path: str | List, agent_args
     ) -> ProcessResult:
         """
         Run a script in the qube.
@@ -159,13 +161,17 @@ class QubeConnection:
         :return: return code and output of the script
         """
         if isinstance(entrypoint_path, str):
-            command = [QubeConnection.PYTHON_PATH, entrypoint_path,
-                       *AgentArgs.to_cli_args(agent_args)]
+            command = [
+                QubeConnection.PYTHON_PATH,
+                entrypoint_path,
+                *AgentArgs.to_cli_args(agent_args),
+            ]
         else:
             command = entrypoint_path
 
         result = self._run_shell_command_in_qube(
-            self.qube, command, show=self.show_progress)
+            self.qube, command, show=self.show_progress
+        )
 
         return result
 
@@ -173,45 +179,45 @@ class QubeConnection:
         """
         Read vm logs file.
         """
-        command = ['cat',
-                   str(join(LOGPATH, LOG_FILE))]
+        command = ["cat", str(join(LOGPATH, LOG_FILE))]
         result = self._run_shell_command_in_qube(self.qube, command)
         return result
 
     def _run_shell_command_in_qube(
-            self, target, command: List[str], show: bool = False
+        self, target, command: List[str], show: bool = False
     ) -> ProcessResult:
-        self.logger.debug("run command in %s: %s",
-                          target.name, " ".join(command))
+        self.logger.debug(
+            "run command in %s: %s", target.name, " ".join(command)
+        )
         if not show:
             return self._run_command_and_wait_for_output(target, command)
-        else:
-            return self._run_command_and_actively_report_progress(
-                    target, command)
+        return self._run_command_and_actively_report_progress(target, command)
 
     def _run_command_and_wait_for_output(
-            self, target, command: List[str]
+        self, target, command: List[str]
     ) -> ProcessResult:
         self.logger.debug("Wait for output")
         result = ProcessResult()
         try:
             if self.qube.klass == "AdminVM":
-                proc = subprocess.Popen(command, stdout=subprocess.PIPE,
-                                        stderr=subprocess.PIPE)
+                proc = subprocess.Popen(
+                    command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+                )
                 untrusted_stdout_and_stderr = proc.communicate()
                 if proc.returncode:
                     raise CalledProcessError(
                         proc.returncode,
                         command,
-                        output=untrusted_stdout_and_stderr[0] +
-                        untrusted_stdout_and_stderr[1]
+                        output=untrusted_stdout_and_stderr[0]
+                        + untrusted_stdout_and_stderr[1],
                     )
             else:
                 untrusted_stdout_and_stderr = target.run_with_args(
-                    *command, user='root'
+                    *command, user="root"
                 )
             result += ProcessResult.from_untrusted_out_err(
-                *untrusted_stdout_and_stderr)
+                *untrusted_stdout_and_stderr
+            )
         except CalledProcessError as err:
             if err.returncode == 100:
                 self.status = FinalStatus.NO_UPDATES
@@ -220,30 +226,34 @@ class QubeConnection:
                 self.logger.error(str(err))
                 ret_code = err.returncode
             result = ProcessResult.from_untrusted_out_err(
-                err.output, err.output)
+                err.output, err.output
+            )
             result.code = ret_code
         except Exception as err:
             result = ProcessResult(1, "", str(err))
         return result
 
     def _run_command_and_actively_report_progress(
-            self, target, command: List[str]
+        self, target, command: List[str]
     ) -> ProcessResult:
         self.logger.debug("Progress reporting enabled.")
         if self.qube.klass == "AdminVM":
-            proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            proc = subprocess.Popen(
+                command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            )
         elif "--download-only" in command:
             # for download-only commands, run with fakeroot
             proc = target.run_service(
-                'qubes.VMExec+' + qubesadmin.utils.encode_for_vmexec(["fakeroot"] + command),
-                user='user',
-                preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_IGN)
+                "qubes.VMExec+"
+                + qubesadmin.utils.encode_for_vmexec(["fakeroot"] + command),
+                user="user",
+                preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_IGN),
             )
         else:
             proc = target.run_service(
-                'qubes.VMExec+' + qubesadmin.utils.encode_for_vmexec(command),
-                user='root',
-                preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_IGN)
+                "qubes.VMExec+" + qubesadmin.utils.encode_for_vmexec(command),
+                user="root",
+                preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_IGN),
             )
 
         self.logger.debug("Fetching agent process stdout/stderr.")
@@ -253,7 +263,8 @@ class QubeConnection:
             future_out = executor.submit(self._collect_stdout, proc=proc)
 
             result = ProcessResult.from_untrusted_out_err(
-                future_out.result(), future_err.result())
+                future_out.result(), future_err.result()
+            )
 
         result.code = proc.wait()
         self.logger.debug("Agent process finished.")
@@ -264,7 +275,7 @@ class QubeConnection:
 
     def _collect_stderr(self, proc) -> bytes:
         progress_finished = False
-        for untrusted_line in iter(proc.stderr.readline, b''):
+        for untrusted_line in iter(proc.stderr.readline, b""):
             if not untrusted_line:
                 continue
             line = ProcessResult.sanitize_output(untrusted_line, single=True)
@@ -277,30 +288,38 @@ class QubeConnection:
                     try:
                         progress = float(line.split()[-1])
                     except ValueError:
-                        self.status_notifier.put(FormatedLine(self.qube.name, 'err', line))
+                        self.status_notifier.put(
+                            FormatedLine(self.qube.name, "err", line)
+                        )
                         continue
 
-                if progress == 100.:
+                if progress == 100.0:
                     progress_finished = True
                 self.status_notifier.put(
-                    StatusInfo.updating(self.qube, progress))
+                    StatusInfo.updating(self.qube, progress)
+                )
             else:
-                self.status_notifier.put(FormatedLine(self.qube.name, 'err', line))
+                self.status_notifier.put(
+                    FormatedLine(self.qube.name, "err", line)
+                )
 
         proc.stderr.close()
         self.logger.debug("Agent stderr closed.")
 
-        return b''
+        return b""
 
     def _collect_stdout(self, proc) -> bytes:
-        for untrusted_line in iter(proc.stdout.readline, b''):
+        for untrusted_line in iter(proc.stdout.readline, b""):
             if untrusted_line:
                 line = ProcessResult.sanitize_output(
-                    untrusted_line, single=True)
+                    untrusted_line, single=True
+                )
                 if line:
-                    self.status_notifier.put(FormatedLine(self.qube.name, 'out', line))
+                    self.status_notifier.put(
+                        FormatedLine(self.qube.name, "out", line)
+                    )
 
         proc.stdout.close()
         self.logger.debug("Agent stdout closed.")
 
-        return b''
+        return b""

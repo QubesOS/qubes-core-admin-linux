@@ -27,9 +27,9 @@ from typing import Callable, Optional
 
 class Progress:
     def __init__(
-            self,
-            weight: int,
-            log,
+        self,
+        weight: int,
+        log,
     ):
         self.weight = weight
         self._callback = None
@@ -41,9 +41,12 @@ class Progress:
         self.log = log
 
     def init(
-            self, start: float, stop: float,
-            callback: Callable[[float], None],
-            stdout: io.TextIOWrapper, stderr: io.TextIOWrapper
+        self,
+        start: float,
+        stop: float,
+        callback: Callable[[float], None],
+        stdout: io.TextIOWrapper,
+        stderr: io.TextIOWrapper,
     ):
         self._callback = callback
         self._start_percent = start
@@ -57,8 +60,10 @@ class Progress:
         Report ongoing progress.
         """
         assert self._start_percent is not None  # call init() first!
-        _percent = self._start_percent + percent * (
-                self._stop_percent - self._start_percent) / 100
+        _percent = (
+            self._start_percent
+            + percent * (self._stop_percent - self._start_percent) / 100
+        )
         _percent = round(_percent, 2)
         if self._last_percent < _percent:
             self._callback(_percent)
@@ -84,20 +89,21 @@ class ProgressReporter:
     """
 
     def __init__(
-            self,
-            update: Progress,
-            fetch: Progress,
-            upgrade: Progress,
-            callback: Optional[Callable[[float], None]] = None
+        self,
+        update: Progress,
+        fetch: Progress,
+        upgrade: Progress,
+        callback: Optional[Callable[[float], None]] = None,
     ):
         saved_stdout = os.dup(sys.stdout.fileno())
         saved_stderr = os.dup(sys.stderr.fileno())
-        self.stdout = io.TextIOWrapper(os.fdopen(saved_stdout, 'wb'))
-        self.stderr = io.TextIOWrapper(os.fdopen(saved_stderr, 'wb'))
+        self.stdout = io.TextIOWrapper(os.fdopen(saved_stdout, "wb"))
+        self.stderr = io.TextIOWrapper(os.fdopen(saved_stderr, "wb"))
         self.last_percent = 0.0
         if callback is None:
-            self.callback = lambda p: \
-                print(f"{p:.2f}", flush=True, file=self.stderr)
+            self.callback = lambda p: print(
+                f"{p:.2f}", flush=True, file=self.stderr
+            )
         else:
             self.callback = callback
 
@@ -107,7 +113,8 @@ class ProgressReporter:
 
         update.init(0, update_end, self.callback, self.stdout, self.stderr)
         fetch.init(
-            update_end, fetch_end, self.callback, self.stdout, self.stderr)
+            update_end, fetch_end, self.callback, self.stdout, self.stderr
+        )
         upgrade.init(fetch_end, 100, self.callback, self.stdout, self.stderr)
 
         self.update_progress = update

@@ -31,10 +31,13 @@ class ProcessResult:
     Controls where the results of subprocesses are directed
     (e.g., to stdout or buffered).
     """
+
     def __init__(
-            self,
-            code: int = EXIT.OK, out: str = "", err: str = "",
-            realtime: bool = False
+        self,
+        code: int = EXIT.OK,
+        out: str = "",
+        err: str = "",
+        realtime: bool = False,
     ):
         self.code: int = code
         self.out: str = out
@@ -56,12 +59,12 @@ class ProcessResult:
 
     @classmethod
     def from_untrusted_out_err(
-            cls,
-            untrusted_out: Optional[Union[str, bytes]],
-            untrusted_err: Optional[Union[str, bytes]] = ""
+        cls,
+        untrusted_out: Optional[Union[str, bytes]],
+        untrusted_err: Optional[Union[str, bytes]] = "",
     ):
         if untrusted_out is None:
-            untrusted_out_bytes = b''
+            untrusted_out_bytes = b""
         elif isinstance(untrusted_out, str):
             untrusted_out_bytes: bytes = untrusted_out.encode()
         else:
@@ -69,7 +72,7 @@ class ProcessResult:
         out = ProcessResult.sanitize_output(untrusted_out_bytes)
 
         if untrusted_err is None:
-            untrusted_err_bytes = b''
+            untrusted_err_bytes = b""
         elif isinstance(untrusted_err, str):
             untrusted_err_bytes: bytes = untrusted_err.encode()
         else:
@@ -80,10 +83,14 @@ class ProcessResult:
 
     @staticmethod
     def sanitize_output(untrusted_bytes: bytes, single: bool = False) -> str:
-        untrusted_str = untrusted_bytes.decode('ascii', errors='ignore')
-        return ''.join([c for c in untrusted_str
-                        if 0x20 <= ord(c) <= 0x7e
-                        or (c == '\n' and not single)])
+        untrusted_str = untrusted_bytes.decode("ascii", errors="ignore")
+        return "".join(
+            [
+                c
+                for c in untrusted_str
+                if 0x20 <= ord(c) <= 0x7E or (c == "\n" and not single)
+            ]
+        )
 
     def __add__(self, other):
         new = deepcopy(self)
@@ -92,9 +99,11 @@ class ProcessResult:
 
     def __iadd__(self, other):
         if not isinstance(other, ProcessResult):
-            raise TypeError("unsupported operand type(s) for +:"
-                            f"'{self.__class__.__name__}' and "
-                            f"'{other.__class__.__name__}'")
+            raise TypeError(
+                "unsupported operand type(s) for +:"
+                f"'{self.__class__.__name__}' and "
+                f"'{other.__class__.__name__}'"
+            )
         self.code = max(self.code, other.code)
         self.out += other.out
         self.err += other.err
@@ -113,6 +122,6 @@ class ProcessResult:
         return f"{self.code}; {self.out}; {self.err}"
 
     def error_from_messages(self):
-        out_lines = (self.out + '\n' + self.err).splitlines()
+        out_lines = (self.out + "\n" + self.err).splitlines()
         if any(line.lower().startswith("err") for line in out_lines):
             self.code = EXIT.ERR
