@@ -92,7 +92,7 @@ class DNF(DNFCLI):
         self.base.conf.skip_if_unavailable = True
         try:
             self.log.debug("Refreshing available packages...")
-            repos = [r for r in self.base.repos.iter_enabled()]
+            repos = tuple(self.base.repos.iter_enabled())
             # we do not know the size of the repositories
             self.progress.update_progress.start(len(repos), len(repos))
             for i, repo in enumerate(repos):

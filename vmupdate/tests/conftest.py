@@ -124,7 +124,7 @@ def test_qapp():
 def test_agent():
     def closure(results, unexpected):
         class UpdateAgentManager:
-            def __init__(self, app, qube, agent_args, show_progress):
+            def __init__(self, app, qube, agent_args, show_progress, dom0):
                 self.qube = qube
 
             def run_agent(self, agent_args, status_notifier, termination):

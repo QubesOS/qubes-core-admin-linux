@@ -82,7 +82,7 @@ def test_preselection(
     app = domains["klass"]["AppVM"]
     disp = domains["klass"]["DispVM"]
     run_app = app & is_running
-    default = updatable & ((templ | stand) | (is_running & (disp | app)))
+    default = updatable & ((templ | stand | admin) | (is_running & (disp | app)))
 
     AdminVM = next(iter(admin))
     TemplVM = next(iter(templ))
@@ -123,8 +123,7 @@ def test_preselection(
         ("--apps", "--targets", TemplVM.name,): run_app | {TemplVM},
         ("--targets", NRunAppVM.name,): {NRunAppVM},
         ("--targets", StandVM.name,): {StandVM},
-        # dom0 skipped, user warning
-        ("--targets", AdminVM.name,): EXIT.OK_NO_UPDATES,
+        ("--targets", AdminVM.name,): {AdminVM},
         ("--targets", "unknown",): EXIT.ERR_USAGE,
         ("--targets", f"{TemplVM.name},{StandVM.name}",): {TemplVM, StandVM},
         ("--targets", f"{TemplVM.name},{TemplVM.name}",): EXIT.ERR_USAGE,
@@ -212,8 +211,7 @@ def test_selection(
         else:
             feed = {vm.name: {'statuses': [FinalStatus.SUCCESS],
                               'retcode': EXIT.OK}
-                    for vm in selected
-                    if vm.klass != "AdminVM"}  # dom0 is not updated via agent
+                    for vm in selected}
             monkeypatch.setattr(
                 vmupdate, "preselect_targets", lambda *_: selected)
             if feed:
@@ -299,8 +297,7 @@ def test_restarting(
         monkeypatch.setattr(vmupdate, "get_targets", lambda *_: all)
         feed = {vm.name: {'statuses': [vm.update_result],
                           'retcode': None}  # we don't care
-                for vm in all
-                if vm.klass != "AdminVM"} # dom0 is not updated via agent
+                for vm in all}
 
         unexpected = []
         agent_mng.side_effect = test_agent(feed, unexpected)
