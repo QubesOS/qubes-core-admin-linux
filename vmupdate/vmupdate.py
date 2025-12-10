@@ -327,6 +327,17 @@ def select_targets(targets, args) -> Set[qubesadmin.vm.QubesVM]:
             to_update = vm.features.get("updates-available", False)
         except qubesadmin.exc.QubesDaemonCommunicationError:
             to_update = False
+        try:
+            prohibit_start = vm.features.get("prohibit-start", False)
+        except qubesadmin.exc.QubesDaemonCommunicationError:
+            prohibit_start = False
+        try:
+            skip_update = vm.features.get("skip-update", False)
+        except qubesadmin.exc.QubesDaemonCommunicationError:
+            skip_update = False
+
+        if skip_update or prohibit_start:
+            continue
 
         # there are updates available => select
         if to_update:
