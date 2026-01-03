@@ -398,7 +398,7 @@ else
         CMD="script --quiet --return --command '${CMD//\'/\'\\\'\'}' /dev/null"
     fi
     if [ "$PROGRESS_REPORTING" == "1" ]; then
-        qvm-run "${QVMRUN_OPTS[@]}" -- "$UPDATEVM" "$CMD" < /dev/null | sed "s/``^/$(hostname):out: /"
+        qvm-run "${QVMRUN_OPTS[@]}" -- "$UPDATEVM" "$CMD" < /dev/null | sed "s/^/$(hostname):out: /"
         # "consume" the last empty line
         echo ""
     else

@@ -21,14 +21,18 @@
 
 from typing import List, Dict
 
-from source.common.package_manager import PackageManager
+from source.common.package_manager import PackageManager, AgentType
 from source.common.process_result import ProcessResult
 from source.common.exit_codes import EXIT
 
 
 class PACMANCLI(PackageManager):
-    def __init__(self, log_handler, log_level):
-        super().__init__(log_handler, log_level)
+    PROGRESS_REPORTING = False
+
+    def __init__(self, log_handler, log_level, agent_type: AgentType):
+        super().__init__(log_handler, log_level, agent_type)
+        if self.type is AgentType.UPDATE_VM:
+            raise NotImplementedError("Pacman do not support update proxy VM.")
         self.package_manager = "pacman"
 
     # pylint: disable=unused-argument
