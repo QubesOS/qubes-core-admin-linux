@@ -150,7 +150,7 @@ class UpdateManager:
 
     def print(self, *args):
         if self.buffered:
-            self.buffer += " ".join(str(args)) + "\n"
+            self.buffer += " ".join(map(str, args)) + "\n"
         else:
             print(*args, file=sys.stdout, flush=True)
 
