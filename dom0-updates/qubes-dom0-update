@@ -28,7 +28,7 @@ if [ "$1" = "--help" ]; then
     echo "    --force-xen-upgrade  force major Xen upgrade even if some qubes are running"
     echo "    --console    does nothing; ignored for backward compatibility"
     echo "    --show-output  does nothing; ignored for backward compatibility"
-    echo "    --quiet      do not print anything to stdout"
+    echo "    --silent      do not print anything to stdout"
     echo "    --preserve-terminal  does nothing; ignored for backward compatibility"
     echo "    --skip-boot-check  does not check if /boot & /boot/efi should be mounted"
     echo "    --switch-audio-server-to=(pulseaudio|pipewire) switch audio daemon to pipewire or pulseaudio"
@@ -81,7 +81,7 @@ while [ $# -gt 0 ]; do
         --show-output)
             # ignore
             ;;
-        --quiet)
+        --silent)
             exec > /dev/null
             ;;
         --just-print-progress)

@@ -425,7 +425,8 @@ class UpdateAgentManager:
                 if agent_args.just_print_progress or self.show_progress:
                     entrypoint.append("--just-print-progress")
                 if agent_args.quiet:
-                    entrypoint.append("--quiet")
+                    # silent is equivalent to quiet for dom0-update
+                    entrypoint.append("--silent")
             else:
                 this_dir = os.path.dirname(os.path.realpath(__file__))
                 entrypoint = join(this_dir, UpdateAgentManager.ENTRYPOINT)
