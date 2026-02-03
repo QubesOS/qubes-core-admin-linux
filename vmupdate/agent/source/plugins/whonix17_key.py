@@ -1,0 +1,198 @@
+# coding=utf-8
+#
+# The Qubes OS Project, http://www.qubes-os.org
+#
+# Copyright (C) 2026  Marek Marczykowski-Górecki
+#                             <marmarek@invisiblethingslab.com>
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
+# USA.
+
+import os
+import subprocess
+
+KICKSECURE_KEY = """-----BEGIN PGP PUBLIC KEY BLOCK-----
+
+mQINBFLYY+gBEACb5AqqsBuxzGlqSQZoua/CI/kr9YOagD9G8I+aBXoTUqyTSafy
+JvamqxcV1mti0QKhyQsw43f340R9lGvdGTm7JhsESuHwbkAPxa6hOdjvNy//5NkK
+N+wWUm6PGiAmLmgxYp69PHMUzSkKeMIlOxEINFlvnkAsB945Zm1mEZcWiSIQEpgd
+crfi8B0CKw/9hzHoQZpvc9Jt9ZeWlZOQR/vowz0Mb5vGT9IwMVoVjmdDJF4K/Nuo
+cj9PrBOfzS1UBtgaornkddCVYvOSr2YWu1baKtyf2JkLx1uCSU34kvyy8/11e3Rh
+xmskoqvT/P7ChCHRxQTKNN4Zz/iB/OjlXWOA1e1E46NvIfxezMtz7smbV2WPk799
+mXjqpZJWJirJWZAB6B4GDm1vc0K1qvWMKrdNHPu02To96KgYW8iHH0Vn+0jgz7ag
+7ocLvgFxOZwDUc8qkWxPZBOUFClv1epW1UIGCsZ/OmHfpm6qTjUgLA6pijUEEYBs
+i7gzKKg6wvt6UK19FYrtBk93H0rQN8eS48U5e45JGmvLVgb523uN+OOkkKuJIGOP
+ue60lE4euUuKOSgGQKZPL8bAnz3YdpRVPacPzgYnMhns4m1fQFkhpmMAYN6YYl3P
+Bs1PeuD70KXG3tKCX7IafPWFaVWyjzZo3qk+N4PXtZCp8YqPQyWS+LMA7QARAQAB
+tCxQYXRyaWNrIFNjaGxlaXplciA8YWRyZWxhbm9zQGtpY2tzZWN1cmUuY29tPokC
+TgQTAQoAOAIbAwULCQgHAwUVCgkICwUWAgMBAAIeAQIXgBYhBJFrjZnDjq9eitx6
+Ko1mBmou6szaBQJpeg30AAoJEI1mBmou6szazvkP/iEvsRhJL1j3PwsGL18x22qf
+HPLhBUIN3/TN4O/6SBXDJfczq4ejUKdRRG2Pxyhfk8WQWm/QQv4WgCeHrhHbWwtf
+kNpxknz5rLxND7albhj4hezzYz3j+MZlcF2Xah+5OizORhSyneiXXmynJ60e/hVv
+VtvlLUdTr8Wd8xjdk+Mrobwb+lkrSjKlRRlIT7Z2tjWQH5R+BBY27imF7pW/bRzh
+7tS/raXupRA7h0HhoTazdrKGOTNxuQrukhquEeVktVPiogyQPy2RGwJM5eAArf5P
+ZiDtk8isCC4fmp+WrqDjNitdTCKtpAq0Ykgsnu1RFNMhVs4sJrIW1CsMtiUY/QD7
+uYRl/My/IzZGuB5I8zt7+qStoCrPG4TxsuaJjXuvIz2o9JQPmnGTFxe9yt+XRjmU
+LVmmViRMIXEVqTD/PcNP6rFJBtCpmYpLbcfaLHZawCVHVvWBuTdUV/y/CLgu6rdr
+YWYxjH1wGWfDzK1MZQ9mmAw8T7ji8GCxxO06j1Aj/MPvqXgebgn2x+W/MPqC8fVI
+j14LqKHxp/jcjAeLD3gLRkxF6W4YZVkKqNLRpODLbBkB2QOiorrvnjbtxulApKz0
+RZO3fiCVFWx5E+X79wUSzMi6PFXhwIYBaQ+cHn9I+Bt+gqtGtNMmQESFizwclvfF
+5zCb+zuK4xU8Fi63YTgftChQYXRyaWNrIFNjaGxlaXplciA8YWRyZWxhbm9zQHJp
+c2V1cC5uZXQ+iQJOBBMBCgA4AhsDBQsJCAcDBRUKCQgLBRYCAwEAAh4BAheAFiEE
+kWuNmcOOr16K3HoqjWYGai7qzNoFAml6DfUACgkQjWYGai7qzNrBfA/+I+/6IfzZ
+PGassOVapXO4rVVtpJSO9/FfeZq2IB13X8nGSci2gk1N2m+QSIPfE4ARBINKbQYA
++Cy1U9nyqYo5oALXE04Syx/YHh2grFyvVP+uIYIvWuhkVjzjD/chQa/kZhyx8ibN
+Ke6zOh8KmixxXarCVzD9QHR+glE2PGXplfaiWJHkY1F20O6jWJrgNv12kAkPQrBd
+ozeQpvZ3XH8NkHUI0Ese0jdpJ2U69qXQGS5xGXkLftLNT5zpBXbu/0zH5OaPZQ98
+YqXczrZYrXBXeLFB3U5HYZ8itM9vcf86Cd67eA7VFAdQp2PYZAQupLRYM7bM1q1L
+v6bhuR9sab2dPswCqfMu25bFp3RmLjCbzWmsPgxxALpDNEW5CKn33GVg37H/7z7A
+lPyjSmo0A3YChPo5iVF2hvAgF/FeVL2jKmWX7+oSumWxzBuZPsPc1qE2AV8YNZFr
+bwep9mVXKt2ux607BHpCsf/Jr/zfBgv7c3W5+K/Wmqfddj2MPJitj2JMKXPnDfR+
+H1WNcbX2QWF1oa30JInKczwFxpKHuwvd7JSKdNe8Mngz7XEo6ucF/Z/XS2TiFq3A
+7RTge5PIRGtW8oWTGln/3cSliBnxWJpViIQu5/0cXStdLEvXPYJp1IndGUbYCOIv
+Y1+oPqRvmm23koNbibU2f3+vp5Z1RMWQvmu0KFBhdHJpY2sgU2NobGVpemVyIDxh
+ZHJlbGFub3NAd2hvbml4Lm9yZz6JAk4EEwEKADgCGwMFCwkIBwMFFQoJCAsFFgID
+AQACHgECF4AWIQSRa42Zw46vXorceiqNZgZqLurM2gUCaXoN9QAKCRCNZgZqLurM
+2sLFEACRGLt8CGkZm++K0FgmsqXY8gKJeTyBLG/8JWZem4j1LPqseOiesFXcQ9pi
+RkChiln7/EylFS4O6wBGTWcYvr0Kfp4/bnC8vwPXW/sr33654kuzq+e07pOWWnft
+M6BgaAfYaDFUUlK0Zg5oD5j4YlainpztXEcPSYUhaGTHPL2uwPKc0Os8neW0920A
+ukY6NdI569ksRiFixv/9viOL25m5BGbPlizMmWuZ11dKAobiOSc7O3raX6simDon
+OZOswX/HH7d7++TpinCAaDjuLy6o5kceibRedvK4t4wwog0jwpt/b76gHOYasigR
+Ez6Oy2b34hwy1LT6M4i+Vax9YWluuL9TwxgvJLAHjTlFgOh73bPXbTMrO6XC1j9m
+YUKjYxhRlqjQ0x4J+6Io7sAjo7QAASfjsU+sbEWDyLHGxA6ApDPp2t9Uy4o7x5To
+KKMr2G8rfhZgfvfsLWkkrSWFUKu1vpVvTur3UBMgOl+cPDHHHxqQ87G88LJkwVUg
+OuXlQ4cb9/NDHnTlV/uCRH9W+hF7z3SWIU+J1irdmky9VsRblIvO86CuH3WLiYkz
+ePi0cnmIcL9Ku2xKLzqaj+P9rzBnGoGIz4DL/wf/WD8166LVj0T1Aw9+rcmxsFqf
+ARKW+txOCaxh9W6BXQN0yhJV0AdevvuLepNAihg9qNGmf5EhX7kCDQRS2GU6ARAA
+sMNYzZCsUG2StfaRU1exoF65Dqt0TB0wc2Z/uaBzcf2P3dRvNIuJcQxltEgRZJdz
+otrRPBgDvo4BwJBbzOet7s/SQBxs9urKUf7dTjrVbmhwUnwa39xEJCauFZRN7m54
+WCA/yIEApihf++U/0zmoDgQz7RxvbDzaXNnAaXKdyI30z+bea218q7bdEkOjMQnE
+MI/k+JFWtLDWx78hQFY5cpPu8NV+b/CrUJKc6txF0fpY2PQ9YdsFpyNnKRm3RrOT
+8n1r/G5Ym/gRqQuE6PQIQMh5aY0KnMMTPt5iwLfX5MrTqaEpaa7UEVW2eJyEE8/K
+p9aLOjK2+0plJ6SrcHjXq+f4HuK//n8vtoZ3o3KvqzL9jKIyZu3OdjMbpsNaJW7J
+WjGNkSi2D2G32ccyfVi5X/Gm06Dve7vxJEtmFybkMBnS9E1yCWwPl3McJpvudYVs
+MEEI9ecJeGboQf6vnIdtVDQXg5gCz2iqUODCywVCgNuz8GXi6Qg/sbAdt3U++PYB
+QG9xc1eC/CApXIYQd/0YFPE7AJbLNyWJ/GAeJywALf8WR53IvWykENGnNQiqZ0iT
+VvnPoxLAW+poxMwbqe58JrDeHWUZn7jsLJYdQYWgu5QbpuwpOsvJbxgC7ZmWEUao
+7z8H4I7FTAaZZNG6qbxexH7AvncpGcKhBBqpBN+VW30AEQEAAYkCNgQYAQoAIAIb
+IBYhBJFrjZnDjq9eitx6Ko1mBmou6szaBQJpeg4uAAoJEI1mBmou6szadHcP/28h
+4LpO0X0OMSmYURfVbB5m9a583fMk+tRaDyGDoAbMQZNtIApAyXHAcT9mLjTO2+DO
+ZNQYx4dLSaTDYhxXF2C8SIpLSN39nIEEeA5Ok+AivRpKUHUd7w6oj7B+KytqurBk
+8rKzq1X0Syd3sw+RCu0DYm6Za3JZaP/02ZEiF60hRgoP6/Ftzdco3zks7cja8YkB
+uKfpt9Ef0MCx2BvnLSiaM4jckQ5fWvlcTxmHarrM6RwMUz7tpVVD29KcF/rv8zfb
+gXFfzwxAwLqJC4ZOt0bsa/J/nKqVZ9B1woe3fRp0VHBUEYrhXHDCeB+BMl49W/eL
+pgvlBnazF79DgOCZTexwcQGU9xUGqNc1Oh9qxgqnvdFoJ8ioljMSiJV1HOV0MfOR
+aLe3iz+ekdK597PQeUZnx03sPaCzUnM8AxlYnmfEa27l1R3EL2sZ2ZlXdHMCNKBV
+VedGpp0rjZfDKSBfUiTU/x5pt636jJ0Gp2IRWrE+WNf7apdPI3PAGOIf+r6Wm72N
+HJU/Yt7G6YzO1C6i01oYo/v7t2zwf7t1S5xwrZ7brc/XS+spEMkIcR8zKRdi+sro
+mYEtwxqUkVQ+QQ4/FwMawSHXp6OaK4CrdWTDrFIj3ipQtblKqPhM8+qxrqnZm5MI
+jIv4DoM2syLfDd2pIBC5i/hhy6kxIHzw3c/1TEEnuQINBFLYZjsBEADC30x4jdQp
+9YkbDVHdHZvQJpWm4gPfh2kGwP4p1A45gFvUVzIpDBQkTbzHZZ9BOD5jzElklBy+
+dAVpGQeq8jDsmA3L8iPmo3oZnh+tOoEXWovg2zyM35IPABTAqNpfttFMarOCuWJ/
+yYXLRytLqpWYVgIkwZaxq1F+SdpzAX5YvX67kL9ERDruJUxcp569fxALTXrhpoLM
+K9aRO+XV7dBE7iRjdGBBfbK2b9Odqdv5DAZ9PeJ1XZIjp6uNTE2n481iEfjaeI6K
+gZMYdajaJaVo4fVIovNcdom8lrL9aDhQxSYQ54iec7PRQth4uiOq0OqkDbOrGVzw
+CJtUu1XBl/g3TyHQTcpxDzNh8450vYppccD6nAWAVyQzdJE+NDYH/HxFpni+7S3o
+0AmarbJ1nVKkR0EBrbzqK+hG1wb3ofj2EDO9WZKfe4w2FQ7IbP9PLMr8fZjGM4Sy
+MkYhiy7cUqX8tdwQK2SFjWzHQA375fKj0WQ5MxuFPN8kWiC+jPkrfS+/E7qo9WMh
+tMiAfuy8iKNx4100zRgb8vcsZscxmXwL820+YlN8LcTPo4SpPUwBxUfSXok7xZ0t
+XWL/neOAsXvb7cBa4/mx5SHeVYRXfNJEXJSmqtVrFyg0mZFMRTFc/HqV2B9xOrd/
+04BPsWEuItvq7Ab7GuEPNhN/ypyEUJ3eBQARAQABiQS1BBgBCgAgAhsCFiEEkWuN
+mcOOr16K3HoqjWYGai7qzNoFAml6Di4CicG9IAQZAQoAZgUCUthmO18UgAAAAAAu
+AChpc3N1ZXItZnByQG5vdGF0aW9ucy5vcGVucGdwLmZpZnRoaG9yc2VtYW4ubmV0
+NkU5NzlCMjhBNkYzN0M0M0JFMzBBRkExQ0I4RDUwQkI3N0JCM0M0OAAKCRDLjVC7
+d7s8SDkmEADApWdW8gQ5t1MOJY2lGVbI2wNsIKCZ0v3zED0kZgH0B3dQhPG5PZpd
+qBNLfDCKukCfIIIlhP32zS2Bx+lMajnqRdnNROISMhTumfhPqdXtp9kCOv1+AfXx
+XE6aKr13b1zUOMxDN9dRRqkqiWdKTaOOVPZANwpNW7gd6LwF3FWxU99Kvh4II/33
+iXlT7JzE7/6aksjzuZsmIg8mqNqTylYO6HIKkrLKHFalHWskqKVmdB/0ZS3+9EEr
+lUNWB2AVgn3vk0cdWgA0j+y2u4HtsKkt0uofTeqws0ta2JlN7NCl+GxExshgrB7J
+lgM38J3M7EBOGqWHJauhhCGAfXW4nwmUk5n97Dz/bH1uA0v/UWkAlYiW1eqweJ1w
+MDbIbDVBkgTe/iwVBt2Ph1yv6bNvgELOvZ2KYoPc1votdllgJaWcKyu717X4EU1L
++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
+=zSJ+
+-----END PGP PUBLIC KEY BLOCK-----
+"""
+
+KEYFILE_PATH = "/usr/share/keyrings/derivative.asc"
+
+# expired key listing:
+# gpg: keybox '/home/user/.gnupg/pubring.kbx' created
+# gpg: WARNING: no command supplied.  Trying to guess what you mean ...
+# gpg: /home/user/.gnupg/trustdb.gpg: trustdb created
+# pub:e:4096:1:8D66066A2EEACCDA:1389913064:1769172087::-:
+# uid:::::::::Patrick Schleizer <adrelanos@riseup.net>:
+# uid:::::::::Patrick Schleizer <adrelanos@whonix.org>:
+# uid:::::::::Patrick Schleizer <adrelanos@kicksecure.com>:
+# sub:e:4096:1:3B1E6942CE998547:1389913064:1769172143:::
+# sub:e:4096:1:10FDAC53119B3FD6:1389913402:1769172143:::
+# sub:e:4096:1:CB8D50BB77BB3C48:1389913659:1769172143:::
+
+def whonix17_key(os_data, log, **kwargs):
+    """
+    Update kicksecure signing key - https://www.kicksecure.com/wiki/EXPKEYSIG
+    """
+    if os_data.get("codename", "") != "bookworm" or not os.path.exists(KEYFILE_PATH):
+        return
+
+    # check if key is expire
+    key_info = subprocess.check_output(["gpg", "--with-colons", KEYFILE_PATH])
+    for line in key_info.decode("ascii").splitlines():
+        if line.startswith("pub:e:"):
+            # found expired key
+            break
+    else:
+        # expired key not found
+        return
+
+    # we get here if there is some expired key, update the keyring
+    with open(KEYFILE_PATH, "w") as f:
+        f.write(KICKSECURE_KEY)
