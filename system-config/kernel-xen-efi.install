@@ -38,7 +38,7 @@ case "$COMMAND" in
             dracut -f "$EFI_DIR/initramfs-${KVER}.img" "$KVER"
         fi
 
-        if ! fgrep -q "[${KVER}]" $EFI_DIR/xen.cfg; then
+        if ! grep -F -q "[${KVER}]" $EFI_DIR/xen.cfg; then
             # take the default section and use it as a template for the new entry
             awk -F = --assign "kver=${KVER}" '
               /^\[/ {
