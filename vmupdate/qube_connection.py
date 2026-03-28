@@ -28,10 +28,12 @@ from subprocess import CalledProcessError
 from typing import List
 
 import qubesadmin
+import qubesadmin.exc
 from vmupdate.agent.source.args import AgentArgs
 from vmupdate.agent.source.log_config import LOGPATH, LOG_FILE
 from vmupdate.agent.source.status import StatusInfo, FinalStatus
 from vmupdate.agent.source.common.process_result import ProcessResult
+from vmupdate.utils import shutdown_domains
 
 
 class QubeConnection:
@@ -92,10 +94,24 @@ class QubeConnection:
                                   self.dest_dir, str(err))
 
         if self.qube.is_running() and not self._initially_running:
-            self.logger.info('Shutdown %s', self.qube.name)
-            self.qube.shutdown()
+            if self._has_assigned_pci_devices(self.qube):
+                self.logger.info(
+                    'Waiting for full shutdown %s (PCI devices assigned)',
+                    self.qube.name)
+                shutdown_domains([self.qube], self.logger)
+            else:
+                self.logger.info('Shutdown %s', self.qube.name)
+                self.qube.shutdown()
 
         self.__connected = False
+
+    @staticmethod
+    def _has_assigned_pci_devices(vm) -> bool:
+        """Return True when VM has assigned PCI devices."""
+        try:
+            return any(vm.devices['pci'].get_assigned_devices())
+        except qubesadmin.exc.QubesDaemonAccessError:
+            return False
 
     def transfer_agent(self, src_dir: str) -> ProcessResult:
         """
