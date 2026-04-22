@@ -320,7 +320,7 @@ qvm-run --nogui -q -- "$UPDATEVM" "rm -rf -- '$dom0_updates_dir/etc' '$dom0_upda
 
 QVMRUN_OPTS=(--quiet --filter-escape-chars --nogui --pass-io)
 
-progress_agent_version="4.3"
+progress_agent_version="4.4"
 
 get_base_vm() {
     # Resolve base VM (TemplateVM or StandaloneVM)
@@ -376,7 +376,7 @@ if [ "$PROGRESS_REPORTING" == "1" ] && [ "$OLD_VERSION" == "0" ]; then
     qvm-run "${QVMRUN_OPTS[@]}" -- "$UPDATEVM" "$CMD" || exit 1
 else
     if [ "$PROGRESS_REPORTING" == "1" ] && [ "$OLD_VERSION" == "1" ]; then
-        echo "$(hostname):out: Progress reporting requires updateVM based on a template with Qubes 4.3 packages."
+        echo "$(hostname):out: Progress reporting requires updateVM based on a template with Qubes 4.4 packages."
     fi
     CMD="/usr/lib/qubes/qubes-download-dom0-updates.sh --doit --nogui"
 
