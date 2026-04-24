@@ -22,21 +22,24 @@
 import shutil
 from typing import List
 
-from source.common.package_manager import PackageManager
+from source.common.package_manager import PackageManager, AgentType
 from source.common.process_result import ProcessResult
 from source.common.exit_codes import EXIT
 
 
 class DNFCLI(PackageManager):
-    def __init__(self, log_handler, log_level):
-        super().__init__(log_handler, log_level)
-        pck_mng_path = shutil.which('dnf')
+    PROGRESS_REPORTING = False
+    UPDATE_VM_INSTALLROOT = "/var/lib/qubes/dom0-updates"
+
+    def __init__(self, log_handler, log_level, agent_type: AgentType):
+        super().__init__(log_handler, log_level, agent_type)
+        pck_mng_path = shutil.which("dnf")
         if pck_mng_path is not None:
-            pck_mngr = 'dnf'
+            pck_mngr = "dnf"
         else:
-            pck_mng_path = shutil.which('yum')
+            pck_mng_path = shutil.which("yum")
             if pck_mng_path is not None:
-                pck_mngr = 'yum'
+                pck_mngr = "yum"
             else:
                 raise RuntimeError("Package manager not found!")
         self.package_manager: str = pck_mngr
@@ -50,17 +53,23 @@ class DNFCLI(PackageManager):
         """
         result = self.expire_cache()
 
-        cmd = [self.package_manager,
-               "-q",
-               "check-update",
-               "--assumeyes",
-               f"--setopt=skip_if_unavailable={int(not hard_fail)}"]
-        result_check = self.run_cmd(cmd)
-        # ret_code == 100 is not an error
-        # It means there are packages to be updated
-        result_check.code = result_check.code if result_check.code != 100 else 0
-        result += result_check
-        result.error_from_messages()
+        cmd = [
+            self.package_manager,
+            "-q",
+            "check-update",
+            "--assumeyes",
+            f"--setopt=skip_if_unavailable={int(not hard_fail)}",
+        ]
+        if self.type != AgentType.UPDATE_VM:
+            # In UpdateVM we use preconfigured repos
+            result_check = self.run_cmd(cmd)
+            # ret_code == 100 is not an error
+            # It means there are packages to be updated
+            result_check.code = (
+                result_check.code if result_check.code != 100 else 0
+            )
+            result += result_check
+            result.error_from_messages()
 
         return result
 
@@ -68,11 +77,12 @@ class DNFCLI(PackageManager):
         """
         Use package manager to expire cache.
         """
-        cmd = [self.package_manager,
-               "-q",
-               "clean",
-               "expire-cache"]
-        result = self.run_cmd(cmd)
+        cmd = [self.package_manager, "-q", "clean", "expire-cache"]
+        if self.type != AgentType.UPDATE_VM:
+            result = self.run_cmd(cmd)
+        else:
+            # In UpdateVM we use preconfigured repos
+            result = ProcessResult()
         return result
 
     def get_packages(self):
@@ -102,10 +112,35 @@ class DNFCLI(PackageManager):
         """
         Disable or enforce obsolete flag in dnf/yum.
         """
+        result = ["-y"]
+        if self.type is AgentType.UPDATE_VM:
+            result.extend(
+                [
+                    "upgrade",
+                    "--noplugins",
+                    "--best",
+                    "--allowerasing",
+                    "--downloadonly",
+                    "--installroot",
+                    self.UPDATE_VM_INSTALLROOT,
+                    f"--setopt=cachedir={self.UPDATE_VM_INSTALLROOT}/var/cache/dnf",
+                    f"--config={self.UPDATE_VM_INSTALLROOT}/etc/dnf/dnf.conf",
+                    f"--setopt=reposdir={self.UPDATE_VM_INSTALLROOT}/etc/yum.repos.d",
+                    "--exclude=qubes-template-*",
+                    "-y",
+                ]
+            )
+            return result
         if remove_obsolete:
-            return ["-y", "--setopt=obsoletes=1", "upgrade"]
-        return ["-y", "--setopt=obsoletes=0",
-                "upgrade" if self.package_manager == "dnf" else "update"]
+            result.extend(["--setopt=obsoletes=1", "upgrade"])
+        else:
+            result.append("--setopt=obsoletes=0")
+            if self.package_manager == "dnf":
+                result.append("upgrade")
+            else:
+                # yum
+                result.append("update")
+        return result
 
     def clean(self) -> int:
         """

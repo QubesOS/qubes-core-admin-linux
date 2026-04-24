@@ -24,36 +24,53 @@ import argparse
 class AgentArgs:
     # To avoid code repeating when we want to retrieve arguments
     OPTIONS = {
-        ("--log",): {"action": 'store',
-                     "default": "INFO",
-                     "help": 'Provide logging level. Values: DEBUG, '
-                             'INFO (default), WARNING, ERROR, CRITICAL'},
-        ("--no-refresh",): {"action": 'store_true',
-                            "help": 'Do not refresh available packages before '
-                                    'upgrading'},
-        ("--force-upgrade", "-f"):
-            {"action": 'store_true',
-             "help": 'Try upgrade even if errors are '
-                     'encountered (like a refresh error)'},
+        ("--log",): {
+            "action": "store",
+            "default": "INFO",
+            "help": "Provide logging level. Values: DEBUG, "
+            "INFO (default), WARNING, ERROR, CRITICAL",
+        },
+        ("--no-refresh",): {
+            "action": "store_true",
+            "help": "Do not refresh available packages before " "upgrading",
+        },
+        ("--force-upgrade", "-f"): {
+            "action": "store_true",
+            "help": "Try upgrade even if errors are "
+            "encountered (like a refresh error)",
+        },
         ("--no-cleanup",): {
-            "action": 'store_true',
-            "help": 'Do not remove cache files after upgrading'},
+            "action": "store_true",
+            "help": "Do not remove cache files after upgrading",
+        },
         ("--leave-obsolete",): {
-            "action": 'store_true',
-            "help": 'Do not remove updater and cache files from target qube'},
+            "action": "store_true",
+            "help": "Do not remove updater and cache files from target qube",
+        },
+        ("--download-only",): {
+            "action": "store_true",
+            "help": "Only download packages",
+        },
     }
     EXCLUSIVE_OPTIONS_1 = {
-        ("--show-output", "--verbose", "-v"):
-            {"action": 'store_true',
-             "help": 'Show output of management commands'},
-        ("--quiet", "-q"): {"action": 'store_true',
-                            "help": 'Do not print anything to stdout'}
+        ("--show-output", "--verbose", "-v"): {
+            "action": "store_true",
+            "help": "Show output of management commands",
+        },
+        ("--quiet", "-q"): {
+            "action": "store_true",
+            "help": "Do not print anything to stdout",
+        },
     }
     EXCLUSIVE_OPTIONS_2 = {
-        ("--no-progress",): {"action": "store_true",
-                             "help": "Do not show upgrading progress."},
-        ("--just-print-progress",): {"action": "store_true",
-                                     "help": argparse.SUPPRESS}
+        ("--no-progress",): {
+            "action": "store_true",
+            "help": "Do not show upgrading progress.",
+        },
+        ("--just-print-progress",): {
+            "action": "store_true",
+            "help": argparse.SUPPRESS,
+        },
     }
     ALL_OPTIONS = {**OPTIONS, **EXCLUSIVE_OPTIONS_1, **EXCLUSIVE_OPTIONS_2}
 

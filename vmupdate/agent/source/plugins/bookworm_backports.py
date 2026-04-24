@@ -87,6 +87,7 @@ def check_package_not_from_backports(package):
     return False
 
 
+# pylint: disable=unused-argument
 def bookworm_backports(os_data, log, **kwargs):
     """
     Update firmware and/or pipewire packages from backports repository.

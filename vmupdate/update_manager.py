@@ -2,7 +2,8 @@
 #
 # The Qubes OS Project, http://www.qubes-os.org
 #
-# Copyright (C) 2022  Piotr Bartman <prbartman@invisiblethingslab.com>
+# Copyright (C) 2022-2025  Piotr Bartman-Szwarc
+#                                   <prbartman@invisiblethingslab.com>
 # Copyright (C) 2022  Marek Marczykowski-Górecki
 #                                   <marmarek@invisiblethingslab.com>
 #
@@ -32,11 +33,11 @@ from typing import Optional, Tuple
 
 from tqdm import tqdm
 
-from .agent.source.status import StatusInfo, FinalStatus, Status
-from .qube_connection import QubeConnection
 from vmupdate.agent.source.log_config import init_logs
 from vmupdate.agent.source.common.process_result import ProcessResult
 from vmupdate.agent.source.common.exit_codes import EXIT
+from .agent.source.status import StatusInfo, FinalStatus, Status, FormatedLine
+from .qube_connection import QubeConnection
 
 
 class UpdateManager:
@@ -44,18 +45,20 @@ class UpdateManager:
     Update multiple qubes simultaneously.
     """
 
-    def __init__(self, qubes, args, log):
+    def __init__(self, qubes, args, log, dom0=False):
         self.qubes = qubes
         self.max_concurrency = args.max_concurrency
         self.show_output = args.show_output
         self.quiet = args.quiet
         self.no_progress = args.no_progress
         self.just_print_progress = args.just_print_progress
+        self.download_only = args.download_only
         self.buffered = not args.just_print_progress and not args.no_progress
         self.buffer = ""
         self.cleanup = not args.no_cleanup
         self.ret_code = EXIT.OK
         self.log = log
+        self.dom0 = dom0
 
     def run(self, agent_args):
         """
@@ -67,24 +70,41 @@ class UpdateManager:
             return EXIT.OK, {}
 
         show_progress = not self.quiet and not self.no_progress
-        SimpleTerminalBar.reinit_class()
-        progress_output = SimpleTerminalBar \
-            if self.just_print_progress else tqdm
+        SimpleTerminalBar.reinit_class(self.download_only)
+        progress_output = (
+            SimpleTerminalBar if self.just_print_progress else tqdm
+        )
         progress_bar = MultipleUpdateMultipleProgressBar(
             dummy=not show_progress,
             output=progress_output,
             max_concurrency=self.max_concurrency,
-            printer=self.print if self.show_output else None
+            printer=self.print if self.show_output else None,
         )
 
         for qube in self.qubes:
-            progress_bar.add_bar(qube.name)
+            disp_name = (
+                agent_args.display_name
+                if agent_args.display_name is not None
+                else qube.name
+            )
+            progress_bar.add_bar(disp_name)
             progress_bar.pool.apply_async(
                 update_qube,
-                (qube, agent_args, show_progress,
-                 progress_bar.status_notifier, progress_bar.termination),
-                callback=self.collect_result, error_callback=print
+                (
+                    qube,
+                    agent_args,
+                    show_progress,
+                    progress_bar.status_notifier,
+                    progress_bar.termination,
+                    self.dom0,
+                ),
+                callback=self.collect_result,
+                error_callback=print,
             )
+            if qube.klass == "AdminVM" and show_progress:
+                # progress of AdminVM is continuation of different process,
+                # so we want to skip 0 value at beginning
+                progress_bar.progress_bars[qube.name].progress = None
 
         progress_bar.pool.close()
         progress_bar.feeding()
@@ -121,21 +141,25 @@ class UpdateManager:
         self.ret_code = max(self.ret_code, vm_code)
 
         if self.show_output:
-            for line in result.out.split('\n'):
-                self.print(qube_name + ":out:", line)
-            for line in result.err.split('\n'):
-                self.print(qube_name + ":err:", line)
+            for line in result.out.split("\n"):
+                self.print(FormatedLine(qube_name, "out", line))
+            for line in result.err.split("\n"):
+                self.print(FormatedLine(qube_name, "err", line))
         elif not self.quiet and self.no_progress:
             self.print(result.out)
 
     def print(self, *args):
         if self.buffered:
-            self.buffer += ' '.join(args) + '\n'
+            self.buffer += " ".join(map(str, args)) + "\n"
         else:
             print(*args, file=sys.stdout, flush=True)
 
 
 class TerminalMultiBar:
+    """
+    Handles multiple progress bars in terminal.
+    """
+
     def __init__(self):
         self.progresses = []
 
@@ -145,7 +169,12 @@ class TerminalMultiBar:
 
 
 class SimpleTerminalBar:
+    """
+    Simple progress bar for terminal output. Could be used by TerminalMultiBar.
+    """
+
     PARENT_MULTI_BAR = None
+    DOWNLOAD_ONLY = False
 
     def __init__(self, total, position, desc):
         assert position == len(SimpleTerminalBar.PARENT_MULTI_BAR.progresses)
@@ -156,19 +185,27 @@ class SimpleTerminalBar:
 
     def __str__(self):
         info = None
-        name, status = self.desc.split(' ', 1)
+        name, status = self.desc.split(" ", 1)
         status = status[1:-1]  # remove brackets
-        if status in (FinalStatus.SUCCESS.value,
-                      FinalStatus.ERROR.value,
-                      FinalStatus.CANCELLED.value,
-                      FinalStatus.NO_UPDATES.value):
+        if status in (
+            FinalStatus.SUCCESS.value,
+            FinalStatus.ERROR.value,
+            FinalStatus.CANCELLED.value,
+            FinalStatus.NO_UPDATES.value,
+        ):
+            if SimpleTerminalBar.DOWNLOAD_ONLY:
+                return ""
             info = status.replace(" ", "_")
             status = "done"
         if status == Status.UPDATING.value:
+            if self.progress is None:
+                return ""
             info = self.progress
         return f"{name} {status} {info}"
 
     def update(self, progress):
+        if self.progress is None:
+            self.progress = 0
         self.progress += progress
         SimpleTerminalBar.PARENT_MULTI_BAR.print()
 
@@ -178,11 +215,11 @@ class SimpleTerminalBar:
 
     def close(self):
         """Implementation of tqdm API"""
-        pass
 
     @staticmethod
-    def reinit_class():
+    def reinit_class(download_only=False):
         SimpleTerminalBar.PARENT_MULTI_BAR = TerminalMultiBar()
+        SimpleTerminalBar.DOWNLOAD_ONLY = download_only
 
 
 class MultipleUpdateMultipleProgressBar:
@@ -194,7 +231,7 @@ class MultipleUpdateMultipleProgressBar:
         self.dummy = dummy
 
         self.manager = multiprocessing.Manager()
-        self.termination = self.manager.Value('b', False)
+        self.termination = self.manager.Value("b", False)
         self.status_notifier = self.manager.Queue()
 
         # save original signal handler for SIGINT
@@ -221,8 +258,9 @@ class MultipleUpdateMultipleProgressBar:
 
         self.progresses[qname] = 0
         self.progress_bars[qname] = self.output_class(
-            total=100, position=len(self.progress_bars),
-            desc=f"{qname} ({Status.PENDING.value})"
+            total=100,
+            position=len(self.progress_bars),
+            desc=f"{qname} ({Status.PENDING.value})",
         )
 
     def feeding(self):
@@ -237,18 +275,20 @@ class MultipleUpdateMultipleProgressBar:
         left_to_finish = len(self.progresses)
         while left_to_finish:
             try:
-                feed: Optional[StatusInfo, str] = \
-                    self.status_notifier.get(block=True)
+                feed: Optional[StatusInfo, str] = self.status_notifier.get(
+                    block=True
+                )
                 if feed is None:
                     continue
-                elif isinstance(feed, StatusInfo):
+                if isinstance(feed, StatusInfo):
                     status_name = feed.status.value
                     if feed.status == Status.DONE:
                         left_to_finish -= 1
                         status_name = feed.info.value
                         self.statuses[feed.qname] = FinalStatus(status_name)
                     self.progress_bars[feed.qname].set_description(
-                        f"{feed.qname} ({status_name})")
+                        f"{feed.qname} ({status_name})"
+                    )
                     if feed.status == Status.UPDATING:
                         self._update(feed.qname, feed.info)
                 elif self.print is not None:
@@ -279,7 +319,7 @@ class MultipleUpdateMultipleProgressBar:
 
 
 def update_qube(
-        qube, agent_args, show_progress, status_notifier, termination
+    qube, agent_args, show_progress, status_notifier, termination, dom0
 ) -> Tuple[str, ProcessResult]:
     """
     Create and run `UpdateAgentManager` for qube.
@@ -289,29 +329,37 @@ def update_qube(
     :param show_progress: if progress should be printed in real time
     :param status_notifier: an object to be fed with the progress data
     :param termination: signal to gracefully terminate subprocess
+    :param dom0: whether to use qubes-dom0-update (do download&install)
+                 or just update agent to install prepared updates
     :return:
     """
+    if agent_args.display_name is not None:
+        status_notifier = StatusNotifierWrapper(
+            status_notifier, agent_args.display_name
+        )
+
     if termination.value:
         status_notifier.put(StatusInfo.done(qube, FinalStatus.CANCELLED))
         return qube.name, ProcessResult(EXIT.SIGINT, "Canceled")
-    status_notifier.put(StatusInfo.updating(qube, 0))
 
     try:
         runner = UpdateAgentManager(
             qube.app,
             qube,
             agent_args=agent_args,
-            show_progress=show_progress
+            show_progress=show_progress,
+            dom0=dom0,
         )
         result = runner.run_agent(
             agent_args=agent_args,
             status_notifier=status_notifier,
-            termination=termination
+            termination=termination,
         )
     except Exception as exc:  # pylint: disable=broad-except
         status_notifier.put(StatusInfo.done(qube, FinalStatus.ERROR))
         return qube.name, ProcessResult(
-            EXIT.ERR_VM_UNHANDLED, f"ERROR (exception {str(exc)})")
+            EXIT.ERR_VM_UNHANDLED, f"ERROR (exception {str(exc)})"
+        )
     return qube.name, result
 
 
@@ -319,21 +367,27 @@ class UpdateAgentManager:
     """
     Send update agent files and run it in the qube.
     """
+
     AGENT_RELATIVE_DIR = "agent"
     ENTRYPOINT = AGENT_RELATIVE_DIR + "/entrypoint.py"
-    LOGPATH = '/var/log/qubes'
-    FORMAT_LOG = '%(asctime)s %(message)s'
+    LOGPATH = "/var/log/qubes"
+    FORMAT_LOG = "%(asctime)s %(message)s"
     WORKDIR = "/run/qubes-update/"
 
-    def __init__(
-            self, app, qube, agent_args, show_progress):
+    def __init__(self, app, qube, agent_args, show_progress, dom0):
         self.qube = qube
         self.app = app
+        self.dom0 = dom0
 
-        (self.log, self.log_handler, log_level,
-         self.log_path, self.log_formatter) = init_logs(
-            directory=UpdateAgentManager.LOGPATH,
-            file=f'update-{qube.name}.log',
+        (
+            self.log,
+            self.log_handler,
+            _log_level,
+            self.log_path,
+            self.log_formatter,
+        ) = init_logs(
+            directory=self.LOGPATH,
+            file=f"update-{qube.name}.log",
             format_=UpdateAgentManager.FORMAT_LOG,
             level=agent_args.log,
             truncate_file=False,
@@ -344,67 +398,127 @@ class UpdateAgentManager:
         self.show_progress = show_progress
 
     def run_agent(
-            self, agent_args, status_notifier, termination
+        self, agent_args, status_notifier, termination
     ) -> ProcessResult:
         """
         Copy agent file to dest vm, run entrypoint, collect output and logs.
         """
-        result = self._run_agent(
-            agent_args, status_notifier, termination)
-        output = result.out.split("\n") + result.err.split("\n")
-        for line in output:
-            self.log.debug('agent output: %s', line)
-        self.log.info('agent exit code: %d', result.code)
-        if not agent_args.show_output or not output:
-            result.out = "OK" if result.code == EXIT.OK else \
-                f"ERROR (exit code {result.code}, details in {self.log_path})"
+        if self.qube.klass == "AdminVM" and not self.dom0:
+            # using UpdateVM to download updates
+            status_notifier = StatusNotifierWrapper(status_notifier, "dom0")
+
+        result = self._run_agent(agent_args, status_notifier, termination)
+
+        self._log_output(result, agent_args.show_output)
         return result
 
     def _run_agent(
-            self, agent_args, status_notifier, termination
+        self, agent_args, status_notifier, termination
     ) -> ProcessResult:
-        self.log.info('Running update agent for %s', self.qube.name)
-        dest_dir = UpdateAgentManager.WORKDIR
-        dest_agent = os.path.join(dest_dir, UpdateAgentManager.ENTRYPOINT)
-        this_dir = os.path.dirname(os.path.realpath(__file__))
-        src_dir = join(this_dir, UpdateAgentManager.AGENT_RELATIVE_DIR)
+        self.log.info("Running update agent for %s", self.qube.name)
+        dest_dir = None
+        src_dir = None
+        cleanup = False
+        if self.qube.klass == "AdminVM":
+            if self.dom0:
+                entrypoint = ["sudo", "qubes-dom0-update", "-y"]
+                if agent_args.just_print_progress or self.show_progress:
+                    entrypoint.append("--just-print-progress")
+                if agent_args.quiet:
+                    # silent is equivalent to quiet for dom0-update
+                    entrypoint.append("--silent")
+            else:
+                this_dir = os.path.dirname(os.path.realpath(__file__))
+                entrypoint = join(this_dir, UpdateAgentManager.ENTRYPOINT)
+        else:
+            cleanup = self.cleanup
+            dest_dir = UpdateAgentManager.WORKDIR
+            entrypoint = os.path.join(dest_dir, UpdateAgentManager.ENTRYPOINT)
+            this_dir = os.path.dirname(os.path.realpath(__file__))
+            src_dir = join(this_dir, UpdateAgentManager.AGENT_RELATIVE_DIR)
 
         with QubeConnection(
-                self.qube,
-                dest_dir,
-                self.cleanup,
-                self.log,
-                self.show_progress,
-                status_notifier
+            self.qube,
+            dest_dir,
+            cleanup,
+            self.log,
+            self.show_progress,
+            status_notifier,
         ) as qconn:
-            self.log.info(
-                "Transferring files to destination qube: %s", self.qube.name)
-            result = qconn.transfer_agent(src_dir)
-            if result:
-                self.log.error('Qube communication error code: %i', result.code)
-                return result
+            result = self._transfer_agent(qconn, src_dir)
 
             if termination.value:
                 qconn.status = FinalStatus.CANCELLED
                 return ProcessResult(EXIT.SIGINT, "", "Cancelled")
 
-            self.log.info(
-                "The agent is starting the task in qube: %s", self.qube.name)
-            result += qconn.run_entrypoint(dest_agent, agent_args)
-            if not result and qconn.status != FinalStatus.NO_UPDATES:
-                qconn.status = FinalStatus.SUCCESS
+            result += self._run_entrypoint(qconn, entrypoint, agent_args)
 
-            result_logs = qconn.read_logs()
-            if result_logs:
-                self.log.error(
-                    "Problem with collecting logs from %s, return code: %i",
-                    self.qube.name, result_logs.code)
-            # agent logs already have timestamp
-            self.log_handler.setFormatter(logging.Formatter('%(message)s'))
-            # critical -> always write agent logs
-            for log_line in result_logs.out.split("\n"):
-                if log_line:
-                    self.log.critical("%s", log_line)
-            self.log_handler.setFormatter(self.log_formatter)
+            self._read_logs(qconn)
 
         return result
+
+    def _transfer_agent(self, qconn, src_dir) -> ProcessResult:
+        result = ProcessResult()
+        if self.qube.klass != "AdminVM":
+            self.log.info(
+                "Transferring files to destination qube: %s", self.qube.name
+            )
+            result += qconn.transfer_agent(src_dir)
+            if result:
+                self.log.error("Qube communication error code: %i", result.code)
+                return result
+        return result
+
+    def _run_entrypoint(self, qconn, entrypoint, agent_args) -> ProcessResult:
+        result = ProcessResult()
+        self.log.info(
+            "The agent is starting the task in qube: %s", self.qube.name
+        )
+        self.log.debug("%s", entrypoint)
+        result += qconn.run_entrypoint(entrypoint, agent_args)
+        if not result and qconn.status != FinalStatus.NO_UPDATES:
+            qconn.status = FinalStatus.SUCCESS
+        return result
+
+    def _read_logs(self, qconn):
+        result_logs = qconn.read_logs()
+        if result_logs:
+            self.log.error(
+                "Problem with collecting logs from %s, return code: %i",
+                self.qube.name,
+                result_logs.code,
+            )
+        # agent logs already have timestamp
+        self.log_handler.setFormatter(logging.Formatter("%(message)s"))
+        # critical -> always write agent logs
+        for log_line in result_logs.out.split("\n"):
+            if log_line:
+                self.log.critical("%s", log_line)
+        self.log_handler.setFormatter(self.log_formatter)
+
+    def _log_output(self, result: ProcessResult, show_output: bool):
+        output = result.out.split("\n") + result.err.split("\n")
+        for line in output:
+            self.log.debug("agent output: %s", line)
+        self.log.info("agent exit code: %d", result.code)
+        if not show_output or not output:
+            result.out = (
+                "OK"
+                if result.code == EXIT.OK
+                else f"ERROR (exit code {result.code}, details in {self.log_path})"
+            )
+
+
+class StatusNotifierWrapper:
+    """
+    Masks proxy VM with display name.
+    """
+
+    def __init__(self, status_notifier, qube_name):
+        self.status_notifier = status_notifier
+        self.qube_name = qube_name
+
+    def put(self, message):
+        if isinstance(message, (StatusInfo, FormatedLine)):
+            message.qname = self.qube_name
+        self.status_notifier.put(message)

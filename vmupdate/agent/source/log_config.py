@@ -24,18 +24,18 @@ import logging
 import grp
 from pathlib import Path
 
-LOGPATH = '/var/log/qubes/qubes-update'
-FORMAT_LOG = '%(asctime)s [Agent] %(message)s'
-LOG_FILE = 'update-agent.log'
+LOGPATH = "/var/log/qubes/qubes-update"
+FORMAT_LOG = "%(asctime)s [Agent] %(message)s"
+LOG_FILE = "update-agent.log"
 
 
 def init_logs(
-        directory=LOGPATH,
-        file=LOG_FILE,
-        format_=FORMAT_LOG,
-        level="INFO",
-        truncate_file=False,
-        qname=None,
+    directory=LOGPATH,
+    file=LOG_FILE,
+    format_=FORMAT_LOG,
+    level="INFO",
+    truncate_file=False,
+    qname=None,
 ):
     Path(directory).mkdir(parents=True, exist_ok=True)
     log_path = os.path.join(directory, file)
@@ -46,14 +46,14 @@ def init_logs(
             # Persistent logs are at dom0.
             pass
 
-    log_handler = logging.FileHandler(log_path, encoding='utf-8')
+    log_handler = logging.FileHandler(log_path, encoding="utf-8")
     log_formatter = logging.Formatter(format_)
     log_handler.setFormatter(log_formatter)
 
     if qname is not None:
         log = logging.getLogger(qname)
     else:
-        log = logging.getLogger('vm-update.agent.PackageManager')
+        log = logging.getLogger("vm-update.agent.PackageManager")
     log.addHandler(log_handler)
     log.propagate = False
     try:
