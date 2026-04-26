@@ -19,6 +19,32 @@
 #define min(a,b) ((a) < (b) ? (a) : (b))
 #define max(a,b) ((a) > (b) ? (a) : (b))
 
+static long long parse_limit_env(const char *name, long long fallback)
+{
+    const char *value = getenv(name);
+    if (!value)
+        return fallback;
+
+    if (*value < '0' || *value > '9') {
+        fprintf(stderr, "Invalid value for %s: %s\n", name, value);
+        exit(1);
+    }
+
+    errno = 0;
+    char *end = NULL;
+    long long limit = strtoll(value, &end, 10);
+    if (errno == ERANGE || *end != '\0' || limit < 0) {
+        fprintf(stderr, "Invalid value for %s: %s\n", name, value);
+        exit(1);
+    }
+    if (limit == 0 && strcmp(value, "0") != 0) {
+        fprintf(stderr, "Invalid value for %s: %s\n", name, value);
+        exit(1);
+    }
+
+    return limit;
+}
+
 int prepare_creds_return_uid(const char *username)
 {
     struct passwd *pwd;
@@ -88,10 +114,8 @@ int main(int argc, char ** argv)
         perror("Failed to check free space");
     }
 
-    if ((var=getenv("UPDATES_MAX_BYTES")))
-        bytes_limit = atoll(var);
-    if ((var=getenv("UPDATES_MAX_FILES")))
-        files_limit = atoll(var);
+    bytes_limit = parse_limit_env("UPDATES_MAX_BYTES", bytes_limit);
+    files_limit = parse_limit_env("UPDATES_MAX_FILES", files_limit);
 
     set_size_limit(bytes_limit, files_limit);
 
