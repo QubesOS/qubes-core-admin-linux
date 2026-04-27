@@ -22,6 +22,7 @@
 APT_CONF = "/etc/apt/apt.conf.d/01qubes-update"
 
 
+# pylint: disable=unused-argument
 def allow_release_info_change(os_data, log, **kwargs):
     """
     Add apt conf file to disable `AllowReleaseInfoChange` for `buster`.
@@ -32,5 +33,5 @@ def allow_release_info_change(os_data, log, **kwargs):
     if os_data.get("codename", "") == "buster":
         option = 'Acquire::AllowReleaseInfoChange "false"'
         log.info("Set %s as workaround for buster.", option)
-        with open(APT_CONF, "w") as file:
-            file.write(f'\n{option};\n')
+        with open(APT_CONF, "wt") as file:
+            file.write(f"\n{option};\n")

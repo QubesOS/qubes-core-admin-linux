@@ -36,8 +36,9 @@ def manage_rpm_macro(os_data, log, **kwargs):
             if version < 33:
                 log.info("Old fedora version detected.")
                 with open(rpm_macro, "w") as file:
-                    file.write("# CVE-2021-20271 mitigation\n"
-                               "%_pkgverify_level all")
+                    file.write(
+                        "# CVE-2021-20271 mitigation\n" "%_pkgverify_level all"
+                    )
         else:
             if os.path.exists(rpm_macro):
                 os.remove(rpm_macro)
