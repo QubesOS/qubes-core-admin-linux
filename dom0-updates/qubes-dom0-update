@@ -472,7 +472,11 @@ fi
 
 if [ ${#PKGS[@]} -gt 0 ]; then
 
-    dnf $YUM_ACTION "${YUM_OPTS[@]}" "${PKGS[@]}" ; RETCODE=$?
+    if [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
+        dnf $YUM_ACTION "${YUM_OPTS[@]}" "${PKGS[@]}" ; RETCODE=$?
+    else
+        echo "Nothing downloaded" >&2
+    fi
 
 elif [ -f /var/lib/qubes/updates/repodata/repomd.xml ]; then
     # Above file exists only when at least one package was downloaded
