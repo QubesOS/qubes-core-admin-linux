@@ -4,19 +4,18 @@ Update qubes.
 """
 
 import argparse
-import asyncio
 import logging
 import sys
 import os
 import grp
-from datetime import datetime
 from typing import Set, Iterable, Dict, Tuple
 
 import qubesadmin
 import qubesadmin.exc
-from qubesadmin.events.utils import wait_for_domain_shutdown
 from vmupdate.agent.source.status import FinalStatus
 from vmupdate.agent.source.common.exit_codes import EXIT
+from vmupdate.utils import shutdown_domains, get_feature, get_boolean_feature, \
+    is_stale
 from . import update_manager
 from .agent.source.args import AgentArgs
 
@@ -355,27 +354,6 @@ def select_targets(targets, args) -> Set[qubesadmin.vm.QubesVM]:
     return selected
 
 
-def is_stale(vm, expiration_period):
-    today = datetime.today()
-    try:
-        if not (
-            "qrexec" in vm.features.keys()
-            and vm.features.get("os", "") == "Linux"
-        ):
-            return False
-
-        last_update_str = vm.features.check_with_template(
-            "last-updates-check",
-            datetime.fromtimestamp(0).strftime("%Y-%m-%d %H:%M:%S"),
-        )
-        last_update = datetime.fromisoformat(last_update_str)
-        if (today - last_update).days > expiration_period:
-            return True
-    except qubesadmin.exc.QubesDaemonCommunicationError:
-        pass
-    return False
-
-
 def run_update(
     targets, args, log, qube_klass="qubes", dom0=False
 ) -> Tuple[int, Dict[str, FinalStatus]]:
@@ -406,26 +384,6 @@ def run_update(
         ", ".join((k + ":" + v.value for k, v in statuses.items())),
     )
     return ret_code, statuses
-
-
-def get_feature(vm, feature_name, default_value=None):
-    """Get feature, with a working default_value."""
-    try:
-        return vm.features.get(feature_name, default_value)
-    except qubesadmin.exc.QubesDaemonAccessError:
-        return default_value
-
-
-def get_boolean_feature(vm, feature_name, default=False):
-    """helper function to get a feature converted to a Bool if it does exist.
-    Necessary because of the true/false in features being coded as 1/empty
-    string."""
-    result = get_feature(vm, feature_name, None)
-    if result is not None:
-        result = bool(result)
-    else:
-        result = default
-    return result
 
 
 def apply_updates_to_appvm(
@@ -527,24 +485,6 @@ def get_derived_vm_to_apply(templates, derived_statuses):
 
     return to_restart, to_shutdown
 
-
-def shutdown_domains(to_shutdown, log):
-    """
-    Try to shut down vms and wait to finish.
-    """
-    ret_code = EXIT.OK
-    wait_for = []
-    for vm in to_shutdown:
-        try:
-            vm.shutdown(force=True)
-            wait_for.append(vm)
-        except qubesadmin.exc.QubesVMError as exc:
-            log.error(str(exc))
-            ret_code = EXIT.ERR_SHUTDOWN_APP
-
-    asyncio.run(wait_for_domain_shutdown(wait_for))
-
-    return ret_code, wait_for
 
 
 def restart_vms(to_restart, log):
