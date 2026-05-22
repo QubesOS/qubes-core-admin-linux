@@ -23,8 +23,7 @@ from unittest.mock import Mock, patch
 from vmupdate.qube_connection import QubeConnection
 
 
-@patch("vmupdate.qube_connection.shutdown_domains")
-def test_wait_for_shutdown_when_vm_started_by_update(shutdown_domains):
+def test_wait_for_shutdown_when_vm_started_by_update():
     vm = Mock()
     vm.name = "hvm1"
     vm.is_running.side_effect = [False, True]
@@ -38,12 +37,10 @@ def test_wait_for_shutdown_when_vm_started_by_update(shutdown_domains):
             show_progress=False, status_notifier=status_notifier):
         pass
 
-    shutdown_domains.assert_called_once_with([vm], logger)
-    vm.shutdown.assert_not_called()
+    vm.shutdown.assert_called_once_with(force=False, wait=True)
 
 
-@patch("vmupdate.qube_connection.shutdown_domains")
-def test_do_not_wait_for_shutdown_without_assigned_pci(shutdown_domains):
+def test_do_not_wait_for_shutdown_without_assigned_pci():
     vm = Mock()
     vm.name = "hvm2"
     vm.is_running.side_effect = [False, True]
@@ -57,12 +54,10 @@ def test_do_not_wait_for_shutdown_without_assigned_pci(shutdown_domains):
             show_progress=False, status_notifier=status_notifier):
         pass
 
-    vm.shutdown.assert_called_once_with()
-    shutdown_domains.assert_not_called()
+    vm.shutdown.assert_called_once_with(force=False, wait=False)
 
 
-@patch("vmupdate.qube_connection.shutdown_domains")
-def test_do_not_shutdown_if_vm_was_already_running(shutdown_domains):
+def test_do_not_shutdown_if_vm_was_already_running():
     vm = Mock()
     vm.name = "hvm3"
     vm.is_running.return_value = True
@@ -77,4 +72,3 @@ def test_do_not_shutdown_if_vm_was_already_running(shutdown_domains):
         pass
 
     vm.shutdown.assert_not_called()
-    shutdown_domains.assert_not_called()
