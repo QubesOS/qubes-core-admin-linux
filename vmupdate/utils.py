@@ -22,27 +22,40 @@ import asyncio
 from datetime import datetime
 
 import qubesadmin.exc
-from qubesadmin.events.utils import wait_for_domain_shutdown
+from qubesadmin.utils import shutdown, start
 from vmupdate.agent.source.common.exit_codes import EXIT
 
 
-def shutdown_domains(to_shutdown, log):
+async def shutdown_domains(
+    to_shutdown,
+    log,
+    wait: bool = False,
+    force: bool = False,
+):
     """
     Try to shut down vms and wait to finish.
     """
     ret_code = EXIT.OK
-    wait_for = []
-    for vm in to_shutdown:
-        try:
-            vm.shutdown(force=True)
-            wait_for.append(vm)
-        except qubesadmin.exc.QubesVMError as exc:
-            log.error(str(exc))
-            ret_code = EXIT.ERR_SHUTDOWN_APP
+    all_failed = []
+    failed = await shutdown(domains=to_shutdown, wait=wait, force=force)
+    for qube, exc in failed.items():
+        log.error(str(exc))
+        all_failed.append(qube)
+        ret_code = EXIT.ERR_SHUTDOWN_APP
+    done = [qube for qube in to_shutdown if qube not in all_failed]
+    return ret_code, done
 
-    asyncio.run(wait_for_domain_shutdown(wait_for))
 
-    return ret_code, wait_for
+async def restart_vms(to_restart, log):
+    """
+    Try to restart vms.
+    """
+    ret_code, shutdowns = await shutdown_domains(to_restart, log)
+    failed = await start(domains=shutdowns)
+    for qube, exc in failed.items():
+        log.error(str(exc))
+        ret_code = EXIT.ERR_START_APP
+    return ret_code
 
 
 def get_feature(vm, feature_name, default_value=None):
@@ -84,3 +97,5 @@ def is_stale(vm, expiration_period):
     except qubesadmin.exc.QubesDaemonCommunicationError:
         pass
     return False
+
+

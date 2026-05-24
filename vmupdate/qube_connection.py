@@ -18,6 +18,8 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
 # USA.
+
+import asyncio
 import os
 import shutil
 import signal
@@ -93,14 +95,13 @@ class QubeConnection:
                 )
 
         if self.qube.is_running() and not self._initially_running:
+            wait = False
             if self._has_assigned_pci_devices(self.qube):
                 self.logger.info(
                     'Waiting for full shutdown %s (PCI devices assigned)',
                     self.qube.name)
-                shutdown_domains([self.qube], self.logger)
-            else:
-                self.logger.info('Shutdown %s', self.qube.name)
-                self.qube.shutdown()
+                wait = True
+            asyncio.run(shutdown_domains([self.qube], self.logger, wait=wait))
 
         self.__connected = False
 
