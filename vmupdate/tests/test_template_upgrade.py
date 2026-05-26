@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 # coding=utf-8
 from unittest.mock import Mock
 
@@ -36,6 +37,16 @@ def add_template(app, name="fedora-41", **features):
     return vm
 
 
+def add_standalone(app, name="fedora-41-standalone", **features):
+    vm = _TestVM(name, app, klass="StandaloneVM")
+    vm.features.update({
+        "os-distribution": "fedora",
+        "os-version": "41",
+    })
+    vm.features.update(features)
+    return vm
+
+
 @pytest.fixture(autouse=True)
 def quiet_logging(monkeypatch):
     monkeypatch.setattr(template_upgrade, "setup_logging", lambda *_: Mock())
@@ -43,7 +54,7 @@ def quiet_logging(monkeypatch):
 
 @pytest.mark.parametrize("scenario, expected", [
     ("missing-qube", "No such qube"),
-    ("non-template", "only TemplateVMs"),
+    ("non-template", "only TemplateVMs and StandaloneVMs"),
     ("missing-os-version", "missing os-distribution / os-version"),
     ("non-numeric-os-version", "Non-numeric distro version"),
     ("unsupported-distro", "Unsupported distro"),
@@ -82,7 +93,7 @@ def test_clone_name_derivation(source, current, target, override, expected):
 
 
 def test_clone_name_derivation_requires_version_without_override():
-    with pytest.raises(template_upgrade.UpgradeError):
+    with pytest.raises(template_upgrade.ValidationError):
         template_upgrade.derive_clone_name("custom", "41", "42", None)
 
 
@@ -122,6 +133,22 @@ def test_success_applies_metadata(monkeypatch):
     assert clone.features["template-buildtime"] == "2025-01-01 00:00:00"
     assert clone.features["os-distribution"] == "fedora"
     assert clone.features["os-version"] == "41"
+
+
+def test_success_does_not_apply_template_metadata_to_standalone(monkeypatch):
+    app = CloneApp()
+    add_standalone(app)
+    monkeypatch.setattr(template_upgrade, "run_upgrade_agent",
+                        lambda *_args: True)
+
+    retcode = template_upgrade.main(
+        ["--template", "fedora-41-standalone"], app)
+
+    assert retcode == EXIT.OK
+    clone = app.domains["fedora-42-standalone"]
+    assert clone.klass == "StandaloneVM"
+    assert "template-name" not in clone.features
+    assert "template-installtime" not in clone.features
 
 
 def test_default_stub_fails_and_cleans_clone(capsys):

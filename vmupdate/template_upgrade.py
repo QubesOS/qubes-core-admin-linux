@@ -1,9 +1,9 @@
 #!/usr/bin/python3
 """
-qvm-template-upgrade — perform an N -> N+1 distro version upgrade of a TemplateVM
+qvm-template-upgrade — perform an N -> N+1 distro version upgrade of a qube
 
 Workflow:
-    1. Validate that --template names an existing TemplateVM.
+    1. Validate that --template names an existing TemplateVM or StandaloneVM.
     2. Read os-distribution / os-version from qvm-features.
     3. Compute the target version as os-version + 1 (N -> N+1 is the
        only supported scope; multi-hop is rejected by construction).
@@ -13,16 +13,17 @@ Workflow:
     6. On success: update template metadata features on the clone.
     7. On failure: remove the half-upgraded clone unless --keep-on-failure.
 
-The original template is never touched by this tool. AppVMs continue to use
-it until the user manually switches them and uninstalls the old template.
+The original qube is never touched by this tool. AppVMs based on a source
+template continue to use it until the user manually switches them and
+uninstalls the old template.
 """
-import argparse
 import logging
 import sys
 from datetime import datetime, timezone
 
 import qubesadmin
 import qubesadmin.exc
+import qubesadmin.tools
 
 from vmupdate.agent.source.common.exit_codes import EXIT
 
@@ -30,6 +31,7 @@ LOG_PATH = '/var/log/qubes/qvm-template-upgrade.log'
 LOG_FORMAT = '%(asctime)s %(levelname)s %(message)s'
 
 SUPPORTED_DISTROS = {'fedora', 'debian'}
+SUPPORTED_CLASSES = {'TemplateVM', 'StandaloneVM'}
 
 # Features that describe the upgraded template's identity for qvm-template
 # and the Qubes updater. See qvm_template.py:409 (is_managed_by_qvmtemplate)
@@ -41,14 +43,20 @@ class UpgradeError(Exception):
     """Anything that prevents the upgrade from running or completing."""
 
 
-def parse_args(argv=None):
-    parser = argparse.ArgumentParser(
+class ValidationError(Exception):
+    """Invalid user input or unsupported source qube."""
+
+
+def get_parser():
+    parser = qubesadmin.tools.QubesArgumentParser(
         prog='qvm-template-upgrade',
-        description='Upgrade a TemplateVM to the next distro version.'
+        description='Upgrade a TemplateVM or StandaloneVM to the next distro '
+                    'version.',
+        version=''
     )
     parser.add_argument(
         '--template', required=True,
-        help='Name of the source TemplateVM to upgrade.')
+        help='Name of the source TemplateVM or StandaloneVM to upgrade.')
     parser.add_argument(
         '--new-name',
         help='Name for the upgraded clone. Defaults to replacing the version '
@@ -64,7 +72,12 @@ def parse_args(argv=None):
     parser.add_argument(
         '--log', default='INFO',
         help='Log level (default: INFO).')
-    return parser.parse_args(argv)
+    return parser
+
+
+def parse_args(argv=None, app=None):
+    parser = get_parser()
+    return parser, parser.parse_args(argv, app=app)
 
 
 def setup_logging(level):
@@ -81,15 +94,15 @@ def setup_logging(level):
 
 
 def validate_template(app, name):
-    """Return the VM object if `name` is an existing TemplateVM, else raise."""
+    """Return VM if `name` is an upgradeable qube, else raise."""
     try:
         vm = app.domains[name]
     except KeyError:
-        raise UpgradeError(f"No such qube: {name}")
-    if vm.klass != 'TemplateVM':
-        raise UpgradeError(
-            f"{name} is a {vm.klass}; only TemplateVMs can be upgraded "
-            f"with this tool.")
+        raise ValidationError(f"No such qube: {name}")
+    if vm.klass not in SUPPORTED_CLASSES:
+        raise ValidationError(
+            f"{name} is a {vm.klass}; only TemplateVMs and StandaloneVMs "
+            f"can be upgraded with this tool.")
     return vm
 
 
@@ -99,14 +112,14 @@ def detect_distro(vm):
     distro_like = vm.features.get('os-distribution-like', '')
     version = vm.features.get('os-version')
     if not distro or not version:
-        raise UpgradeError(
+        raise ValidationError(
             f"{vm.name} is missing os-distribution / os-version features. "
             f"Start the template once so the in-VM agent can report them, "
             f"then retry.")
     candidates = {distro.lower(), *distro_like.lower().split()}
     supported = SUPPORTED_DISTROS & candidates
     if not supported:
-        raise UpgradeError(
+        raise ValidationError(
             f"Unsupported distro {distro!r}; only Fedora- and Debian-based "
             f"templates are supported for now.")
     return sorted(supported)[0], version
@@ -120,7 +133,7 @@ def compute_target_version(current):
     try:
         current_n = int(current)
     except ValueError:
-        raise UpgradeError(
+        raise ValidationError(
             f"Non-numeric distro version {current!r}; multi-component "
             f"versions (e.g. Debian point releases) are not yet supported "
             f"by this tool.")
@@ -134,7 +147,7 @@ def derive_clone_name(source_name, current_version, target_version, override):
     if override:
         return override
     if current_version not in source_name:
-        raise UpgradeError(
+        raise ValidationError(
             f"Cannot derive new template name from {source_name!r}: it does "
             f"not contain the current version {current_version!r}. Pass "
             f"--new-name explicitly.")
@@ -146,7 +159,7 @@ def derive_clone_name(source_name, current_version, target_version, override):
 def clone_template(app, source_vm, new_name, log):
     """Clone the source template. Fails if `new_name` is already in use."""
     if new_name in app.domains:
-        raise UpgradeError(
+        raise ValidationError(
             f"Target name {new_name!r} already exists. Remove it first "
             f"or pass a different --new-name.")
     log.info("Cloning %s -> %s", source_vm.name, new_name)
@@ -159,8 +172,9 @@ def run_upgrade_agent(clone_vm, target_version, log):
     STUB: in a follow-up commit this will dispatch into a new
     `version_upgrade(target_version)` method on the existing
     vmupdate agent (vmupdate/agent/source/{dnf,apt}/), reusing the
-    qrexec transport in qube_connection.py. For now we only log the
-    intended action so the orchestrator flow can be exercised end to end.
+    qrexec transport in qube_connection.py. The VM-side agent must re-detect
+    or verify the distro from inside the qube before running distro-specific
+    upgrade commands.
     """
     raise NotImplementedError(
         f"version-upgrade agent is not implemented yet for {clone_vm.name} "
@@ -174,6 +188,8 @@ def apply_post_upgrade_metadata(clone_vm, log):
     qvm-template EVR/buildtime features are intentionally preserved because
     current qvm-template list/info paths require them for managed templates.
     """
+    if clone_vm.klass != 'TemplateVM':
+        return
     log.info("Updating template metadata on %s", clone_vm.name)
     clone_vm.features['template-name'] = clone_vm.name
     clone_vm.features['template-installtime'] = \
@@ -189,9 +205,9 @@ def remove_failed_clone(clone_vm, log):
 
 
 def main(argv=None, app=None):
-    args = parse_args(argv)
+    parser, args = parse_args(argv, app)
     log = setup_logging(args.log)
-    app = app or qubesadmin.Qubes()
+    app = args.app
 
     try:
         source_vm = validate_template(app, args.template)
@@ -199,8 +215,8 @@ def main(argv=None, app=None):
         target = compute_target_version(current)
         new_name = derive_clone_name(
             source_vm.name, current, target, args.new_name)
-    except UpgradeError as err:
-        print(f"error: {err}", file=sys.stderr)
+    except ValidationError as err:
+        parser.print_error(str(err))
         return EXIT.ERR_USAGE
 
     log.info("Plan: upgrade %s (%s %s) -> clone %s (%s %s)",
@@ -213,7 +229,10 @@ def main(argv=None, app=None):
 
     try:
         clone_vm = clone_template(app, source_vm, new_name, log)
-    except (UpgradeError, qubesadmin.exc.QubesException) as err:
+    except ValidationError as err:
+        parser.print_error(str(err))
+        return EXIT.ERR_USAGE
+    except qubesadmin.exc.QubesException as err:
         print(f"error: clone failed: {err}", file=sys.stderr)
         return EXIT.ERR
 
@@ -233,8 +252,7 @@ def main(argv=None, app=None):
         return EXIT.ERR
 
     print(f"Upgrade complete. New template: {clone_vm.name}")
-    print(f"Original template {source_vm.name} is untouched. Switch your "
-          f"AppVMs over and uninstall the old template when ready.")
+    print(f"Original qube {source_vm.name} is untouched.")
     return EXIT.OK
 
 
