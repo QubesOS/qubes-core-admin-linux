@@ -27,7 +27,10 @@ if __name__ == '__main__':
         url='https://www.qubes-os.org/',
         packages=setuptools.find_packages(include=("vmupdate", "vmupdate*")),
         entry_points={
-            'console_scripts':
+            'console_scripts': [
                 'qubes-vm-update = vmupdate.vmupdate:main',
+                'qvm-template-upgrade = '
+                'vmupdate.template_upgrade:main',
+            ],
         },
     )
