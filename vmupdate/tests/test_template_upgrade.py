@@ -117,8 +117,8 @@ def test_dry_run_does_not_mutate(capsys):
 def test_success_applies_metadata(monkeypatch):
     app = CloneApp()
     add_template(app)
-    monkeypatch.setattr(template_upgrade, "run_upgrade_agent",
-                        lambda *_args: True)
+    monkeypatch.setattr(template_upgrade.TemplateUpgrader, "run_agent",
+                        lambda self: None)
 
     retcode = template_upgrade.main(["--template", "fedora-41"], app)
 
@@ -135,11 +135,12 @@ def test_success_applies_metadata(monkeypatch):
     assert clone.features["os-version"] == "41"
 
 
-def test_success_does_not_apply_template_metadata_to_standalone(monkeypatch):
+def test_standalone_without_template_name_left_alone(monkeypatch):
+    """A standalone that never had template-name doesn't get one invented."""
     app = CloneApp()
     add_standalone(app)
-    monkeypatch.setattr(template_upgrade, "run_upgrade_agent",
-                        lambda *_args: True)
+    monkeypatch.setattr(template_upgrade.TemplateUpgrader, "run_agent",
+                        lambda self: None)
 
     retcode = template_upgrade.main(
         ["--template", "fedora-41-standalone"], app)
@@ -148,6 +149,24 @@ def test_success_does_not_apply_template_metadata_to_standalone(monkeypatch):
     clone = app.domains["fedora-42-standalone"]
     assert clone.klass == "StandaloneVM"
     assert "template-name" not in clone.features
+    assert "template-installtime" not in clone.features
+
+
+def test_standalone_with_template_name_refreshed(monkeypatch):
+    """Refresh stale standalone template-name for updater EOL checks."""
+    app = CloneApp()
+    add_standalone(app, **{"template-name": "fedora-41"})
+    monkeypatch.setattr(template_upgrade.TemplateUpgrader, "run_agent",
+                        lambda self: None)
+
+    retcode = template_upgrade.main(
+        ["--template", "fedora-41-standalone"], app)
+
+    assert retcode == EXIT.OK
+    clone = app.domains["fedora-42-standalone"]
+    # check_support() resolves this through EOL_DATES.
+    assert clone.features["template-name"] == "fedora-42"
+    # template-installtime is template-only; standalones don't get one.
     assert "template-installtime" not in clone.features
 
 
@@ -170,10 +189,11 @@ def test_failure_cleanup(monkeypatch, keep_on_failure, expect_clone_removed):
     app = CloneApp()
     add_template(app)
 
-    def fail_agent(*_args):
+    def fail_agent(self):
         raise template_upgrade.UpgradeError("agent failed")
 
-    monkeypatch.setattr(template_upgrade, "run_upgrade_agent", fail_agent)
+    monkeypatch.setattr(template_upgrade.TemplateUpgrader, "run_agent",
+                        fail_agent)
     args = ["--template", "fedora-41"]
     if keep_on_failure:
         args.append("--keep-on-failure")
