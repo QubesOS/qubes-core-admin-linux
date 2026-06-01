@@ -336,5 +336,5 @@ def main(argv=None, app=None):
     return EXIT.OK
 
 
-if __name__ == '__main__':
+if __name__ == '__main__':  # pragma: no cover
     sys.exit(main())

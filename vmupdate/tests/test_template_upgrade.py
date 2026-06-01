@@ -1,13 +1,21 @@
 #!/usr/bin/python3
 # coding=utf-8
-from unittest.mock import Mock
+import logging
+from unittest.mock import MagicMock, Mock
 
 import pytest
+
+import qubesadmin.exc
 
 from vmupdate import template_upgrade
 from vmupdate.agent.source.common.exit_codes import EXIT
 from vmupdate.tests.conftest import TestApp as _TestApp
 from vmupdate.tests.conftest import TestVM as _TestVM
+
+# Captured at import time, before the quiet_logging autouse fixture can
+# replace it. Tests that need to exercise the real setup_logging restore
+# this reference explicitly.
+_REAL_SETUP_LOGGING = template_upgrade.setup_logging
 
 
 class CloneApp(_TestApp):
@@ -202,3 +210,117 @@ def test_failure_cleanup(monkeypatch, keep_on_failure, expect_clone_removed):
 
     assert retcode == EXIT.ERR
     assert ("fedora-42" not in app.domains) is expect_clone_removed
+
+
+def test_rejects_existing_clone_name(capsys):
+    """If the target clone name already exists, validation fails before
+    anything is mutated."""
+    app = CloneApp()
+    add_template(app)
+    add_template(app, name="fedora-42", **{"os-version": "42"})
+
+    retcode = template_upgrade.main(["--template", "fedora-41"], app)
+
+    assert retcode == EXIT.ERR_USAGE
+    assert "already exists" in capsys.readouterr().err
+    assert app.clone_calls == []
+
+
+def test_standalone_template_name_without_version_is_left_alone(monkeypatch):
+    """Standalone whose template-name doesn't carry the current version
+    (custom string, manual edit) is left untouched."""
+    app = CloneApp()
+    add_standalone(app, **{"template-name": "my-custom-base"})
+    monkeypatch.setattr(template_upgrade.TemplateUpgrader, "run_agent",
+                        lambda self: None)
+
+    retcode = template_upgrade.main(
+        ["--template", "fedora-41-standalone"], app)
+
+    assert retcode == EXIT.OK
+    clone = app.domains["fedora-42-standalone"]
+    assert clone.features["template-name"] == "my-custom-base"
+
+
+def test_main_clone_failure(monkeypatch, capsys):
+    """If the Admin-API clone call raises, main() reports it as a runtime
+    error (EXIT.ERR), not a usage error."""
+    app = CloneApp()
+    add_template(app)
+
+    def boom(*_a, **_kw):
+        raise qubesadmin.exc.QubesException("storage pool full")
+
+    monkeypatch.setattr(app, "clone_vm", boom)
+
+    retcode = template_upgrade.main(["--template", "fedora-41"], app)
+
+    assert retcode == EXIT.ERR
+    assert "clone failed: storage pool full" in capsys.readouterr().err
+
+
+def test_rollback_noop_when_no_clone():
+    """rollback() before clone() ran is a safe no-op."""
+    upgrader = template_upgrade.TemplateUpgrader(CloneApp(), Mock(), Mock())
+    upgrader.rollback()  # must not raise
+
+
+def test_rollback_handles_delete_failure():
+    """If the Admin-API delete raises, rollback logs and swallows; the
+    caller has already decided the upgrade has failed, so re-raising would
+    just mask the original error.
+    """
+    # dict's __delitem__ is looked up on the type, not the instance, so we
+    # use a MagicMock for app.domains (which supports __delitem__ as a side
+    # effect) instead of trying to patch the test-helper Domains dict.
+    app = MagicMock()
+    app.domains.__delitem__.side_effect = \
+        qubesadmin.exc.QubesException("VM is running")
+    upgrader = template_upgrade.TemplateUpgrader(app, Mock(), Mock())
+    upgrader.clone_vm = Mock(name="fedora-42")
+    upgrader.clone_vm.name = "fedora-42"
+
+    upgrader.rollback()  # must not raise
+
+    upgrader.log.error.assert_called_once()
+
+
+def _reset_template_upgrade_logger():
+    logger = logging.getLogger("vm-template-upgrade")
+    logger.handlers.clear()
+    logger.propagate = True
+
+
+def test_setup_logging_is_idempotent(tmp_path, monkeypatch):
+    """Calling setup_logging twice must not duplicate handlers."""
+    monkeypatch.setattr(template_upgrade, "setup_logging",
+                        _REAL_SETUP_LOGGING)
+    monkeypatch.setattr(template_upgrade, "LOG_PATH",
+                        str(tmp_path / "qvm-template-upgrade.log"))
+    _reset_template_upgrade_logger()
+
+    log1 = template_upgrade.setup_logging("INFO")
+    handler_count = len(log1.handlers)
+    log2 = template_upgrade.setup_logging("INFO")
+
+    assert log1 is log2
+    assert len(log2.handlers) == handler_count
+    assert log2.propagate is False
+
+
+def test_setup_logging_tolerates_missing_log_dir(tmp_path, monkeypatch):
+    """A missing log directory degrades to stderr-only, not a crash."""
+    monkeypatch.setattr(template_upgrade, "setup_logging",
+                        _REAL_SETUP_LOGGING)
+    monkeypatch.setattr(template_upgrade, "LOG_PATH",
+                        str(tmp_path / "nope" / "qvm-template-upgrade.log"))
+    _reset_template_upgrade_logger()
+
+    log = template_upgrade.setup_logging("INFO")
+
+    # The file handler should have been skipped; stderr stays.
+    assert not any(isinstance(h, logging.FileHandler)
+                   for h in log.handlers)
+    assert any(isinstance(h, logging.StreamHandler) and
+               not isinstance(h, logging.FileHandler)
+               for h in log.handlers)
