@@ -164,7 +164,7 @@ def test_find_guix_fails_without_candidates_or_path(tmp_path, monkeypatch):
     assert "Package manager not found" in str(exc_info.value)
 
 
-def test_refresh_runs_time_machine_describe_with_proxy(
+def test_refresh_runs_pull_with_proxy(
         tmp_path, monkeypatch, capsys):
     manager, guix, service_dir = make_manager(tmp_path, monkeypatch)
     service_dir.mkdir()
@@ -175,7 +175,7 @@ def test_refresh_runs_time_machine_describe_with_proxy(
 
     assert commands == [[
         "env",
-        *GUIXCLI.TIME_MACHINE_ENVIRONMENT,
+        *GUIXCLI.GUIX_ENVIRONMENT,
         "http_proxy=http://127.0.0.1:8082/",
         "https_proxy=http://127.0.0.1:8082/",
         "HTTP_PROXY=http://127.0.0.1:8082/",
@@ -185,17 +185,14 @@ def test_refresh_runs_time_machine_describe_with_proxy(
         "no_proxy=127.0.0.1,localhost",
         "NO_PROXY=127.0.0.1,localhost",
         guix,
-        "time-machine",
-        f"--branch={GUIXCLI.TIME_MACHINE_BRANCH}",
-        "--",
-        "describe",
+        "pull",
     ]]
-    assert "Refreshing Guix channel metadata from master." in (
+    assert "Pulling Guix channels for system reconfiguration." in (
         capsys.readouterr().out
     )
 
 
-def test_refresh_streams_time_machine_output(tmp_path, monkeypatch):
+def test_refresh_streams_pull_output(tmp_path, monkeypatch):
     manager, guix, _service_dir = make_manager(tmp_path, monkeypatch)
     calls = collect_commands_and_realtime(manager, monkeypatch)
 
@@ -203,12 +200,9 @@ def test_refresh_streams_time_machine_output(tmp_path, monkeypatch):
 
     assert calls == [([
         "env",
-        *GUIXCLI.TIME_MACHINE_ENVIRONMENT,
+        *GUIXCLI.GUIX_ENVIRONMENT,
         guix,
-        "time-machine",
-        f"--branch={GUIXCLI.TIME_MACHINE_BRANCH}",
-        "--",
-        "describe",
+        "pull",
     ], True)]
 
 
@@ -226,7 +220,7 @@ def test_refresh_reports_silent_guix_failure(tmp_path, monkeypatch):
 
     assert result.code == EXIT.ERR
     assert "Guix command failed with exit code 1:" in result.err
-    assert "time-machine --branch=master -- describe" in result.err
+    assert "pull" in result.err
     assert result.posted is False
 
 
@@ -241,12 +235,9 @@ def test_update_proxy_vm_does_not_proxy_its_own_guix(tmp_path, monkeypatch):
 
     assert commands == [[
         "env",
-        *GUIXCLI.TIME_MACHINE_ENVIRONMENT,
+        *GUIXCLI.GUIX_ENVIRONMENT,
         guix,
-        "time-machine",
-        f"--branch={GUIXCLI.TIME_MACHINE_BRANCH}",
-        "--",
-        "describe",
+        "pull",
     ]]
 
 
@@ -261,11 +252,8 @@ def test_upgrade_reconfigures_existing_system_config(
 
     assert commands == [[
         "env",
-        *GUIXCLI.TIME_MACHINE_ENVIRONMENT,
+        *GUIXCLI.GUIX_ENVIRONMENT,
         guix,
-        "time-machine",
-        f"--branch={GUIXCLI.TIME_MACHINE_BRANCH}",
-        "--",
         "system",
         "reconfigure",
         "--no-bootloader",
@@ -286,11 +274,8 @@ def test_upgrade_streams_reconfigure_output(tmp_path, monkeypatch):
 
     assert calls == [([
         "env",
-        *GUIXCLI.TIME_MACHINE_ENVIRONMENT,
+        *GUIXCLI.GUIX_ENVIRONMENT,
         guix,
-        "time-machine",
-        f"--branch={GUIXCLI.TIME_MACHINE_BRANCH}",
-        "--",
         "system",
         "reconfigure",
         "--no-bootloader",
@@ -327,7 +312,7 @@ def test_upgrade_uses_qubes_update_proxy(tmp_path, monkeypatch):
 
     assert commands == [[
         "env",
-        *GUIXCLI.TIME_MACHINE_ENVIRONMENT,
+        *GUIXCLI.GUIX_ENVIRONMENT,
         "http_proxy=http://127.0.0.1:8082/",
         "https_proxy=http://127.0.0.1:8082/",
         "HTTP_PROXY=http://127.0.0.1:8082/",
@@ -337,9 +322,6 @@ def test_upgrade_uses_qubes_update_proxy(tmp_path, monkeypatch):
         "no_proxy=127.0.0.1,localhost",
         "NO_PROXY=127.0.0.1,localhost",
         guix,
-        "time-machine",
-        f"--branch={GUIXCLI.TIME_MACHINE_BRANCH}",
-        "--",
         "system",
         "reconfigure",
         "--no-bootloader",
@@ -354,6 +336,27 @@ def test_upgrade_fails_without_system_config(tmp_path, monkeypatch):
 
     assert result.code == EXIT.ERR_VM_UPDATE
     assert "missing Guix system configuration" in result.err
+
+
+def test_upgrade_reconfigures_with_pulled_guix(tmp_path, monkeypatch):
+    manager, _guix, _service_dir = make_manager(tmp_path, monkeypatch)
+    pulled = make_executable(tmp_path / "current-guix" / "bin" / "guix")
+    monkeypatch.setattr(GUIXCLI, "PULLED_GUIX", pulled)
+    Path(GUIXCLI.SYSTEM_CONFIG).write_text("(operating-system)\n",
+                                           encoding="ascii")
+    commands = collect_commands(manager, monkeypatch)
+
+    assert not manager.upgrade_internal(remove_obsolete=True)
+
+    assert commands == [[
+        "env",
+        *GUIXCLI.GUIX_ENVIRONMENT,
+        pulled,
+        "system",
+        "reconfigure",
+        "--no-bootloader",
+        GUIXCLI.SYSTEM_CONFIG,
+    ]]
 
 
 def test_upgrade_logs_reconfiguration_failure(
@@ -379,9 +382,6 @@ def test_get_action_reports_reconfigure_command(tmp_path, monkeypatch):
     manager, _guix, _service_dir = make_manager(tmp_path, monkeypatch)
 
     assert manager.get_action(remove_obsolete=True) == [
-        "time-machine",
-        f"--branch={GUIXCLI.TIME_MACHINE_BRANCH}",
-        "--",
         "system",
         "reconfigure",
         "--no-bootloader",
@@ -538,11 +538,8 @@ def test_upgrade_prints_per_package_change_summary(
     assert code == EXIT.OK
     assert commands == [[
         "env",
-        *GUIXCLI.TIME_MACHINE_ENVIRONMENT,
+        *GUIXCLI.GUIX_ENVIRONMENT,
         guix,
-        "time-machine",
-        f"--branch={GUIXCLI.TIME_MACHINE_BRANCH}",
-        "--",
         "system",
         "reconfigure",
         "--no-bootloader",

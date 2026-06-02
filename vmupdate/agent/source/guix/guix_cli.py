@@ -34,15 +34,18 @@ from source.common.exit_codes import EXIT
 class GUIXCLI(PackageManager):
     PROGRESS_REPORTING = False
 
-    TIME_MACHINE_BRANCH = "master"
     SYSTEM_CONFIG = "/etc/config.scm"
     SYSTEM_PROFILE = "/run/current-system/profile"
     SERVICE_DIR = "/run/qubes-service"
-    TIME_MACHINE_ENVIRONMENT = (
-        "HOME=/tmp",
-        "XDG_CONFIG_HOME=/tmp/qubes-vm-update-guix-config",
-        "XDG_CACHE_HOME=/tmp/qubes-vm-update-guix-cache",
+    # "guix pull" must run with root's real HOME so it persists root's
+    # current-guix profile; an ephemeral HOME would discard the pulled Qubes
+    # channel and leave the components pinned to the baked-in template.
+    GUIX_ENVIRONMENT = (
+        "HOME=/root",
     )
+    # reconfigure must run via the just-pulled guix so it loads the newly
+    # pulled Qubes channel modules, not the image's baked-in guix.
+    PULLED_GUIX = "/var/guix/profiles/per-user/root/current-guix/bin/guix"
     MANIFEST_SEPARATOR = "|"
     STATE_PATHS = {
         "guix-system": "/run/current-system",
@@ -82,10 +85,10 @@ class GUIXCLI(PackageManager):
                                                 "qubes-updates-proxy"))
         )
 
-    def _with_time_machine_environment(
+    def _with_guix_environment(
             self, command: List[str]
     ) -> List[str]:
-        env = list(self.TIME_MACHINE_ENVIRONMENT)
+        env = list(self.GUIX_ENVIRONMENT)
 
         if self._uses_qubes_update_proxy():
             proxy = "http://127.0.0.1:8082/"
@@ -104,7 +107,7 @@ class GUIXCLI(PackageManager):
         return ["env", *env, *command]
 
     def _run_guix(self, command: List[str]) -> ProcessResult:
-        result = self.run_cmd(self._with_time_machine_environment(command))
+        result = self.run_cmd(self._with_guix_environment(command))
         if result and not (result.out.strip() or result.err.strip()):
             result.err = (
                 f"Guix command failed with exit code {result.code}: "
@@ -115,24 +118,17 @@ class GUIXCLI(PackageManager):
 
     def refresh(self, hard_fail: bool) -> ProcessResult:
         """
-        Refresh Guix channel metadata for system reconfiguration.
+        Pull the channels declared in /etc/guix/channels.scm.
 
-        Use guix time-machine so Qubes vmupdate does not mutate root's Guix
-        checkout as package-manager state.  The update target is the Guix
-        System generation produced by the later reconfigure step.
+        This advances both Guix itself and the Qubes channel that pins the
+        Qubes component versions, so the later reconfigure builds the updated
+        components instead of the ones baked into the installed template.
         """
         cmd = [
             self.package_manager,
-            "time-machine",
-            f"--branch={self.TIME_MACHINE_BRANCH}",
-            "--",
-            "describe",
+            "pull",
         ]
-        print(
-            f"Refreshing Guix channel metadata from "
-            f"{self.TIME_MACHINE_BRANCH}.",
-            flush=True,
-        )
+        print("Pulling Guix channels for system reconfiguration.", flush=True)
         return self._run_guix(cmd)
 
     def get_packages(self) -> Dict[str, List[str]]:
@@ -259,18 +255,20 @@ class GUIXCLI(PackageManager):
 
     def get_action(self, remove_obsolete) -> List[str]:
         """
-        Kept for the PackageManager interface; upgrade_internal runs the
-        reconfiguration through guix time-machine.
+        Kept for the PackageManager interface; upgrade_internal reconfigures
+        the system from the pulled channels.
         """
         return [
-            "time-machine",
-            f"--branch={self.TIME_MACHINE_BRANCH}",
-            "--",
             "system",
             "reconfigure",
             "--no-bootloader",
             self.SYSTEM_CONFIG,
         ]
+
+    def _reconfigure_guix(self) -> str:
+        if os.access(self.PULLED_GUIX, os.X_OK):
+            return self.PULLED_GUIX
+        return self.package_manager
 
     def upgrade_internal(self, remove_obsolete: bool) -> ProcessResult:
         if not os.path.exists(self.SYSTEM_CONFIG):
@@ -278,10 +276,9 @@ class GUIXCLI(PackageManager):
                 EXIT.ERR_VM_UPDATE,
                 err=f"missing Guix system configuration: {self.SYSTEM_CONFIG}")
 
-        cmd = [self.package_manager, *self.get_action(remove_obsolete)]
+        cmd = [self._reconfigure_guix(), *self.get_action(remove_obsolete)]
         print(
-            f"Reconfiguring Guix System from {self.SYSTEM_CONFIG} "
-            f"using {self.TIME_MACHINE_BRANCH}.",
+            f"Reconfiguring Guix System from {self.SYSTEM_CONFIG}.",
             flush=True,
         )
         result = self._run_guix(cmd)
