@@ -46,7 +46,6 @@ class GUIXCLI(PackageManager):
     # reconfigure must run via the just-pulled guix so it loads the newly
     # pulled Qubes channel modules, not the image's baked-in guix.
     PULLED_GUIX = "/var/guix/profiles/per-user/root/current-guix/bin/guix"
-    MANIFEST_SEPARATOR = "|"
     STATE_PATHS = {
         "guix-system": "/run/current-system",
     }
@@ -184,7 +183,6 @@ class GUIXCLI(PackageManager):
             stderr=subprocess.PIPE,
         ) as proc:
             out, err = proc.communicate()
-        out = out.replace(b"\t", self.MANIFEST_SEPARATOR.encode())
         result = ProcessResult.from_untrusted_out_err(out, err)
         result.code = proc.returncode
         self.log.debug("command exit code: %i", result.code)
@@ -192,65 +190,12 @@ class GUIXCLI(PackageManager):
 
     @staticmethod
     def _parse_manifest_entry(line):
-        if GUIXCLI.MANIFEST_SEPARATOR in line:
-            cols = [
-                col.strip()
-                for col in line.split(GUIXCLI.MANIFEST_SEPARATOR, 3)
-            ]
-            if len(cols) == 4 and all(cols):
-                return tuple(cols)
-
-        store_marker = "/gnu/store/"
-        store_start = line.find(store_marker)
-        if store_start != -1:
-            store_path = line[store_start:].strip()
-            fields = line[:store_start].strip().split()
-            if len(fields) >= 3:
-                name, version, output = fields[:3]
-                return name, version, output, store_path
-            entry = GUIXCLI._parse_sanitized_manifest_entry(
-                fields, store_path
-            )
-            if entry is not None:
-                return entry
-
-        cols = line.split(None, 3)
-        if len(cols) == 4:
-            return tuple(cols)
-
-        return None
-
-    @staticmethod
-    def _parse_sanitized_manifest_entry(fields, store_path):
-        """
-        Recover fields after ProcessResult stripped tabs from Guix output.
-
-        Guix separates name, version, output, and store path with tabs.
-        ProcessResult removes tabs from untrusted output before callers parse
-        it.  When a column is wider than Guix's padding, adjacent fields can be
-        glued together; the store item basename keeps the name-version boundary.
-        """
-        store_item = os.path.basename(store_path)
-        try:
-            _store_hash, store_name_version = store_item.split("-", 1)
-        except ValueError:
-            return None
-
-        if len(fields) == 2:
-            first, second = fields
-            if store_name_version.startswith(f"{first}-"):
-                version = store_name_version[len(first) + 1:]
-                if second.startswith(version):
-                    output = second[len(version):]
-                    if output:
-                        return first, version, output, store_path
-
-            for index in range(1, len(first)):
-                name = first[:index]
-                version = first[index:]
-                if f"{name}-{version}" == store_name_version:
-                    return name, version, second, store_path
-
+        # guix prints tab-separated name, version, output, store path.
+        cols = [col.strip() for col in line.split("\t")]
+        if len(cols) != 4 or not all(cols):
+            cols = line.split(None, 3)
+        if len(cols) == 4 and all(col.strip() for col in cols):
+            return tuple(col.strip() for col in cols)
         return None
 
     def get_action(self, remove_obsolete) -> List[str]:

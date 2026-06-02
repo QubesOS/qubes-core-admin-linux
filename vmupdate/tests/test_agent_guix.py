@@ -396,11 +396,12 @@ def test_get_packages_reports_system_profile_metadata(tmp_path, monkeypatch):
     Path(GUIXCLI.STATE_PATHS["guix-system"]).parent.mkdir(parents=True)
     Path(GUIXCLI.STATE_PATHS["guix-system"]).symlink_to(system_target)
     manifest = "\n".join([
-        "bash               5.2.15         out/gnu/store/hash-bash-5.2.15",
-        "guix               1.5.0-1.deedd48out/gnu/store/hash-guix-1.5.0-1.deedd48",
-        "glibc 2.39 debug /gnu/store/hash-glibc-debug-2.39",
-        "glibc 2.39 out /gnu/store/hash-glibc-2.39",
-        "qubes-vm-gui-common4.3.1          out/gnu/store/hash-qubes-vm-gui-common-4.3.1",
+        "bash\t5.2.15\tout\t/gnu/store/hash-bash-5.2.15",
+        "guix\t1.5.0-1.deedd48\tout\t/gnu/store/hash-guix-1.5.0-1.deedd48",
+        "glibc\t2.39\tdebug\t/gnu/store/hash-glibc-debug-2.39",
+        "glibc\t2.39\tout\t/gnu/store/hash-glibc-2.39",
+        "qubes-vm-gui-common\t4.3.1\tout"
+        "\t/gnu/store/hash-qubes-vm-gui-common-4.3.1",
     ]) + "\n"
     monkeypatch.setattr(
         manager,
@@ -426,10 +427,10 @@ def test_get_packages_reports_tab_separated_manifest_metadata(
         tmp_path, monkeypatch):
     manager, _guix, _service_dir = make_manager(tmp_path, monkeypatch)
     manifest = "\n".join([
-        "bash|5.2.15|out|/gnu/store/hash-bash-5.2.15",
-        "glibc|2.39|debug|/gnu/store/hash-glibc-debug-2.39",
-        "qubes-vm-gui-common|4.3.1|out|"
-        "/gnu/store/hash-qubes-vm-gui-common-4.3.1",
+        "bash\t5.2.15\tout\t/gnu/store/hash-bash-5.2.15",
+        "glibc\t2.39\tdebug\t/gnu/store/hash-glibc-debug-2.39",
+        "qubes-vm-gui-common\t4.3.1\tout"
+        "\t/gnu/store/hash-qubes-vm-gui-common-4.3.1",
     ]) + "\n"
     monkeypatch.setattr(
         manager,
@@ -468,9 +469,6 @@ def test_manifest_parser_rejects_unrecoverable_sanitized_output():
     assert GUIXCLI._parse_manifest_entry(
         "hello 2.12out /gnu/store/hashonly"
     ) is None
-    assert GUIXCLI._parse_sanitized_manifest_entry(
-        ["hello"], "/gnu/store/hash-hello-2.12"
-    ) is None
 
 
 def test_list_installed_packages_preserves_manifest_columns(
@@ -487,7 +485,7 @@ def test_list_installed_packages_preserves_manifest_columns(
     manager = GUIXCLI(logging.NullHandler(), logging.DEBUG, AgentType.VM)
     result = manager._list_installed_packages()
 
-    assert result.out == "bash|5.2.15|out|/gnu/store/hash-bash-5.2.15\n"
+    assert result.out == "bash\t5.2.15\tout\t/gnu/store/hash-bash-5.2.15\n"
 
 
 def test_get_packages_falls_back_to_system_generation_on_manifest_error(
