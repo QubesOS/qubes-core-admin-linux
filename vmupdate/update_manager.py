@@ -112,6 +112,10 @@ class UpdateManager:
         progress_bar.close()
         self.log.info("Update Manager: Finished, collecting success info")
 
+        # inform caller about requested cancel, even if all requested targets were updated
+        if progress_bar.termination.value:
+            self.ret_code = EXIT.SIGINT
+
         stats = list(progress_bar.statuses.values())
         if FinalStatus.CANCELLED in stats:
             self.ret_code = max(self.ret_code, EXIT.SIGINT)

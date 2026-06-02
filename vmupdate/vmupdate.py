@@ -93,6 +93,8 @@ def main(args=None, app=qubesadmin.Qubes()):
         no_updates = all(
             stat == FinalStatus.NO_UPDATES for stat in admin_status.values()
         )
+    if ret_code_admin == EXIT.SIGINT:
+        return EXIT.SIGINT
 
     # independent qubes first (TemplateVMs, StandaloneVMs)
     ret_code_independent, templ_statuses = run_update(
@@ -102,12 +104,16 @@ def main(args=None, app=qubesadmin.Qubes()):
         all(stat == FinalStatus.NO_UPDATES for stat in templ_statuses.values())
         and no_updates
     )
+    if ret_code_independent == EXIT.SIGINT:
+        return EXIT.SIGINT
     # then derived qubes (AppVMs...)
     ret_code_appvm, app_statuses = run_update(derived, args, log)
     no_updates = (
         all(stat == FinalStatus.NO_UPDATES for stat in app_statuses.values())
         and no_updates
     )
+    if ret_code_appvm == EXIT.SIGINT:
+        return EXIT.SIGINT
 
     ret_code_restart = apply_updates_to_appvm(
         args, independent, templ_statuses, app_statuses, log
