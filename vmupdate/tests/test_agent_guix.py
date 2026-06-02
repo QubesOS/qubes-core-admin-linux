@@ -545,7 +545,8 @@ def test_upgrade_prints_per_package_change_summary(
     ]]
     out = capsys.readouterr().out
     assert "Installed packages:" in out
-    assert "hello:out ['2.12 /gnu/store/hello']" in out
+    assert "hello:out 2.12 /gnu/store/hello" in out
+    assert "['" not in out
     assert "Updated packages:" in out
     assert (
         "bash:out 5.2.15 /gnu/store/old-bash -> "
@@ -574,3 +575,29 @@ def test_empty_requirements_are_accepted(tmp_path, monkeypatch):
     manager, _guix, _service_dir = make_manager(tmp_path, monkeypatch)
 
     assert not manager.install_requirements({}, {})
+
+
+def test_sanitize_output_preserves_tabs():
+    assert ProcessResult.sanitize_output(b"a\tb\tc\n") == "a\tb\tc\n"
+
+
+def test_print_changes_formats_versions_without_list_repr(
+        tmp_path, monkeypatch):
+    manager, _guix, _service_dir = make_manager(tmp_path, monkeypatch)
+    changes = {
+        "installed": {"new:out": ["1.0 /gnu/store/new"]},
+        "updated": {
+            "multi:out": {
+                "old": ["1.0 /a", "1.0 /b"],
+                "new": ["2.0 /a", "2.0 /b"],
+            }
+        },
+        "removed": {"gone:out": ["3.0 /gnu/store/gone"]},
+    }
+
+    out = manager._print_changes(changes).out
+
+    assert "['" not in out
+    assert "new:out 1.0 /gnu/store/new" in out
+    assert "gone:out 3.0 /gnu/store/gone" in out
+    assert "multi:out 1.0 /a, 1.0 /b -> 2.0 /a, 2.0 /b" in out

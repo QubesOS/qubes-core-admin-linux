@@ -247,7 +247,7 @@ class PackageManager:
         if changes["installed"]:
             for pkg in sorted(changes["installed"]):
                 result.out += self._print_to_string(
-                    pkg, changes["installed"][pkg]
+                    pkg, self._format_versions(changes["installed"][pkg])
                 )
         else:
             result.out += self._print_to_string("None")
@@ -257,9 +257,9 @@ class PackageManager:
             for pkg in sorted(changes["updated"]):
                 result.out += self._print_to_string(
                     pkg,
-                    str(changes["updated"][pkg]["old"])[2:-2]
+                    self._format_versions(changes["updated"][pkg]["old"])
                     + " -> "
-                    + str(changes["updated"][pkg]["new"])[2:-2],
+                    + self._format_versions(changes["updated"][pkg]["new"]),
                 )
         else:
             result.out += self._print_to_string("None")
@@ -268,11 +268,17 @@ class PackageManager:
         if changes["removed"]:
             for pkg in sorted(changes["removed"]):
                 result.out += self._print_to_string(
-                    pkg, changes["removed"][pkg]
+                    pkg, self._format_versions(changes["removed"][pkg])
                 )
         else:
             result.out += self._print_to_string("None")
         return result
+
+    @staticmethod
+    def _format_versions(versions):
+        if isinstance(versions, (list, tuple)):
+            return ", ".join(str(version) for version in versions)
+        return str(versions)
 
     @staticmethod
     def _print_to_string(*args, **kwargs):
