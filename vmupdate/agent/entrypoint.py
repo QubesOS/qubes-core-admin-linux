@@ -91,11 +91,15 @@ def get_package_manager(
         from source.pacman.pacman_cli import PACMANCLI as PackageManager
 
         print("Progress reporting not supported.", flush=True)
+    elif os_data["os_family"] == "Guix":
+        from source.guix.guix_cli import GUIXCLI as PackageManager
+
+        print("Progress reporting not supported.", flush=True)
     elif os_data["os_family"] == "Qubes":
         PackageManager = import_dom0_package_manager(os_data, log, no_progress)
     else:
         raise NotImplementedError(
-            "Only Debian, RedHat and ArchLinux based OS is supported."
+            "Only Debian, RedHat, ArchLinux, Qubes and Guix based OS is supported."
         )
 
     pkg_mng = PackageManager(log_handler, log_level, agent_type)
