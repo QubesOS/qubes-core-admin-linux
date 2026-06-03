@@ -145,7 +145,7 @@ def test_agent():
     return closure
 
 
-def generate_vm_variations(app, variations):
+def generate_vm_variations(app, variations, include_cancelled=False):
     """
     Generate all possible variations of vms for the given list of features.
     """
@@ -182,15 +182,27 @@ def generate_vm_variations(app, variations):
             FinalStatus.SUCCESS: set(),
             FinalStatus.NO_UPDATES: set(),
             FinalStatus.ERROR: set(),
-            FinalStatus.CANCELLED: set(),
-        },
+        }
+        | (
+            {
+                FinalStatus.CANCELLED: set(),
+            }
+            if include_cancelled
+            else {}
+        ),
         "has_template_updated": {
             FinalStatus.SUCCESS: set(),
             FinalStatus.NO_UPDATES: set(),
             FinalStatus.ERROR: set(),
-            FinalStatus.CANCELLED: set(),
             FinalStatus.UNKNOWN: set(),
-        },
+        }
+        | (
+            {
+                FinalStatus.CANCELLED: set(),
+            }
+            if include_cancelled
+            else {}
+        ),
     }
 
     klasses = list(reversed(sorted(list(domains["klass"].keys()))))
