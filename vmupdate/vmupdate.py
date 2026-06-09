@@ -14,8 +14,12 @@ import qubesadmin
 import qubesadmin.exc
 from vmupdate.agent.source.status import FinalStatus
 from vmupdate.agent.source.common.exit_codes import EXIT
-from vmupdate.utils import shutdown_domains, get_feature, get_boolean_feature, \
-    is_stale
+from vmupdate.utils import (
+    shutdown_domains,
+    get_feature,
+    get_boolean_feature,
+    is_stale,
+)
 from . import update_manager
 from .agent.source.args import AgentArgs
 
@@ -490,7 +494,6 @@ def get_derived_vm_to_apply(templates, derived_statuses):
                 to_shutdown.add(vm)
 
     return to_restart, to_shutdown
-
 
 
 def restart_vms(to_restart, log):

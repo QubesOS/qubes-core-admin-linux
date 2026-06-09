@@ -95,11 +95,12 @@ class QubeConnection:
         if self.qube.is_running() and not self._initially_running:
             if self._has_assigned_pci_devices(self.qube):
                 self.logger.info(
-                    'Waiting for full shutdown %s (PCI devices assigned)',
-                    self.qube.name)
+                    "Waiting for full shutdown %s (PCI devices assigned)",
+                    self.qube.name,
+                )
                 shutdown_domains([self.qube], self.logger)
             else:
-                self.logger.info('Shutdown %s', self.qube.name)
+                self.logger.info("Shutdown %s", self.qube.name)
                 self.qube.shutdown()
 
         self.__connected = False
@@ -108,7 +109,7 @@ class QubeConnection:
     def _has_assigned_pci_devices(vm) -> bool:
         """Return True when VM has assigned PCI devices."""
         try:
-            return any(vm.devices['pci'].get_assigned_devices())
+            return any(vm.devices["pci"].get_assigned_devices())
         except qubesadmin.exc.QubesDaemonAccessError:
             return False
 
