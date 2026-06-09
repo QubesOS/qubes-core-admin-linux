@@ -16,18 +16,17 @@
 # with this program; if not, see <http://www.gnu.org/licenses/>.
 import setuptools
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     setuptools.setup(
-        name='qubes-vmupdate',
-        version=open('version').read().strip(),
-        author='Invisible Things Lab',
-        author_email='qubes-devel@googlegroups.com',
-        description='Qubes VM updater',
-        license='GPL2+',
-        url='https://www.qubes-os.org/',
+        name="qubes-vmupdate",
+        version=open("version").read().strip(),
+        author="Invisible Things Lab",
+        author_email="qubes-devel@googlegroups.com",
+        description="Qubes VM updater",
+        license="GPL2+",
+        url="https://www.qubes-os.org/",
         packages=setuptools.find_packages(include=("vmupdate", "vmupdate*")),
         entry_points={
-            'console_scripts':
-                'qubes-vm-update = vmupdate.vmupdate:main',
+            "console_scripts": "qubes-vm-update = vmupdate.vmupdate:main",
         },
     )

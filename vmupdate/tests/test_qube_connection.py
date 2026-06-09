@@ -28,14 +28,19 @@ def test_wait_for_shutdown_when_vm_started_by_update(shutdown_domains):
     vm = Mock()
     vm.name = "hvm1"
     vm.is_running.side_effect = [False, True]
-    vm.devices = {'pci': Mock()}
-    vm.devices['pci'].get_assigned_devices.return_value = ["00_1f.2"]
+    vm.devices = {"pci": Mock()}
+    vm.devices["pci"].get_assigned_devices.return_value = ["00_1f.2"]
     status_notifier = Mock()
     logger = Mock()
 
     with QubeConnection(
-            vm, "/tmp/qubes-update", cleanup=False, logger=logger,
-            show_progress=False, status_notifier=status_notifier):
+        vm,
+        "/tmp/qubes-update",
+        cleanup=False,
+        logger=logger,
+        show_progress=False,
+        status_notifier=status_notifier,
+    ):
         pass
 
     shutdown_domains.assert_called_once_with([vm], logger)
@@ -47,14 +52,19 @@ def test_do_not_wait_for_shutdown_without_assigned_pci(shutdown_domains):
     vm = Mock()
     vm.name = "hvm2"
     vm.is_running.side_effect = [False, True]
-    vm.devices = {'pci': Mock()}
-    vm.devices['pci'].get_assigned_devices.return_value = []
+    vm.devices = {"pci": Mock()}
+    vm.devices["pci"].get_assigned_devices.return_value = []
     status_notifier = Mock()
     logger = Mock()
 
     with QubeConnection(
-            vm, "/tmp/qubes-update", cleanup=False, logger=logger,
-            show_progress=False, status_notifier=status_notifier):
+        vm,
+        "/tmp/qubes-update",
+        cleanup=False,
+        logger=logger,
+        show_progress=False,
+        status_notifier=status_notifier,
+    ):
         pass
 
     vm.shutdown.assert_called_once_with()
@@ -66,14 +76,19 @@ def test_do_not_shutdown_if_vm_was_already_running(shutdown_domains):
     vm = Mock()
     vm.name = "hvm3"
     vm.is_running.return_value = True
-    vm.devices = {'pci': Mock()}
-    vm.devices['pci'].get_assigned_devices.return_value = ["00_1f.2"]
+    vm.devices = {"pci": Mock()}
+    vm.devices["pci"].get_assigned_devices.return_value = ["00_1f.2"]
     status_notifier = Mock()
     logger = Mock()
 
     with QubeConnection(
-            vm, "/tmp/qubes-update", cleanup=False, logger=logger,
-            show_progress=False, status_notifier=status_notifier):
+        vm,
+        "/tmp/qubes-update",
+        cleanup=False,
+        logger=logger,
+        show_progress=False,
+        status_notifier=status_notifier,
+    ):
         pass
 
     vm.shutdown.assert_not_called()

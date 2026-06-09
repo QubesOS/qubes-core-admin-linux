@@ -176,11 +176,14 @@ KEYFILE_PATH = "/usr/share/keyrings/derivative.asc"
 # sub:e:4096:1:10FDAC53119B3FD6:1389913402:1769172143:::
 # sub:e:4096:1:CB8D50BB77BB3C48:1389913659:1769172143:::
 
+
 def whonix17_key(os_data, log, **kwargs):
     """
     Update kicksecure signing key - https://www.kicksecure.com/wiki/EXPKEYSIG
     """
-    if os_data.get("codename", "") != "bookworm" or not os.path.exists(KEYFILE_PATH):
+    if os_data.get("codename", "") != "bookworm" or not os.path.exists(
+        KEYFILE_PATH
+    ):
         return
 
     # check if key is expire
