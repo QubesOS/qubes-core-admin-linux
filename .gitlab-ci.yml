@@ -1,8 +1,16 @@
 include:
+- file: /common.yml
+  project: QubesOS/qubes-continuous-integration
 - file: /r4.3/gitlab-base.yml
   project: QubesOS/qubes-continuous-integration
 - file: /r4.3/gitlab-host.yml
   project: QubesOS/qubes-continuous-integration
+
+lint:
+  extends: .lint
+  stage: checks
+  variables:
+    DIR: vmupdate
 
 checks:tests:
   stage: checks
