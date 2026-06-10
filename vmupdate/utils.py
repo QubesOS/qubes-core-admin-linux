@@ -70,13 +70,15 @@ def is_stale(vm, expiration_period):
     """Return True if VM has not been checked for updates recently."""
     today = datetime.today()
     try:
-        if not ('qrexec' in vm.features.keys()
-                and vm.features.get('os', '') == 'Linux'):
+        if not (
+            "qrexec" in vm.features.keys()
+            and vm.features.get("os", "") == "Linux"
+        ):
             return False
 
         last_update_str = vm.features.check_with_template(
-            'last-updates-check',
-            datetime.fromtimestamp(0).strftime('%Y-%m-%d %H:%M:%S')
+            "last-updates-check",
+            datetime.fromtimestamp(0).strftime("%Y-%m-%d %H:%M:%S"),
         )
         last_update = datetime.fromisoformat(last_update_str)
         if (today - last_update).days > expiration_period:

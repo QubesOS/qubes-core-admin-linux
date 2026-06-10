@@ -1,0 +1,28 @@
+[MASTER]
+init-hook='import sys; sys.path.append("vmupdate/agent")'
+
+[MESSAGES CONTROL]
+disable=
+    broad-exception-caught,
+    duplicate-code,
+    import-error,
+    invalid-name,
+    line-too-long,
+    missing-class-docstring,
+    missing-function-docstring,
+    missing-module-docstring,
+    possibly-used-before-assignment,
+    too-few-public-methods,
+    too-many-arguments,
+    too-many-branches,
+    too-many-instance-attributes,
+    too-many-locals,
+    too-many-positional-arguments,
+    too-many-return-statements,
+    too-many-statements,
+    unspecified-encoding,
+    consider-using-with,
+    f-string-without-interpolation,
+    implicit-str-concat,
+    unused-argument,
+    unused-import
