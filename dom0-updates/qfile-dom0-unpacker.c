@@ -26,19 +26,23 @@ static long long parse_limit_env(const char *name, long long fallback)
         return fallback;
 
     if (*value < '0' || *value > '9') {
-        fprintf(stderr, "Invalid value for %s: %s\n", name, value);
+        fprintf(stderr, "Invalid value for %s: %s: not a non-negative integer\n", name, value);
         exit(1);
     }
 
     errno = 0;
     char *end = NULL;
     long long limit = strtoll(value, &end, 10);
-    if (errno == ERANGE || *end != '\0' || limit < 0) {
-        fprintf(stderr, "Invalid value for %s: %s\n", name, value);
+    if (errno == ERANGE) {
+        fprintf(stderr, "Invalid value for %s: %s: out of range\n", name, value);
+        exit(1);
+    }
+    if (*end != '\0') {
+        fprintf(stderr, "Invalid value for %s: %s: trailing non-numeric characters\n", name, value);
         exit(1);
     }
     if (limit == 0 && strcmp(value, "0") != 0) {
-        fprintf(stderr, "Invalid value for %s: %s\n", name, value);
+        fprintf(stderr, "Invalid value for %s: %s: invalid zero representation\n", name, value);
         exit(1);
     }
 
