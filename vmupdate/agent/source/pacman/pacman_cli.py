@@ -82,3 +82,13 @@ class PACMANCLI(PackageManager):
         result = self.run_cmd(cmd, realtime=False)
         return_code = EXIT.ERR_VM_CLEANUP if result.code != 0 else 0
         return return_code
+
+    def _release_upgrade(self, target_version: str) -> ProcessResult:
+        """
+        Arch Linux is a rolling release with no discrete versions to move
+        between, so there is nothing for this to do.
+        """
+        raise NotImplementedError(
+            "Distribution version upgrade is not applicable to pacman: "
+            "Arch Linux is a rolling release."
+        )

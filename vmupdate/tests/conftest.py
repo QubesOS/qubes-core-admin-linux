@@ -51,6 +51,7 @@ class TestVM:
         self.features = Features(name, app)
         self.shutdown = Mock()
         self.start = Mock()
+        self.kill = Mock()
         for key, value in kwargs.items():
             setattr(self, key, value)
 

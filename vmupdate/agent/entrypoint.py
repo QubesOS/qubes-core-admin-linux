@@ -32,15 +32,35 @@ def main(args=None):
         os_data, log, log_handler, log_level, agent_type, args.no_progress
     )
 
-    log.debug("Running upgrades.")
-    return_code = pkg_mng.upgrade(
-        refresh=not args.no_refresh,
-        hard_fail=not args.force_upgrade,
-        remove_obsolete=not args.leave_obsolete,
-        print_streams=args.show_output,
-    )
+    if args.version_upgrade:
+        log.debug(
+            "Running distribution version upgrade to %s.",
+            args.version_upgrade,
+        )
+        try:
+            return_code = pkg_mng.version_upgrade(
+                args.version_upgrade, print_streams=args.show_output
+            )
+        except NotImplementedError as err:
+            log.error("Distribution version upgrade failed: %s", err)
+            print(str(err), file=sys.stderr)
+            return_code = EXIT.ERR_VM_UPDATE
+    else:
+        log.debug("Running upgrades.")
+        return_code = pkg_mng.upgrade(
+            refresh=not args.no_refresh,
+            hard_fail=not args.force_upgrade,
+            remove_obsolete=not args.leave_obsolete,
+            print_streams=args.show_output,
+        )
 
-    if not pkg_mng.PROGRESS_REPORTING and not args.no_progress:
+    # A version upgrade emits its own 0/100 milestones, so only the normal
+    # update path needs the fallback "finished" tick for CLI managers.
+    if (
+        not args.version_upgrade
+        and not pkg_mng.PROGRESS_REPORTING
+        and not args.no_progress
+    ):
         # even if progress reporting is unavailable we want info that update finished
         if agent_type is AgentType.UPDATE_VM:
             print(f"{55:.2f}", flush=True, file=sys.stderr)

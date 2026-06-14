@@ -78,6 +78,33 @@ class PackageManager:
                 print(result.err, file=sys.stderr, flush=True)
         return result.code
 
+    def version_upgrade(
+        self,
+        target_version: str,
+        print_streams: bool = False,
+    ) -> int:
+        """
+        Upgrade the distribution to the next major release.
+
+        Separate from `upgrade`, which only refreshes packages within the
+        current release. The family-specific work lives in
+        `_release_upgrade`.
+
+        :param target_version: the major release to move to, e.g. "42"
+        :param print_streams: dump captured output to std streams
+        :return: return code (0 on success)
+        """
+        result = self._release_upgrade(target_version)
+        self._log_output("version-upgrade", result)
+        # Logs are for the agent log; print_streams is only CLI passthrough.
+        # Avoid printing again when the subprocess already streamed live.
+        if print_streams and not result.posted:
+            if result.out:
+                print(result.out, flush=True)
+            if result.err:
+                print(result.err, file=sys.stderr, flush=True)
+        return result.code
+
     def _upgrade(
         self,
         refresh: bool,
@@ -311,6 +338,23 @@ class PackageManager:
         cmd = [self.package_manager, *self.get_action(remove_obsolete)]
 
         return self.run_cmd(cmd)
+
+    def _release_upgrade(self, target_version: str) -> ProcessResult:
+        """
+        Perform a distribution release upgrade.
+
+        Overridden per package-manager family. The default raises
+        NotImplementedError; callers (e.g. entrypoint.main) catch it and
+        decide how to report the unsupported path.
+        """
+        raise self._missing_release_upgrade_error()
+
+    def _missing_release_upgrade_error(self) -> NotImplementedError:
+        """Build the error used when a family has no release upgrade."""
+        return NotImplementedError(
+            "Distribution version upgrade is not implemented for this "
+            f"package manager ({self.package_manager})."
+        )
 
     def clean(self) -> int:
         """

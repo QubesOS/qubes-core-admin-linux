@@ -1,28 +1,23 @@
 #!/usr/bin/python3
 """
-qvm-template-upgrade — perform an N -> N+1 distro version upgrade of a qube
+qvm-template-upgrade — upgrade a qube to the next distro release.
 
 Workflow:
     1. Validate that --template names an existing TemplateVM or StandaloneVM.
-    2. Read os-distribution / os-version from qvm-features.
-    3. Compute the target version as os-version + 1 (N -> N+1 is the
-       only supported scope; multi-hop is rejected by construction).
-    4. Clone the qube to a new name derived from the target version.
-    5. Run the in-VM version-upgrade agent inside the clone
-        (reuses the vmupdate qrexec transport — currently stubbed).
-    6. On success: update template metadata features on the clone.
-    7. On failure: remove the half-upgraded clone unless
-       --keep-new-on-failure.
+    2. Compute the target as os-version + 1 (only consecutive upgrades).
+    3. Clone the qube to a new name derived from the target version.
+    4. Run the in-VM version-upgrade agent inside the clone.
+    5. On success, update template metadata on the clone.
+    6. On failure, remove the clone unless --keep-new-on-failure.
 
-The original qube is never touched by this tool. AppVMs based on a source
-template continue to use it until the user manually switches them and
-uninstalls the old template.
+The original qube is never touched, so it stays available as the fallback.
 """
 
 import argparse
 import logging
 import sys
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from typing import Optional, Sequence, Tuple
 
 import qubesadmin
@@ -31,7 +26,10 @@ import qubesadmin.exc
 import qubesadmin.tools
 import qubesadmin.vm
 
+from vmupdate.agent.source.args import AgentArgs
 from vmupdate.agent.source.common.exit_codes import EXIT
+from vmupdate.agent.source.status import FormatedLine
+from vmupdate.update_manager import update_qube
 
 LOG_PATH = "/var/log/qubes/qvm-template-upgrade.log"
 LOG_FORMAT = "%(asctime)s %(levelname)s %(message)s"
@@ -48,6 +46,24 @@ class UpgradeError(Exception):
 
 class ValidationError(Exception):
     """Invalid user input or unsupported source qube."""
+
+
+class _AgentOutput:
+    """Minimal status sink that logs the agent's output for a single qube.
+
+    Replaces the bulk updater's multiprocessing progress queue, which we
+    don't need when upgrading exactly one qube synchronously.
+    """
+
+    def __init__(self, log: logging.Logger) -> None:
+        self.log = log
+
+    def put(self, item) -> None:
+        # The transport streams agent output as FormatedLine objects; forward
+        # those to the log and drop the StatusInfo progress ticks, which need
+        # the bulk updater's progress bar to mean anything.
+        if isinstance(item, (str, FormatedLine)):
+            self.log.info("%s", item)
 
 
 def compute_target_version(current: str) -> str:
@@ -243,8 +259,8 @@ class TemplateUpgrader:
         supported = SUPPORTED_DISTROS & candidates
         if not supported:
             raise ValidationError(
-                f"Unsupported distro {distro!r}; only Fedora- and "
-                f"Debian-based qubes are supported for now."
+                f"Unsupported distro {distro!r}; supported distro families "
+                f"are: {', '.join(d.capitalize() for d in sorted(SUPPORTED_DISTROS))}."
             )
         return sorted(supported)[0], version
 
@@ -264,59 +280,70 @@ class TemplateUpgrader:
         self.cloned_qube = self.app.clone_vm(self.source_vm, self.new_name)
 
     def run_agent(self) -> None:
-        """Run the in-VM upgrade agent inside the clone.
+        """Run the in-VM version-upgrade agent inside the clone.
 
-        STUB: replaced in a follow-up commit by a dispatch into a new
-        `version_upgrade(target_version)` method on the existing
-        vmupdate agent (vmupdate/agent/source/{dnf,apt}/), reused via the
-        qrexec transport in qube_connection.py. The VM-side agent must
-        re-detect or verify the distro from inside the qube before running
-        distro-specific upgrade commands.
+        Reuses the vmupdate qrexec transport (``update_qube``) with a minimal
+        status sink instead of the bulk updater's progress bar. A non-zero
+        agent result becomes an UpgradeError so main() rolls the clone back.
         """
-        raise NotImplementedError(
-            f"version-upgrade agent is not implemented yet for "
-            f"{self.cloned_qube.name} -> {self.target_version}"
+        agent_args = self._build_agent_args()
+        status_notifier = _AgentOutput(self.log)
+        termination = SimpleNamespace(value=False)
+
+        self.log.info(
+            "Running version-upgrade agent in %s (-> %s)",
+            self.cloned_qube.name,
+            self.target_version,
         )
+        _name, result = update_qube(
+            self.cloned_qube,
+            agent_args,
+            show_progress=True,
+            status_notifier=status_notifier,
+            termination=termination,
+            dom0=False,
+        )
+        if result.code != EXIT.OK:
+            raise UpgradeError(
+                f"in-VM version-upgrade agent failed for "
+                f"{self.cloned_qube.name} (exit code {result.code}); "
+                f"see /var/log/qubes/update-{self.cloned_qube.name}.log"
+            )
+
+    def _build_agent_args(self) -> argparse.Namespace:
+        """Build the entrypoint args for a version-upgrade agent run.
+
+        Reuse the agent's parser for proper defaults and set only the target
+        version; display_name is unused with our private sink.
+        """
+        parser = argparse.ArgumentParser()
+        AgentArgs.add_arguments(parser)
+        agent_args = parser.parse_args(
+            [
+                "--version-upgrade",
+                self.target_version,
+                "--log",
+                self.args.log,
+            ]
+        )
+        agent_args.display_name = None
+        return agent_args
 
     def finalize(self) -> None:
         """Write post-upgrade qvm-features on the clone.
 
-        TemplateVM: always set template-name (required so qvm-template
-        recognises the upgraded clone as managed) and refresh
-        template-installtime.
-
-        StandaloneVM: rewrite an existing template-name from the old to
-        the new release (e.g. fedora-41 -> fedora-42), keeping the value
-        compatible with qui.utils.check_support()'s EOL_DATES lookup
-        (which strips only -minimal / -xfce, not -standalone or the qube
-        name). We do not invent a template-name for standalones that
-        never had one, and we leave one in place that doesn't carry the
-        current version (can't safely transform).
+        Only TemplateVMs are touched: template-name marks the clone as
+        managed by qvm-template and template-installtime is refreshed.
+        StandaloneVMs are outside qvm-template's management model, so their
+        template-* features are left as inherited.
         """
+        if self.cloned_qube.klass != "TemplateVM":
+            return
         self.log.info("Updating metadata on %s", self.cloned_qube.name)
-        if self.cloned_qube.klass == "TemplateVM":
-            self.cloned_qube.features["template-name"] = self.cloned_qube.name
-            self.cloned_qube.features["template-installtime"] = datetime.now(
-                tz=timezone.utc
-            ).strftime(DATE_FMT)
-            return
-        old = self.cloned_qube.features.get("template-name")
-        if not old:
-            return
-        if self.current_version not in old:
-            # template-name doesn't carry the current version (custom
-            # value, manual edit) it is safer to leave it alone than to
-            # guess what the user intended.
-            self.log.info(
-                "Leaving standalone template-name=%r untouched "
-                "(no version substring to rewrite)",
-                old,
-            )
-            return
-        new = derive_clone_name(
-            old, self.current_version, self.target_version, None
-        )
-        self.cloned_qube.features["template-name"] = new
+        self.cloned_qube.features["template-name"] = self.cloned_qube.name
+        self.cloned_qube.features["template-installtime"] = datetime.now(
+            tz=timezone.utc
+        ).strftime(DATE_FMT)
 
     def rollback(self) -> None:
         """Remove the half-upgraded clone, if any. Safe to call repeatedly."""
@@ -324,6 +351,14 @@ class TemplateUpgrader:
             return
         self.log.warning("Removing failed clone %s", self.cloned_qube.name)
         try:
+            # The clone is discarded after a failed upgrade, so kill it
+            # immediately instead of waiting for a graceful shutdown. kill()
+            # already no-ops with QubesVMNotStartedError when the clone has
+            # halted, so swallow that and delete it regardless.
+            try:
+                self.cloned_qube.kill()
+            except qubesadmin.exc.QubesVMNotStartedError:
+                pass
             del self.app.domains[self.cloned_qube.name]
         except qubesadmin.exc.QubesException as err:
             self.log.error(
@@ -385,11 +420,7 @@ def main(
         print(f"error: {err}", file=sys.stderr)
         return EXIT.ERR
 
-    label = (
-        "template"
-        if upgrader.cloned_qube.klass == "TemplateVM"
-        else "standalone"
-    )
+    label = upgrader.cloned_qube.klass.lower().removesuffix("vm")
     print(f"Upgrade complete. New {label}: {upgrader.cloned_qube.name}")
     print(f"Original qube {upgrader.source_vm.name} is untouched.")
     return EXIT.OK
