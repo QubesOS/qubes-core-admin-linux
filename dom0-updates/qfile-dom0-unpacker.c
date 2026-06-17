@@ -12,6 +12,7 @@
 #include <errno.h>
 #include <limits.h>
 #include <libqubes-rpc-filecopy.h>
+#include <qubes/pure.h>
 
 #define DEFAULT_MAX_UPDATES_BYTES (4LL<<30)
 #define DEFAULT_MAX_UPDATES_FILES 4096
@@ -25,24 +26,14 @@ static long long parse_limit_env(const char *name, long long fallback)
     if (!value)
         return fallback;
 
-    if (*value < '0' || *value > '9') {
-        fprintf(stderr, "Invalid value for %s: %s: not a non-negative integer\n", name, value);
-        exit(1);
-    }
-
-    errno = 0;
-    char *end = NULL;
-    long long limit = strtoll(value, &end, 10);
-    if (errno == ERANGE) {
+    long long limit;
+    int rc = qubes_pure_parse_nonneg_ll(value, &limit);
+    if (rc == -ERANGE) {
         fprintf(stderr, "Invalid value for %s: %s: out of range\n", name, value);
         exit(1);
     }
-    if (*end != '\0') {
-        fprintf(stderr, "Invalid value for %s: %s: trailing non-numeric characters\n", name, value);
-        exit(1);
-    }
-    if (limit == 0 && strcmp(value, "0") != 0) {
-        fprintf(stderr, "Invalid value for %s: %s: invalid zero representation\n", name, value);
+    if (rc != 0) {
+        fprintf(stderr, "Invalid value for %s: %s: not a valid non-negative integer\n", name, value);
         exit(1);
     }
 
