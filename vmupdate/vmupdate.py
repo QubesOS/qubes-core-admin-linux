@@ -337,6 +337,9 @@ def select_targets(targets, args) -> Set[qubesadmin.vm.QubesVM]:
             skip_update = False
 
         if skip_update or prohibit_start:
+            if not args.quiet:
+                print("Skipped {}. Marked to skip updates or start prohibited",
+                      vm.name)
             continue
 
         # there are updates available => select
@@ -347,10 +350,17 @@ def select_targets(targets, args) -> Set[qubesadmin.vm.QubesVM]:
         # update vm only if there are updates available
         # and that's not true at this point => skip
         if args.update_if_available:
+            if not args.quiet:
+                print("Skipped {}. No updates available or not recently ",
+                      "checked for updates.", vm.name)
             continue
 
         if is_stale(vm, expiration_period=args.update_if_stale):
             selected.add(vm)
+        else:
+            if not args.quiet:
+                print("Skipped {}. No updates available or last check still ",
+                      "within stale period.", vm.name)
 
     return selected
 
