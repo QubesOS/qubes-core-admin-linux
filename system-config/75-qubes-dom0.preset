@@ -11,6 +11,7 @@ disable systemd-timesyncd.service
 disable systemd-networkd.service
 disable systemd-resolved.service
 disable systemd-homed.service
+disable systemd-homed-activate.service
 disable chronyd.service
 
 # Locally-running services
