@@ -59,8 +59,10 @@ def main(args=None, app=qubesadmin.Qubes()):
 
     if not targets:
         if not args.quiet:
-            print("No qube eligible for update. Try --force-update to ensure ",
-                  "all qubes are checked for new updates.")
+            print(
+                "No qube eligible for update. Try --force-update to ensure ",
+                "all qubes are checked for new updates.",
+            )
         return EXIT.OK_NO_UPDATES if args.signal_no_updates else EXIT.OK
 
     independent = [target for target in targets if target.klass in (
@@ -244,8 +246,10 @@ def select_targets(targets, args) -> Set[qubesadmin.vm.QubesVM]:
 
         if skip_update or prohibit_start:
             if not args.quiet:
-                print("Skipped {}. Marked to skip updates or start prohibited",
-                      vm.name)
+                print(
+                    "Skipped {}. Marked to skip updates or start prohibited",
+                    vm.name,
+                )
             continue
 
         # there are updates available => select
@@ -257,16 +261,22 @@ def select_targets(targets, args) -> Set[qubesadmin.vm.QubesVM]:
         # and that's not true at this point => skip
         if args.update_if_available:
             if not args.quiet:
-                print("Skipped {}. No updates available or not recently ",
-                      "checked for updates.", vm.name)
+                print(
+                    "Skipped {}. No updates available or not recently ",
+                    "checked for updates.",
+                    vm.name,
+                )
             continue
 
         if is_stale(vm, expiration_period=args.update_if_stale):
             selected.add(vm)
         else:
             if not args.quiet:
-                print("Skipped {}. No updates available or last check still ",
-                      "within stale period.", vm.name)
+                print(
+                    "Skipped {}. No updates available or last check still ",
+                    "within stale period.",
+                    vm.name,
+                )
 
     return selected
 
