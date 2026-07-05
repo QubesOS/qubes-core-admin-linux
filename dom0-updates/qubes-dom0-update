@@ -245,12 +245,6 @@ if [ "$GUI" == "1" ]; then
     fi
 fi
 
-# Do not start VM automatically when running from cron (only checking for updates)
-if [ "$CHECK_ONLY" == "1" ] && ! qvm-check -q --running "$UPDATEVM" > /dev/null 2>&1; then
-    echo "ERROR: UpdateVM not running, not starting it in non-interactive mode" >&2
-    exit 1
-fi
-
 if [ -n "$CLEAN" ]; then
     rm -f /var/lib/qubes/updates/rpm/*
     rm -f /var/lib/qubes/updates/repodata/*
