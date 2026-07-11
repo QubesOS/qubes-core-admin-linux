@@ -88,7 +88,9 @@ class ProcessResult:
             [
                 c
                 for c in untrusted_str
-                if 0x20 <= ord(c) <= 0x7E or (c == "\n" and not single)
+                if 0x20 <= ord(c) <= 0x7E
+                or c == "\t"
+                or (c == "\n" and not single)
             ]
         )
 
