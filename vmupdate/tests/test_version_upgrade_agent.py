@@ -26,7 +26,7 @@ The agent modules use absolute ``source.*`` imports because inside a qube
 they run with the agent directory as the top-level package root (see
 ``entrypoint.py``). We mirror that here by putting the agent directory on
 ``sys.path`` so the agent can be imported and unit-tested in isolation, with
-``subprocess`` fully mocked -- no real dnf is ever invoked.
+``subprocess`` fully mocked -- no real package manager is ever invoked.
 """
 
 import os
@@ -47,6 +47,7 @@ if _AGENT_DIR not in sys.path:
 # pylint: disable=wrong-import-position
 import entrypoint
 from source.dnf.dnf_cli import DNFCLI
+from source.apt.apt_cli import APTCLI
 from source.common.package_manager import PackageManager, AgentType
 from source.common.process_result import ProcessResult
 from source.common.exit_codes import EXIT
@@ -130,9 +131,9 @@ def test_version_upgrade_refuses_non_numeric_target():
 @pytest.mark.parametrize(
     "target,current",
     [
-        ("41", "41"),  # no-op
-        ("40", "41"),  # downgrade
-        ("43", "41"),  # two-step jump
+        ("41", "41"),
+        ("40", "41"),
+        ("43", "41"),
     ],
 )
 def test_version_upgrade_enforces_single_step(target, current):
@@ -200,12 +201,10 @@ def test_version_upgrade_maps_distro_sync_failure():
     assert code == EXIT.ERR_VM_UPDATE
 
 
-# Base class -- loud fail-closed default, covers Debian/apt + Arch
+# Base class -- fail-closed default for families without an implementation
 
 
 def test_base_version_upgrade_fails_loud():
-    # Families without a real implementation must raise NotImplementedError
-    # so callers can decide how to log and map the unsupported path.
     mgr = PackageManager(logging.NullHandler(), logging.DEBUG, AgentType.VM)
     with pytest.raises(NotImplementedError, match="not implemented"):
         mgr._release_upgrade("42")
@@ -298,3 +297,296 @@ def test_entrypoint_runs_normal_update_without_flag():
     pkg_mng.upgrade.assert_called_once()
     pkg_mng.version_upgrade.assert_not_called()
     assert code == EXIT.OK
+
+
+# APTCLI Debian release-upgrade path
+
+
+def test_apt_api_refresh_reloads_sources_before_update():
+    apt_api = pytest.importorskip("source.apt.apt_api")
+    mgr = apt_api.APT.__new__(apt_api.APT)
+    mgr.wait_for_lock = MagicMock()
+    mgr.apt_cache = MagicMock()
+    mgr.progress = MagicMock()
+    mgr.log = MagicMock()
+    calls = []
+
+    mgr.apt_cache.open.side_effect = lambda: calls.append("open")
+
+    def update(*_args, **_kwargs):
+        calls.append("update")
+        return True
+
+    mgr.apt_cache.update.side_effect = update
+
+    result = mgr.refresh(hard_fail=True)
+
+    assert result.code == EXIT.OK
+    assert calls == ["open", "update", "open"]
+
+
+def make_apt_cli():
+    """Build an APTCLI without requiring a real apt on the host."""
+    return APTCLI(logging.NullHandler(), logging.DEBUG, AgentType.VM)
+
+
+def debian_os_data(release="12", codename="bookworm"):
+    return {
+        "id": "debian",
+        "os_family": "Debian",
+        "release": release,
+        "codename": codename,
+    }
+
+
+# APTCLI in-qube guard (single-step, Debian-only, codenames must resolve)
+
+
+def _apt_guard(os_data, target):
+    return make_apt_cli()._verify_release_upgrade(target, os_data)
+
+
+def test_apt_guard_refuses_non_debian_family():
+    assert _apt_guard(fedora_os_data("41"), "42").code == EXIT.ERR_VM_UPDATE
+
+
+def test_apt_guard_refuses_non_numeric_target():
+    result = _apt_guard(debian_os_data("12", "bookworm"), "trixie")
+    assert result.code == EXIT.ERR_VM_UPDATE
+
+
+@pytest.mark.parametrize(
+    "target,current",
+    [
+        ("12", "12"),
+        ("11", "12"),
+        ("14", "12"),
+    ],
+)
+def test_apt_guard_enforces_single_step(target, current):
+    result = _apt_guard(debian_os_data(current, "bookworm"), target)
+    assert result.code == EXIT.ERR_VM_UPDATE
+
+
+def test_apt_guard_refuses_unknown_target_codename():
+    # 14->15 is a single step, but 15 is not in DEBIAN_CODENAMES yet
+    result = _apt_guard(debian_os_data("14", "forky"), "15")
+    assert result.code == EXIT.ERR_VM_UPDATE
+
+
+def test_apt_guard_refuses_missing_codename():
+    os_data = {"id": "debian", "os_family": "Debian", "release": "12"}
+    assert _apt_guard(os_data, "13").code == EXIT.ERR_VM_UPDATE
+
+
+def test_apt_guard_passes_for_single_step_debian():
+    assert _apt_guard(debian_os_data("12", "bookworm"), "13").code == EXIT.OK
+
+
+# APTCLI._release_upgrade composition (apt mocked at the step level)
+
+
+def _record_apt_steps(mgr, calls, fail_on=None, cleanup_fail=False):
+    """Replace the composed steps with recorders."""
+
+    def refresh(hard_fail):
+        calls.append("refresh")
+        return ProcessResult(EXIT.ERR if fail_on == "refresh" else EXIT.OK)
+
+    def upgrade_internal(remove_obsolete):
+        calls.append("upgrade")
+        return ProcessResult(EXIT.ERR if fail_on == "upgrade" else EXIT.OK)
+
+    def dist_upgrade():
+        calls.append("dist-upgrade")
+        return ProcessResult(EXIT.ERR if fail_on == "dist-upgrade" else EXIT.OK)
+
+    def rewrite(old_codename, new_codename):
+        calls.append(f"rewrite:{old_codename}->{new_codename}")
+        return ProcessResult(EXIT.ERR if fail_on == "rewrite" else EXIT.OK)
+
+    def remove_obsolete_kernels():
+        calls.append("kernel-cleanup")
+        return ProcessResult(EXIT.ERR_VM_CLEANUP if cleanup_fail else EXIT.OK)
+
+    mgr.refresh = refresh
+    mgr.upgrade_internal = upgrade_internal
+    mgr._dist_upgrade = dist_upgrade
+    mgr._rewrite_sources = rewrite
+    mgr.remove_obsolete_kernels = remove_obsolete_kernels
+
+
+def test_apt_release_upgrade_happy_path_order(capsys):
+    mgr = make_apt_cli()
+    calls = []
+    _record_apt_steps(mgr, calls)
+    with patch(
+        "source.apt.apt_cli.get_os_data",
+        side_effect=[
+            debian_os_data("12", "bookworm"),
+            debian_os_data("13", "trixie"),
+        ],
+    ):
+        code = mgr.version_upgrade("13")
+
+    assert code == EXIT.OK
+    assert calls == [
+        "refresh",
+        "upgrade",
+        "rewrite:bookworm->trixie",
+        "refresh",
+        "upgrade",
+        "dist-upgrade",
+        "kernel-cleanup",
+    ]
+    # the QubeConnection progress contract: bare floats, terminated by 100.00
+    assert capsys.readouterr().err.split() == ["0.00", "100.00"]
+
+
+def test_apt_release_upgrade_survives_kernel_cleanup_failure(capsys):
+    # a successful release bump must not be discarded because the trailing
+    # best-effort obsolete-kernel cleanup failed
+    mgr = make_apt_cli()
+    calls = []
+    _record_apt_steps(mgr, calls, cleanup_fail=True)
+    with patch(
+        "source.apt.apt_cli.get_os_data",
+        side_effect=[
+            debian_os_data("12", "bookworm"),
+            debian_os_data("13", "trixie"),
+        ],
+    ):
+        code = mgr.version_upgrade("13")
+
+    assert code == EXIT.OK
+    assert calls[-1] == "kernel-cleanup"
+    assert capsys.readouterr().err.split() == ["0.00", "100.00"]
+
+
+def test_apt_release_upgrade_bails_before_rewrite_when_update_fails(capsys):
+    mgr = make_apt_cli()
+    calls = []
+    _record_apt_steps(mgr, calls, fail_on="refresh")
+    with patch(
+        "source.apt.apt_cli.get_os_data",
+        return_value=debian_os_data("12", "bookworm"),
+    ):
+        code = mgr.version_upgrade("13")
+
+    assert code == EXIT.ERR_VM_UPDATE
+    # first apt-get update fails: sources never rewritten, no dist-upgrade
+    assert calls == ["refresh"]
+    assert capsys.readouterr().err.split() == ["0.00"]
+
+
+def test_apt_release_upgrade_maps_dist_upgrade_failure(capsys):
+    mgr = make_apt_cli()
+    calls = []
+    _record_apt_steps(mgr, calls, fail_on="dist-upgrade")
+    with patch(
+        "source.apt.apt_cli.get_os_data",
+        return_value=debian_os_data("12", "bookworm"),
+    ):
+        code = mgr.version_upgrade("13")
+
+    assert code == EXIT.ERR_VM_UPDATE
+    assert calls[-1] == "dist-upgrade"
+    assert "100.00" not in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "actual",
+    [
+        debian_os_data("12", "bookworm"),
+        debian_os_data("13", "bookworm"),
+    ],
+)
+def test_apt_release_upgrade_verifies_target_release(actual, capsys):
+    mgr = make_apt_cli()
+    calls = []
+    _record_apt_steps(mgr, calls)
+    with patch(
+        "source.apt.apt_cli.get_os_data",
+        side_effect=[debian_os_data("12", "bookworm"), actual],
+    ):
+        code = mgr.version_upgrade("13")
+
+    assert code == EXIT.ERR_VM_UPDATE
+    assert calls[-1] == "dist-upgrade"
+    assert "kernel-cleanup" not in calls
+    assert "100.00" not in capsys.readouterr().err
+
+
+def test_apt_release_upgrade_guard_failure_short_circuits(capsys):
+    mgr = make_apt_cli()
+    calls = []
+    _record_apt_steps(mgr, calls)
+    with patch(
+        "source.apt.apt_cli.get_os_data", return_value=fedora_os_data("41")
+    ):
+        code = mgr.version_upgrade("42")
+
+    assert code == EXIT.ERR_VM_UPDATE
+    assert calls == []  # no apt call, no rewrite, no progress
+    assert capsys.readouterr().err.split() == []
+
+
+# apt sources codename rewrite
+
+
+def test_apt_rewrites_list_and_deb822_sources(tmp_path):
+    mgr = make_apt_cli()
+    listd = tmp_path / "sources.list.d"
+    listd.mkdir()
+    main = tmp_path / "sources.list"
+    main.write_text("deb http://deb.debian.org/debian bookworm main\n")
+    qubes = listd / "qubes-r4.list"
+    qubes.write_text(
+        "deb [arch=amd64] https://deb.qubes-os.org/r4.2/vm bookworm main\n"
+    )
+    deb822 = listd / "debian.sources"
+    deb822.write_text(
+        "Types: deb\n"
+        "URIs: http://deb.debian.org/debian\n"
+        "Suites: bookworm bookworm-security bookworm-updates\n"
+        "Components: main\n"
+    )
+    untouched = listd / "thirdparty.list"
+    untouched.write_text("deb http://example.com/repo stable main\n")
+    before = untouched.read_text()
+
+    globs = (
+        str(main),
+        str(tmp_path / "absent.list"),  # missing files are skipped
+        str(listd / "*.list"),
+        str(listd / "*.sources"),
+    )
+    with patch.object(APTCLI, "APT_SOURCE_GLOBS", globs):
+        result = mgr._rewrite_sources("bookworm", "trixie")
+
+    assert result.code == EXIT.OK
+    assert main.read_text() == "deb http://deb.debian.org/debian trixie main\n"
+    assert "trixie" in qubes.read_text() and "bookworm" not in qubes.read_text()
+    assert "Suites: trixie trixie-security trixie-updates" in deb822.read_text()
+    # a file with no codename occurrence is left byte-identical
+    assert untouched.read_text() == before
+    # the atomic write-then-rename leaves no temp files behind
+    assert list(tmp_path.rglob("*.tmp")) == []
+
+
+def test_apt_rewrite_refuses_when_no_source_uses_the_codename(tmp_path):
+    # symbolically addressed sources (e.g. `stable`) never mention the
+    # codename: the rewrite would be a no-op, so refuse rather than let the
+    # qube silently stay on the old release while dom0 stamps it upgraded
+    mgr = make_apt_cli()
+    listd = tmp_path / "sources.list.d"
+    listd.mkdir()
+    main = tmp_path / "sources.list"
+    main.write_text("deb http://deb.debian.org/debian stable main\n")
+    before = main.read_text()
+    globs = (str(main), str(listd / "*.list"), str(listd / "*.sources"))
+    with patch.object(APTCLI, "APT_SOURCE_GLOBS", globs):
+        result = mgr._rewrite_sources("bookworm", "trixie")
+
+    assert result.code == EXIT.ERR_VM_UPDATE
+    assert main.read_text() == before  # nothing written

@@ -255,14 +255,18 @@ class TemplateUpgrader:
                 f"os-version features. Start the qube once so the in-VM "
                 f"agent can report them, then retry."
             )
-        candidates = {distro.lower(), *distro_like.lower().split()}
-        supported = SUPPORTED_DISTROS & candidates
-        if not supported:
+        # os-distribution takes priority over os-distribution-like, whose
+        # entries are already ordered by closeness (cf. ID_LIKE in os-release)
+        candidates = [distro.lower(), *distro_like.lower().split()]
+        supported = next(
+            (c for c in candidates if c in SUPPORTED_DISTROS), None
+        )
+        if supported is None:
             raise ValidationError(
                 f"Unsupported distro {distro!r}; supported distro families "
                 f"are: {', '.join(d.capitalize() for d in sorted(SUPPORTED_DISTROS))}."
             )
-        return sorted(supported)[0], version
+        return supported, version
 
     def describe_plan(self) -> str:
         return (
@@ -403,7 +407,6 @@ def main(
 
     try:
         upgrader.run_agent()
-        upgrader.finalize()
     except (
         UpgradeError,
         NotImplementedError,
@@ -419,6 +422,19 @@ def main(
             )
         print(f"error: {err}", file=sys.stderr)
         return EXIT.ERR
+
+    # the OS upgrade succeeded: a metadata-write hiccup must not roll the
+    # upgraded clone back, only tell the user what to stamp manually
+    try:
+        upgrader.finalize()
+    except qubesadmin.exc.QubesException as err:
+        log.warning("Could not write post-upgrade features: %s", err)
+        print(
+            f"warning: {upgrader.cloned_qube.name} was upgraded, but "
+            f"writing its template-* features failed: {err}. Set them "
+            f"manually with qvm-features.",
+            file=sys.stderr,
+        )
 
     label = upgrader.cloned_qube.klass.lower().removesuffix("vm")
     print(f"Upgrade complete. New {label}: {upgrader.cloned_qube.name}")

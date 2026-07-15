@@ -61,10 +61,17 @@ class APT(APTCLI):
         result = ProcessResult()
         try:
             self.log.debug("Refreshing available packages...")
+            # apt.Cache retains the SourceList loaded by open().  Release
+            # upgrades rewrite the source files between refreshes, so reload
+            # them before update(), just as the dnf API release-upgrade path
+            # creates a fresh base for the target release.
+            self.apt_cache.open()
             success = self.apt_cache.update(
                 self.progress.update_progress,
                 pulse_interval=1000,  # microseconds
             )
+            # Reload the package cache again to consume the indexes fetched
+            # by update().
             self.apt_cache.open()
             if success:
                 self.log.debug("Cache refresh successful.")

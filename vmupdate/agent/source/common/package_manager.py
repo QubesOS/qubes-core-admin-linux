@@ -347,14 +347,51 @@ class PackageManager:
         NotImplementedError; callers (e.g. entrypoint.main) catch it and
         decide how to report the unsupported path.
         """
-        raise self._missing_release_upgrade_error()
-
-    def _missing_release_upgrade_error(self) -> NotImplementedError:
-        """Build the error used when a family has no release upgrade."""
-        return NotImplementedError(
+        raise NotImplementedError(
             "Distribution version upgrade is not implemented for this "
             f"package manager ({self.package_manager})."
         )
+
+    def _verify_release_upgrade(
+        self, target: str, os_data: dict
+    ) -> ProcessResult:
+        """
+        Refuse (errored ProcessResult) unless ``target`` is a plain release
+        number exactly one above the in-qube major release. dom0 derives the
+        target from qvm-features that can drift, hence this in-qube re-check
+        before anything irreversible. Families extend it with their own
+        checks.
+        """
+        if not target.isdigit():
+            return self._refuse(f"invalid target release {target!r}.")
+
+        current_major = os_data.get("release", "").split(".")[0]
+        if not current_major.isdigit():
+            return self._refuse(
+                f"cannot read a numeric in-qube release from "
+                f"{os_data.get('release')!r}."
+            )
+        if int(target) != int(current_major) + 1:
+            return self._refuse(
+                f"in-qube release {os_data.get('release')!r} can only move "
+                f"to {int(current_major) + 1} (single step), not {target!r}."
+            )
+
+        return ProcessResult()
+
+    def _refuse(self, reason: str) -> ProcessResult:
+        """Log and build the standard "refusing version upgrade" error."""
+        msg = f"Refusing version upgrade: {reason}"
+        self.log.error(msg)
+        return ProcessResult(EXIT.ERR_VM_UPDATE, out="", err=msg)
+
+    @staticmethod
+    def _report_progress(percent: float) -> None:
+        """
+        Emit a progress milestone: a bare float per line on stderr, parsed
+        by dom0's QubeConnection. 100.0 signals completion.
+        """
+        print(f"{percent:.2f}", flush=True, file=sys.stderr)
 
     def clean(self) -> int:
         """

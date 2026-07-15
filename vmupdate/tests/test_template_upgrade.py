@@ -123,7 +123,7 @@ def test_dry_run_does_not_mutate(capsys):
             "os-distribution": "ubuntu",
             "os-distribution-like": "debian",
             "os-version": "22",
-        }
+        },
     )
     before = dict(vm.features)
 
@@ -135,6 +135,44 @@ def test_dry_run_does_not_mutate(capsys):
     assert app.clone_calls == []
     assert vm.features == before
     assert "would clone ubuntu-22 -> ubuntu-23" in capsys.readouterr().out
+
+
+def test_finalize_failure_does_not_roll_back(monkeypatch, capsys):
+    # a metadata-write failure after a successful in-VM upgrade must keep
+    # the upgraded clone; only run_agent failures trigger rollback
+    app = CloneApp()
+    add_template(app)
+
+    def fake_update_qube(qube, agent_args, **kwargs):
+        return qube.name, ProcessResult(EXIT.OK)
+
+    def failing_finalize(self):
+        raise template_upgrade.qubesadmin.exc.QubesException(
+            "feature write failed"
+        )
+
+    monkeypatch.setattr(template_upgrade, "update_qube", fake_update_qube)
+    monkeypatch.setattr(
+        template_upgrade.TemplateUpgrader, "finalize", failing_finalize
+    )
+
+    retcode = template_upgrade.main(["--template", "fedora-41"], app)
+
+    assert retcode == EXIT.OK
+    assert "fedora-42" in app.domains  # upgraded clone kept
+    assert "Set them manually" in capsys.readouterr().err
+
+
+def test_detect_distro_prefers_os_distribution_over_distro_like():
+    # priority is os-distribution first, then os-distribution-like -- never
+    # alphabetical: a Fedora template listing debian in distro-like must
+    # take the Fedora path
+    app = CloneApp()
+    vm = add_template(app, **{"os-distribution-like": "debian"})
+    upgrader = template_upgrade.TemplateUpgrader(app, None, Mock())
+    upgrader.source_vm = vm
+
+    assert upgrader._detect_distro() == ("fedora", "41")
 
 
 def test_unsupported_distro_message_lists_supported_families(capsys):
@@ -258,6 +296,39 @@ def test_run_agent_failure_rolls_back_clone(monkeypatch, capsys):
     assert retcode == EXIT.ERR
     assert "fedora-42" not in app.domains
     assert "version-upgrade agent failed" in capsys.readouterr().err
+
+
+def _add_debian_template(app, name="debian-12"):
+    return add_template(
+        app,
+        name,
+        **{
+            "os-distribution": "debian",
+            "os-version": "12",
+            "template-version": "12",
+        },
+    )
+
+
+def test_run_agent_success_debian_invokes_transport(monkeypatch):
+    """The distro-agnostic orchestrator drives Debian end-to-end."""
+    app = CloneApp()
+    _add_debian_template(app)
+    captured = {}
+
+    def fake_update_qube(qube, agent_args, **kwargs):
+        captured["qube"] = qube
+        captured["agent_args"] = agent_args
+        return qube.name, ProcessResult(EXIT.OK)
+
+    monkeypatch.setattr(template_upgrade, "update_qube", fake_update_qube)
+
+    retcode = template_upgrade.main(["--template", "debian-12"], app)
+
+    assert retcode == EXIT.OK
+    assert captured["qube"].name == "debian-13"
+    assert captured["agent_args"].version_upgrade == "13"
+    assert app.domains["debian-13"].features["template-name"] == "debian-13"
 
 
 @pytest.mark.parametrize(
