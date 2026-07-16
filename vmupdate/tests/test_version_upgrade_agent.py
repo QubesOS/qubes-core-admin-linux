@@ -44,7 +44,7 @@ _AGENT_DIR = os.path.abspath(
 if _AGENT_DIR not in sys.path:
     sys.path.insert(0, _AGENT_DIR)
 
-# pylint: disable=wrong-import-position
+# pylint: disable=wrong-import-position,protected-access
 import entrypoint
 from source.dnf.dnf_cli import DNFCLI
 from source.apt.apt_cli import APTCLI
@@ -112,6 +112,34 @@ def test_version_upgrade_emits_progress_milestones(capsys):
     # The progress contract QubeConnection._collect_stderr parses: bare floats
     # terminated by 100.00.
     assert capsys.readouterr().err.split() == ["0.00", "100.00"]
+
+
+def test_version_upgrade_release_bump_goes_through_distro_sync_seam():
+    """The release bump must route through `_distro_sync`: the dnf/dnf5 API
+    subclasses override that method to report fine-grained progress, so the
+    base flow may not bypass it."""
+    mgr = make_dnf_cli()
+    seam_calls = []
+
+    def fake_distro_sync(target):
+        seam_calls.append(target)
+        return ProcessResult(EXIT.OK)
+
+    with patch.object(
+        mgr, "run_cmd", return_value=ProcessResult(EXIT.OK)
+    ) as run_cmd, patch.object(
+        mgr, "_distro_sync", side_effect=fake_distro_sync
+    ), patch(
+        "source.dnf.dnf_cli.get_os_data", return_value=fedora_os_data("41")
+    ):
+        code = mgr.version_upgrade("42")
+
+    assert code == EXIT.OK
+    assert seam_calls == ["42"]
+    # only the cache wipe still goes through run_cmd
+    assert [tuple(c.args[0]) for c in run_cmd.call_args_list] == [
+        ("dnf", "clean", "all")
+    ]
 
 
 # DNFCLI._release_upgrade -- in-qube re-verification (single-step only)
@@ -327,7 +355,16 @@ def test_apt_api_refresh_reloads_sources_before_update():
 
 def make_apt_cli():
     """Build an APTCLI without requiring a real apt on the host."""
-    return APTCLI(logging.NullHandler(), logging.DEBUG, AgentType.VM)
+    mgr = APTCLI(logging.NullHandler(), logging.DEBUG, AgentType.VM)
+    codenames = {
+        "11": "bullseye",
+        "12": "bookworm",
+        "13": "trixie",
+        "14": "forky",
+        "15": "duke",
+    }
+    mgr._debian_codename = codenames.get
+    return mgr
 
 
 def debian_os_data(release="12", codename="bookworm"):
@@ -339,15 +376,17 @@ def debian_os_data(release="12", codename="bookworm"):
     }
 
 
-# APTCLI in-qube guard (single-step, Debian-only, codenames must resolve)
+# APTCLI in-qube guard (single-step, current codename must be present)
 
 
 def _apt_guard(os_data, target):
     return make_apt_cli()._verify_release_upgrade(target, os_data)
 
 
-def test_apt_guard_refuses_non_debian_family():
-    assert _apt_guard(fedora_os_data("41"), "42").code == EXIT.ERR_VM_UPDATE
+def test_apt_guard_does_not_recheck_os_family():
+    os_data = debian_os_data("12", "bookworm")
+    os_data["os_family"] = "Unknown"
+    assert _apt_guard(os_data, "13").code == EXIT.OK
 
 
 def test_apt_guard_refuses_non_numeric_target():
@@ -368,12 +407,6 @@ def test_apt_guard_enforces_single_step(target, current):
     assert result.code == EXIT.ERR_VM_UPDATE
 
 
-def test_apt_guard_refuses_unknown_target_codename():
-    # 14->15 is a single step, but 15 is not in DEBIAN_CODENAMES yet
-    result = _apt_guard(debian_os_data("14", "forky"), "15")
-    assert result.code == EXIT.ERR_VM_UPDATE
-
-
 def test_apt_guard_refuses_missing_codename():
     os_data = {"id": "debian", "os_family": "Debian", "release": "12"}
     assert _apt_guard(os_data, "13").code == EXIT.ERR_VM_UPDATE
@@ -381,6 +414,19 @@ def test_apt_guard_refuses_missing_codename():
 
 def test_apt_guard_passes_for_single_step_debian():
     assert _apt_guard(debian_os_data("12", "bookworm"), "13").code == EXIT.OK
+
+
+def test_apt_reads_codename_from_distro_info(tmp_path):
+    releases = tmp_path / "debian.csv"
+    releases.write_text(
+        "version,codename,series,created,release,eol\n"
+        "14,Forky,forky,2025-08-09,,\n"
+        "15,Duke,duke,2027-08-01,,\n"
+    )
+
+    with patch.object(APTCLI, "DEBIAN_RELEASES_FILE", str(releases)):
+        assert APTCLI._debian_codename("15") == "duke"
+        assert APTCLI._debian_codename("16") is None
 
 
 # APTCLI._release_upgrade composition (apt mocked at the step level)
@@ -522,13 +568,45 @@ def test_apt_release_upgrade_guard_failure_short_circuits(capsys):
     calls = []
     _record_apt_steps(mgr, calls)
     with patch(
-        "source.apt.apt_cli.get_os_data", return_value=fedora_os_data("41")
+        "source.apt.apt_cli.get_os_data",
+        return_value=debian_os_data("12", ""),
     ):
-        code = mgr.version_upgrade("42")
+        code = mgr.version_upgrade("13")
 
     assert code == EXIT.ERR_VM_UPDATE
-    assert calls == []  # no apt call, no rewrite, no progress
-    assert capsys.readouterr().err.split() == []
+    assert not calls  # no apt call, no rewrite
+    assert not capsys.readouterr().err  # no progress emitted
+
+
+def test_apt_release_upgrade_refuses_unknown_target_codename(capsys):
+    mgr = make_apt_cli()
+    calls = []
+    _record_apt_steps(mgr, calls)
+    with patch(
+        "source.apt.apt_cli.get_os_data",
+        return_value=debian_os_data("15", "duke"),
+    ):
+        code = mgr.version_upgrade("16")
+
+    assert code == EXIT.ERR_VM_UPDATE
+    assert not calls
+    assert not capsys.readouterr().err
+
+
+def test_apt_release_upgrade_refuses_unreadable_release_data(capsys):
+    mgr = make_apt_cli()
+    mgr._debian_codename = MagicMock(side_effect=OSError("missing"))
+    calls = []
+    _record_apt_steps(mgr, calls)
+    with patch(
+        "source.apt.apt_cli.get_os_data",
+        return_value=debian_os_data("12", "bookworm"),
+    ):
+        code = mgr.version_upgrade("13")
+
+    assert code == EXIT.ERR_VM_UPDATE
+    assert not calls
+    assert not capsys.readouterr().err
 
 
 # apt sources codename rewrite
@@ -571,7 +649,7 @@ def test_apt_rewrites_list_and_deb822_sources(tmp_path):
     # a file with no codename occurrence is left byte-identical
     assert untouched.read_text() == before
     # the atomic write-then-rename leaves no temp files behind
-    assert list(tmp_path.rglob("*.tmp")) == []
+    assert not list(tmp_path.rglob("*.tmp"))
 
 
 def test_apt_rewrite_refuses_when_no_source_uses_the_codename(tmp_path):
@@ -589,4 +667,7 @@ def test_apt_rewrite_refuses_when_no_source_uses_the_codename(tmp_path):
         result = mgr._rewrite_sources("bookworm", "trixie")
 
     assert result.code == EXIT.ERR_VM_UPDATE
+    assert result.err.endswith(
+        "no apt source references codename 'bookworm'; refusing upgrade."
+    )
     assert main.read_text() == before  # nothing written

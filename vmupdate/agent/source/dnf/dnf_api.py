@@ -160,6 +160,52 @@ class DNF(DNFCLI):
 
         return result
 
+    def _distro_sync(self, target: str) -> ProcessResult:
+        """
+        Run the release bump through the dnf API, so fetch and
+        transaction progress reach dom0's progress bar as percentages
+        instead of the CLI's bare 0/100 milestones.
+
+        A fresh `dnf.Base` is built here: `self.base` from `__init__`
+        already resolved its substitutions and repos against the
+        current releasever.
+        """
+        result = ProcessResult()
+        try:
+            conf = dnf.conf.Conf()
+            conf.read()
+            # mirror the CLI flags: --best (--allowerasing is set on
+            # resolve below)
+            conf.best = True
+            conf.substitutions["releasever"] = target
+            base = dnf.Base(conf)
+            try:
+                base.read_all_repos()
+                base.fill_sack()
+                base.distro_sync()
+                # fill empty `Command line` column in dnf history
+                base.cmds = ["qubes-vm-update"]
+                base.resolve(allow_erasing=True)
+                trans = base.transaction
+                if not trans:
+                    self.log.info("Distro-sync found nothing to do.")
+                    return result
+                base.download_packages(
+                    trans.install_set, progress=self.progress.fetch_progress
+                )
+                result += sign_check(base, trans.install_set, self.log)
+                if result.code == EXIT.OK:
+                    self.log.debug("Committing distro-sync to %s...", target)
+                    base.do_transaction(self.progress.upgrade_progress)
+            finally:
+                base.close()
+        except Exception as exc:
+            self.log.error(
+                "An error occurred during release upgrade: %s", str(exc)
+            )
+            result += ProcessResult(EXIT.ERR_VM_UPDATE, out="", err=str(exc))
+        return result
+
 
 def sign_check(base, packages, log) -> ProcessResult:
     """

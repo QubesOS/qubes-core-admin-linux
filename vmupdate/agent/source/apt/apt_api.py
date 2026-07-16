@@ -90,10 +90,32 @@ class APT(APTCLI):
         """
         Use `apt` package to upgrade and track progress.
         """
+        result = self._api_upgrade(dist_upgrade=remove_obsolete)
+
+        if remove_obsolete:
+            result += self.remove_obsolete_kernels()
+
+        return result
+
+    def _dist_upgrade(self) -> ProcessResult:
+        """
+        API dist-upgrade without APTCLI's obsolete-kernel cleanup, keeping
+        callback-driven progress on the release-upgrade path.
+        """
+        # the release-upgrade step before this one committed a transaction,
+        # which leaves the cache stale; reload before marking changes
+        self.apt_cache.open()
+        return self._api_upgrade(dist_upgrade=True)
+
+    def _api_upgrade(self, dist_upgrade: bool) -> ProcessResult:
+        """
+        Mark an upgrade (or dist-upgrade) in the apt cache and commit it
+        with callback-driven fetch and install progress.
+        """
         result = ProcessResult()
         try:
             self.log.debug("Performing package upgrade...")
-            self.apt_cache.upgrade(dist_upgrade=remove_obsolete)
+            self.apt_cache.upgrade(dist_upgrade=dist_upgrade)
             Path(
                 os.path.join(
                     apt_pkg.config.find_dir("Dir::Cache::Archives"), "partial"
@@ -111,9 +133,6 @@ class APT(APTCLI):
                 "An error occurred while upgrading packages: %s", str(exc)
             )
             result += ProcessResult(EXIT.ERR_VM_UPDATE, out="", err=str(exc))
-
-        if remove_obsolete:
-            result += self.remove_obsolete_kernels()
 
         return result
 

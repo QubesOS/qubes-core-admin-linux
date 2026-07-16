@@ -150,6 +150,8 @@ class DNFCLI(PackageManager):
         We point dnf/yum at the target ``--releasever`` and let
         `distro-sync` converge the whole package set onto that release; a
         plain `upgrade` would leave a mix of old and new release packages.
+        The bump itself runs through `_distro_sync`, which the API
+        subclasses override with callback-driven progress reporting.
         """
         target = str(target_version).strip()
 
@@ -168,7 +170,26 @@ class DNFCLI(PackageManager):
             result.code = EXIT.ERR_VM_UPDATE
             return result
 
-        upgrade = self.run_cmd(
+        upgrade = self._distro_sync(target)
+        if upgrade.code:
+            upgrade.code = EXIT.ERR_VM_UPDATE
+            result += upgrade
+            return result
+
+        result += upgrade
+        self._report_progress(100.0)
+        return result
+
+    def _distro_sync(self, target: str) -> ProcessResult:
+        """
+        Run the release bump with the dnf command line.
+
+        A whole-release CLI distro-sync has no usable fine-grained
+        progress, so the streamed package output is what gives the user
+        liveliness. The API subclasses (DNF, DNF5) override this with
+        callback-driven progress reporting.
+        """
+        return self.run_cmd(
             [
                 self.package_manager,
                 f"--releasever={target}",
@@ -178,14 +199,6 @@ class DNFCLI(PackageManager):
                 "--assumeyes",
             ]
         )
-        if upgrade.code:
-            upgrade.code = EXIT.ERR_VM_UPDATE
-            result += upgrade
-            return result
-
-        result += upgrade
-        self._report_progress(100.0)
-        return result
 
     def clean(self) -> int:
         """

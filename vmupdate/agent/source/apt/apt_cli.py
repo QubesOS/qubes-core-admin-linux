@@ -21,11 +21,12 @@
 
 # pylint: disable=unused-argument
 
+import csv
 import fcntl
 import glob
 import os
 import contextlib
-from typing import List
+from typing import List, Optional
 
 from source.utils import get_os_data
 from source.common.package_manager import PackageManager, AgentType
@@ -36,14 +37,9 @@ from source.common.exit_codes import EXIT
 class APTCLI(PackageManager):
     PROGRESS_REPORTING = False
 
-    # apt addresses releases by codename, but the tool speaks release
-    # numbers; extend as new releases appear
-    DEBIAN_CODENAMES = {
-        11: "bullseye",
-        12: "bookworm",
-        13: "trixie",
-        14: "forky",
-    }
+    # Maintained by Debian's distro-info-data package, which is a
+    # qubes-core-agent dependency (including in minimal templates).
+    DEBIAN_RELEASES_FILE = "/usr/share/distro-info/debian.csv"
 
     # Every apt source definition that can name a release codename, in both
     # the one-line (`.list`) and deb822 (`.sources`) formats.
@@ -210,7 +206,18 @@ class APTCLI(PackageManager):
             return guard
 
         old_codename = os_data["codename"]
-        new_codename = self.DEBIAN_CODENAMES[int(target)]
+        try:
+            new_codename = self._debian_codename(target)
+        except (OSError, csv.Error) as exc:
+            return self._refuse(
+                f"cannot read Debian release data from "
+                f"{self.DEBIAN_RELEASES_FILE}: {exc}."
+            )
+        if not new_codename:
+            return self._refuse(
+                f"no Debian codename for release {target!r} in "
+                f"{self.DEBIAN_RELEASES_FILE}."
+            )
 
         self._report_progress(0.0)
         result = ProcessResult()
@@ -280,14 +287,8 @@ class APTCLI(PackageManager):
         self, target: str, os_data: dict
     ) -> ProcessResult:
         """
-        The shared single-step check plus Debian specifics: the in-qube
-        family must be Debian and both codenames must be known.
+        The shared single-step check plus the current Debian codename check.
         """
-        if os_data.get("os_family") != "Debian":
-            return self._refuse(
-                f"in-qube OS family {os_data.get('os_family')!r} is not Debian."
-            )
-
         result = super()._verify_release_upgrade(target, os_data)
         if result.code:
             return result
@@ -296,13 +297,22 @@ class APTCLI(PackageManager):
             return self._refuse(
                 "cannot read the in-qube release codename from os-release."
             )
-        if int(target) not in self.DEBIAN_CODENAMES:
-            return self._refuse(
-                f"no known Debian codename for release {target!r}; "
-                "extend DEBIAN_CODENAMES in apt_cli.py."
-            )
 
         return ProcessResult()
+
+    @classmethod
+    def _debian_codename(cls, target: str) -> Optional[str]:
+        """Return Debian's codename for a numeric release."""
+        with open(
+            cls.DEBIAN_RELEASES_FILE,
+            "r",
+            encoding="utf-8",
+            newline="",
+        ) as releases_file:
+            for release in csv.DictReader(releases_file):
+                if release.get("version") == target:
+                    return release.get("series") or None
+        return None
 
     def _rewrite_sources(
         self, old_codename: str, new_codename: str
@@ -351,7 +361,7 @@ class APTCLI(PackageManager):
             return ProcessResult(EXIT.ERR_VM_UPDATE, out="", err=msg)
         if not changed:
             return self._refuse(
-                f"no apt source references codename {old_codename!r}; refusing "
-                "to report a release upgrade that would not actually happen."
+                f"no apt source references codename {old_codename!r}; "
+                "refusing upgrade."
             )
         return ProcessResult()

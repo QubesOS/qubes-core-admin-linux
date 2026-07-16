@@ -159,6 +159,70 @@ class DNF5(DNFCLI):
             result += ProcessResult(EXIT.ERR_VM_UPDATE, out="", err=str(exc))
         return result
 
+    def _distro_sync(self, target: str) -> ProcessResult:
+        """
+        Run the release bump through the libdnf5 API, so fetch and
+        transaction progress reach dom0's progress bar as percentages
+        instead of the CLI's bare 0/100 milestones.
+
+        A fresh `libdnf5.base.Base` is built here: `self.base` from
+        `__init__` was already set up against the current releasever.
+        """
+        result = ProcessResult()
+        try:
+            base = libdnf5.base.Base()
+            base.load_config()
+            base.get_config().best = True  # mirror the CLI --best flag
+            # set before setup() so the target release is not overridden
+            # by auto-detection from the running (old) release
+            base.get_vars().set("releasever", target)
+            base.setup()
+
+            repo_sack = base.get_repo_sack()
+            repo_sack.create_repos_from_system_configuration()
+            base.set_download_callbacks(
+                libdnf5.repo.DownloadCallbacksUniquePtr(
+                    self.progress.fetch_progress
+                )
+            )
+            repo_sack.load_repos()
+
+            goal = Goal(base)
+            goal.set_allow_erasing(True)  # mirror --allowerasing
+            goal.add_rpm_distro_sync()
+            transaction = goal.resolve()
+            # fill empty `Command line` column in dnf history
+            transaction.set_description("qubes-vm-update")
+
+            if transaction.get_transaction_packages_count() == 0:
+                self.log.info("Distro-sync found nothing to do.")
+                return result
+
+            transaction.download()
+            if not transaction.check_gpg_signatures():
+                problems = transaction.get_gpg_signature_problems()
+                raise TransactionError(
+                    f"GPG signatures check failed: {problems}"
+                )
+
+            self.log.debug("Committing distro-sync to %s...", target)
+            transaction.set_callbacks(
+                libdnf5.rpm.TransactionCallbacksUniquePtr(
+                    self.progress.upgrade_progress
+                )
+            )
+            tnx_result = transaction.run()
+            if tnx_result != transaction.TransactionRunResult_SUCCESS:
+                raise TransactionError(
+                    transaction.transaction_result_to_string(tnx_result)
+                )
+        except Exception as exc:
+            self.log.error(
+                "An error occurred during release upgrade: %s", str(exc)
+            )
+            result += ProcessResult(EXIT.ERR_VM_UPDATE, out="", err=str(exc))
+        return result
+
 
 class FetchProgress(DownloadCallbacks, Progress):
     def __init__(self, weight: int, log):
