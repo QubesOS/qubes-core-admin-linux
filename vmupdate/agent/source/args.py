@@ -51,6 +51,13 @@ class AgentArgs:
             "action": "store_true",
             "help": "Only download packages",
         },
+        ("--version-upgrade",): {
+            "action": "store",
+            "default": None,
+            "help": "Upgrade the distribution to the given next major "
+            "release, e.g. --version-upgrade 42. Without this flag a "
+            "normal same-release package update is performed.",
+        },
     }
     EXCLUSIVE_OPTIONS_1 = {
         ("--show-output", "--verbose", "-v"): {
@@ -104,5 +111,10 @@ class AgentArgs:
                 if args_dict[param_name]:
                     cli_args.append(keys[0])
             else:
-                cli_args.extend((keys[0], args_dict[param_name]))
+                # Value-bearing options default to None when unset (e.g.
+                # --version-upgrade on a normal update). Skip those so we
+                # never inject a bare "None" into the agent command line.
+                arg_value = args_dict[param_name]
+                if arg_value is not None:
+                    cli_args.extend((keys[0], str(arg_value)))
         return cli_args

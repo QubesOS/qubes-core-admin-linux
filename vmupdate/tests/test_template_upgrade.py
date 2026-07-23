@@ -1,0 +1,527 @@
+#!/usr/bin/python3
+# coding=utf-8
+import logging
+from unittest.mock import MagicMock, Mock
+
+import pytest
+
+import qubesadmin.exc
+
+from vmupdate import template_upgrade
+from vmupdate.agent.source.common.exit_codes import EXIT
+from vmupdate.agent.source.common.process_result import ProcessResult
+from vmupdate.tests.conftest import TestApp as _TestApp
+from vmupdate.tests.conftest import TestVM as _TestVM
+
+# Captured at import time, before the quiet_logging autouse fixture can
+# replace it. Tests that need to exercise the real setup_logging restore
+# this reference explicitly.
+_REAL_SETUP_LOGGING = template_upgrade.setup_logging
+
+
+class CloneApp(_TestApp):
+    def __init__(self):
+        super().__init__()
+        self.clone_calls = []
+
+    def clone_vm(self, source_vm, new_name):
+        self.clone_calls.append((source_vm.name, new_name))
+        clone = _TestVM(new_name, self, klass=source_vm.klass)
+        clone.features.update(source_vm.features)
+        # A freshly cloned qube hasn't been started, so rollback() shouldn't
+        # try to force it down. (TestVM defaults running=True.)
+        clone.running = False
+        return clone
+
+
+def add_template(app, name="fedora-41", **features):
+    vm = _TestVM(name, app, klass="TemplateVM")
+    vm.features.update(
+        {
+            "os-distribution": "fedora",
+            "os-version": "41",
+            "template-name": name,
+            "template-epoch": "0",
+            "template-version": "41",
+            "template-release": "20250101",
+            "template-buildtime": "2025-01-01 00:00:00",
+        }
+    )
+    vm.features.update(features)
+    return vm
+
+
+def add_standalone(app, name="fedora-41-standalone", **features):
+    vm = _TestVM(name, app, klass="StandaloneVM")
+    vm.features.update(
+        {
+            "os-distribution": "fedora",
+            "os-version": "41",
+        }
+    )
+    vm.features.update(features)
+    return vm
+
+
+@pytest.fixture(autouse=True)
+def quiet_logging(monkeypatch):
+    monkeypatch.setattr(template_upgrade, "setup_logging", lambda *_: Mock())
+
+
+@pytest.mark.parametrize(
+    "scenario, expected",
+    [
+        ("missing-qube", "No such qube"),
+        ("non-template", "only TemplateVMs and StandaloneVMs"),
+        ("missing-os-version", "missing os-distribution / os-version"),
+        ("non-numeric-os-version", "Non-numeric distro version"),
+        ("unsupported-distro", "Unsupported distro"),
+    ],
+)
+def test_validation_errors(scenario, expected, capsys):
+    app = CloneApp()
+    template_name = "fedora-41"
+    if scenario == "non-template":
+        _TestVM(template_name, app, klass="AppVM", template=add_template(app))
+    elif scenario == "missing-os-version":
+        add_template(app)
+        del app.domains[template_name].features["os-version"]
+    elif scenario == "non-numeric-os-version":
+        add_template(app, **{"os-version": "rawhide"})
+    elif scenario == "unsupported-distro":
+        add_template(app, **{"os-distribution": "arch"})
+
+    retcode = template_upgrade.main(["--template", template_name], app)
+
+    assert retcode == EXIT.ERR_USAGE
+    assert expected in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "source, current, target, override, expected",
+    [
+        ("fedora-41", "41", "42", None, "fedora-42"),
+        ("debian-12", "12", "13", None, "debian-13"),
+        ("fedora-41-minimal", "41", "42", None, "fedora-42-minimal"),
+        ("custom", "41", "42", None, "custom-42"),
+        ("custom", "41", "42", "my-template", "my-template"),
+    ],
+)
+def test_clone_name_derivation(source, current, target, override, expected):
+    assert (
+        template_upgrade.derive_clone_name(source, current, target, override)
+        == expected
+    )
+
+
+def test_dry_run_does_not_mutate(capsys):
+    app = CloneApp()
+    vm = add_template(
+        app,
+        "ubuntu-22",
+        **{
+            "os-distribution": "ubuntu",
+            "os-distribution-like": "debian",
+            "os-version": "22",
+        },
+    )
+    before = dict(vm.features)
+
+    retcode = template_upgrade.main(
+        ["--template", "ubuntu-22", "--dry-run"], app
+    )
+
+    assert retcode == EXIT.OK
+    assert app.clone_calls == []
+    assert vm.features == before
+    assert "would clone ubuntu-22 -> ubuntu-23" in capsys.readouterr().out
+
+
+def test_finalize_failure_does_not_roll_back(monkeypatch, capsys):
+    # a metadata-write failure after a successful in-VM upgrade must keep
+    # the upgraded clone; only run_agent failures trigger rollback
+    app = CloneApp()
+    add_template(app)
+
+    def fake_update_qube(qube, agent_args, **kwargs):
+        return qube.name, ProcessResult(EXIT.OK)
+
+    def failing_finalize(self):
+        raise template_upgrade.qubesadmin.exc.QubesException(
+            "feature write failed"
+        )
+
+    monkeypatch.setattr(template_upgrade, "update_qube", fake_update_qube)
+    monkeypatch.setattr(
+        template_upgrade.TemplateUpgrader, "finalize", failing_finalize
+    )
+
+    retcode = template_upgrade.main(["--template", "fedora-41"], app)
+
+    assert retcode == EXIT.OK
+    assert "fedora-42" in app.domains  # upgraded clone kept
+    assert "Set them manually" in capsys.readouterr().err
+
+
+def test_detect_distro_prefers_os_distribution_over_distro_like():
+    # priority is os-distribution first, then os-distribution-like -- never
+    # alphabetical: a Fedora template listing debian in distro-like must
+    # take the Fedora path
+    app = CloneApp()
+    vm = add_template(app, **{"os-distribution-like": "debian"})
+    upgrader = template_upgrade.TemplateUpgrader(app, None, Mock())
+    upgrader.source_vm = vm
+
+    assert upgrader._detect_distro() == ("fedora", "41")
+
+
+def test_unsupported_distro_message_lists_supported_families(capsys):
+    app = CloneApp()
+    add_template(app, **{"os-distribution": "arch"})
+
+    retcode = template_upgrade.main(["--template", "fedora-41"], app)
+
+    assert retcode == EXIT.ERR_USAGE
+    assert (
+        "supported distro families are: Debian, Fedora"
+        in capsys.readouterr().err
+    )
+
+
+def test_success_applies_metadata(monkeypatch, capsys):
+    app = CloneApp()
+    add_template(app)
+    monkeypatch.setattr(
+        template_upgrade.TemplateUpgrader, "run_agent", lambda self: None
+    )
+
+    retcode = template_upgrade.main(["--template", "fedora-41"], app)
+
+    assert retcode == EXIT.OK
+    assert (
+        "Upgrade complete. New template: fedora-42" in capsys.readouterr().out
+    )
+    clone = app.domains["fedora-42"]
+    assert clone.features["template-name"] == "fedora-42"
+    assert clone.features["template-installtime"] != app.domains[
+        "fedora-41"
+    ].features.get("template-installtime")
+    assert clone.features["template-epoch"] == "0"
+    assert clone.features["template-version"] == "41"
+    assert clone.features["template-release"] == "20250101"
+    assert clone.features["template-buildtime"] == "2025-01-01 00:00:00"
+    assert clone.features["os-distribution"] == "fedora"
+    assert clone.features["os-version"] == "41"
+
+
+def test_standalone_without_template_name_left_alone(monkeypatch, capsys):
+    """A standalone that never had template-name doesn't get one invented."""
+    app = CloneApp()
+    add_standalone(app)
+    monkeypatch.setattr(
+        template_upgrade.TemplateUpgrader, "run_agent", lambda self: None
+    )
+
+    retcode = template_upgrade.main(["--template", "fedora-41-standalone"], app)
+
+    assert retcode == EXIT.OK
+    assert (
+        "Upgrade complete. New standalone: fedora-42-standalone"
+        in capsys.readouterr().out
+    )
+    clone = app.domains["fedora-42-standalone"]
+    assert clone.klass == "StandaloneVM"
+    assert "template-name" not in clone.features
+    assert "template-installtime" not in clone.features
+
+
+def test_standalone_template_name_left_untouched(monkeypatch):
+    """A standalone's template-* features are never rewritten; the clone
+    keeps whatever it inherited from the source."""
+    app = CloneApp()
+    add_standalone(app, **{"template-name": "fedora-41"})
+    monkeypatch.setattr(
+        template_upgrade.TemplateUpgrader, "run_agent", lambda self: None
+    )
+
+    retcode = template_upgrade.main(["--template", "fedora-41-standalone"], app)
+
+    assert retcode == EXIT.OK
+    clone = app.domains["fedora-42-standalone"]
+    # The clone inherits the source value; the tool does not touch it.
+    assert clone.features["template-name"] == "fedora-41"
+    assert "template-installtime" not in clone.features
+
+
+def test_run_agent_success_invokes_transport(monkeypatch):
+    """A successful agent run upgrades the clone (not the source) in
+    single-qube VM mode and tells the agent the exact target release."""
+    app = CloneApp()
+    add_template(app)
+    captured = {}
+
+    def fake_update_qube(qube, agent_args, **kwargs):
+        captured["qube"] = qube
+        captured["agent_args"] = agent_args
+        captured["kwargs"] = kwargs
+        return qube.name, ProcessResult(EXIT.OK)
+
+    monkeypatch.setattr(template_upgrade, "update_qube", fake_update_qube)
+
+    retcode = template_upgrade.main(["--template", "fedora-41"], app)
+
+    assert retcode == EXIT.OK
+    assert captured["qube"].name == "fedora-42"
+    assert captured["kwargs"]["dom0"] is False
+    assert captured["kwargs"]["show_progress"] is True
+    assert captured["agent_args"].version_upgrade == "42"
+    assert captured["agent_args"].display_name is None
+    # success path still applies post-upgrade metadata
+    assert app.domains["fedora-42"].features["template-name"] == "fedora-42"
+
+
+def test_run_agent_failure_rolls_back_clone(monkeypatch, capsys):
+    """A non-zero agent exit becomes an UpgradeError and the clone is
+    removed (the wired replacement for the old NotImplementedError stub)."""
+    app = CloneApp()
+    add_template(app)
+
+    def fake_update_qube(qube, agent_args, **kwargs):
+        return qube.name, ProcessResult(EXIT.ERR_VM_UPDATE)
+
+    monkeypatch.setattr(template_upgrade, "update_qube", fake_update_qube)
+
+    retcode = template_upgrade.main(["--template", "fedora-41"], app)
+
+    assert retcode == EXIT.ERR
+    assert "fedora-42" not in app.domains
+    assert "version-upgrade agent failed" in capsys.readouterr().err
+
+
+def _add_debian_template(app, name="debian-12"):
+    return add_template(
+        app,
+        name,
+        **{
+            "os-distribution": "debian",
+            "os-version": "12",
+            "template-version": "12",
+        },
+    )
+
+
+def test_run_agent_success_debian_invokes_transport(monkeypatch):
+    """The distro-agnostic orchestrator drives Debian end-to-end."""
+    app = CloneApp()
+    _add_debian_template(app)
+    captured = {}
+
+    def fake_update_qube(qube, agent_args, **kwargs):
+        captured["qube"] = qube
+        captured["agent_args"] = agent_args
+        return qube.name, ProcessResult(EXIT.OK)
+
+    monkeypatch.setattr(template_upgrade, "update_qube", fake_update_qube)
+
+    retcode = template_upgrade.main(["--template", "debian-12"], app)
+
+    assert retcode == EXIT.OK
+    assert captured["qube"].name == "debian-13"
+    assert captured["agent_args"].version_upgrade == "13"
+    assert app.domains["debian-13"].features["template-name"] == "debian-13"
+
+
+@pytest.mark.parametrize(
+    "keep_on_failure, expect_clone_removed",
+    [
+        (False, True),
+        (True, False),
+    ],
+)
+def test_failure_cleanup(monkeypatch, keep_on_failure, expect_clone_removed):
+    app = CloneApp()
+    add_template(app)
+
+    def fail_agent(self):
+        raise template_upgrade.UpgradeError("agent failed")
+
+    monkeypatch.setattr(
+        template_upgrade.TemplateUpgrader, "run_agent", fail_agent
+    )
+    args = ["--template", "fedora-41"]
+    if keep_on_failure:
+        args.append("--keep-new-on-failure")
+
+    retcode = template_upgrade.main(args, app)
+
+    assert retcode == EXIT.ERR
+    assert ("fedora-42" not in app.domains) is expect_clone_removed
+
+
+def test_rejects_existing_clone_name(capsys):
+    """If the target clone name already exists, validation fails before
+    anything is mutated."""
+    app = CloneApp()
+    add_template(app)
+    add_template(app, name="fedora-42", **{"os-version": "42"})
+
+    retcode = template_upgrade.main(["--template", "fedora-41"], app)
+
+    assert retcode == EXIT.ERR_USAGE
+    assert "already exists" in capsys.readouterr().err
+    assert app.clone_calls == []
+
+
+def test_standalone_template_name_without_version_is_left_alone(monkeypatch):
+    """Standalone whose template-name doesn't carry the current version
+    (custom string, manual edit) is left untouched."""
+    app = CloneApp()
+    add_standalone(app, **{"template-name": "my-custom-base"})
+    monkeypatch.setattr(
+        template_upgrade.TemplateUpgrader, "run_agent", lambda self: None
+    )
+
+    retcode = template_upgrade.main(["--template", "fedora-41-standalone"], app)
+
+    assert retcode == EXIT.OK
+    clone = app.domains["fedora-42-standalone"]
+    assert clone.features["template-name"] == "my-custom-base"
+
+
+def test_main_clone_failure(monkeypatch, capsys):
+    """If the Admin-API clone call raises, main() reports it as a runtime
+    error (EXIT.ERR), not a usage error."""
+    app = CloneApp()
+    add_template(app)
+
+    def boom(*_a, **_kw):
+        raise qubesadmin.exc.QubesException("storage pool full")
+
+    monkeypatch.setattr(app, "clone_vm", boom)
+
+    retcode = template_upgrade.main(["--template", "fedora-41"], app)
+
+    assert retcode == EXIT.ERR
+    assert "clone failed: storage pool full" in capsys.readouterr().err
+
+
+def test_agent_output_forwards_lines_and_drops_status():
+    """FormatedLine output reaches the log; StatusInfo ticks are dropped."""
+    from vmupdate.agent.source.status import (
+        FinalStatus,
+        FormatedLine,
+        StatusInfo,
+    )
+
+    log = Mock()
+    sink = template_upgrade._AgentOutput(log)
+
+    sink.put(FormatedLine("fedora-42", "out", "Downloading packages"))
+    sink.put("fedora-42:err: a plain string line")
+    sink.put(StatusInfo.updating(Mock(name="fedora-42"), 42.0))
+    sink.put(StatusInfo.done(Mock(name="fedora-42"), FinalStatus.SUCCESS))
+
+    # Only the two human-readable lines are logged.
+    assert log.info.call_count == 2
+
+
+def test_rollback_noop_when_no_clone():
+    """rollback() before clone() ran is a safe no-op."""
+    upgrader = template_upgrade.TemplateUpgrader(CloneApp(), Mock(), Mock())
+    upgrader.rollback()  # must not raise
+
+
+def test_rollback_handles_delete_failure():
+    """If the Admin-API delete raises, rollback logs and swallows; the
+    caller has already decided the upgrade has failed, so re-raising would
+    just mask the original error.
+    """
+    # dict's __delitem__ is looked up on the type, not the instance, so we
+    # use a MagicMock for app.domains (which supports __delitem__ as a side
+    # effect) instead of trying to patch the test-helper Domains dict.
+    app = MagicMock()
+    app.domains.__delitem__.side_effect = qubesadmin.exc.QubesException(
+        "VM is running"
+    )
+    upgrader = template_upgrade.TemplateUpgrader(app, Mock(), Mock())
+    upgrader.cloned_qube = Mock(name="fedora-42")
+    upgrader.cloned_qube.name = "fedora-42"
+
+    upgrader.rollback()  # must not raise
+
+    upgrader.log.error.assert_called_once()
+
+
+def test_rollback_kills_clone_before_delete():
+    """A failed clone is disposable, so rollback kills it before deletion."""
+    app = MagicMock()
+    upgrader = template_upgrade.TemplateUpgrader(app, Mock(), Mock())
+    upgrader.cloned_qube = Mock()
+    upgrader.cloned_qube.name = "fedora-42"
+
+    upgrader.rollback()
+
+    upgrader.cloned_qube.kill.assert_called_once_with()
+    app.domains.__delitem__.assert_called_once_with("fedora-42")
+
+
+def test_rollback_deletes_clone_if_already_halted():
+    """kill() raises QubesVMNotStartedError when the clone is already down;
+    deletion must still run."""
+    app = MagicMock()
+    upgrader = template_upgrade.TemplateUpgrader(app, Mock(), Mock())
+    upgrader.cloned_qube = Mock()
+    upgrader.cloned_qube.name = "fedora-42"
+    upgrader.cloned_qube.kill.side_effect = (
+        qubesadmin.exc.QubesVMNotStartedError("already halted")
+    )
+
+    upgrader.rollback()
+
+    app.domains.__delitem__.assert_called_once_with("fedora-42")
+
+
+def _reset_template_upgrade_logger():
+    logger = logging.getLogger("vm-template-upgrade")
+    logger.handlers.clear()
+    logger.propagate = True
+
+
+def test_setup_logging_is_idempotent(tmp_path, monkeypatch):
+    """Calling setup_logging twice must not duplicate handlers."""
+    monkeypatch.setattr(template_upgrade, "setup_logging", _REAL_SETUP_LOGGING)
+    monkeypatch.setattr(
+        template_upgrade,
+        "LOG_PATH",
+        str(tmp_path / "qvm-template-upgrade.log"),
+    )
+    _reset_template_upgrade_logger()
+
+    log1 = template_upgrade.setup_logging("INFO")
+    handler_count = len(log1.handlers)
+    log2 = template_upgrade.setup_logging("INFO")
+
+    assert log1 is log2
+    assert len(log2.handlers) == handler_count
+    assert log2.propagate is False
+
+
+def test_setup_logging_tolerates_missing_log_dir(tmp_path, monkeypatch):
+    """A missing log directory degrades to stderr-only, not a crash."""
+    monkeypatch.setattr(template_upgrade, "setup_logging", _REAL_SETUP_LOGGING)
+    monkeypatch.setattr(
+        template_upgrade,
+        "LOG_PATH",
+        str(tmp_path / "nope" / "qvm-template-upgrade.log"),
+    )
+    _reset_template_upgrade_logger()
+
+    log = template_upgrade.setup_logging("INFO")
+
+    # The file handler should have been skipped; stderr stays.
+    assert not any(isinstance(h, logging.FileHandler) for h in log.handlers)
+    assert any(
+        isinstance(h, logging.StreamHandler)
+        and not isinstance(h, logging.FileHandler)
+        for h in log.handlers
+    )

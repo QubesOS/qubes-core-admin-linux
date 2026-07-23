@@ -22,6 +22,7 @@
 import shutil
 from typing import List
 
+from source.utils import get_os_data
 from source.common.package_manager import PackageManager, AgentType
 from source.common.process_result import ProcessResult
 from source.common.exit_codes import EXIT
@@ -141,6 +142,63 @@ class DNFCLI(PackageManager):
                 # yum
                 result.append("update")
         return result
+
+    def _release_upgrade(self, target_version: str) -> ProcessResult:
+        """
+        Move the qube to a new Fedora/RHEL release with `distro-sync`.
+
+        We point dnf/yum at the target ``--releasever`` and let
+        `distro-sync` converge the whole package set onto that release; a
+        plain `upgrade` would leave a mix of old and new release packages.
+        The bump itself runs through `_distro_sync`, which the API
+        subclasses override with callback-driven progress reporting.
+        """
+        target = str(target_version).strip()
+
+        guard = self._verify_release_upgrade(target, get_os_data(self.log))
+        if guard.code:
+            return guard
+
+        self._report_progress(0.0)
+
+        # wipe metadata and packages cached for the old release; otherwise
+        # dnf may resolve the transaction against the previous releasever
+        result = self.run_cmd(
+            [self.package_manager, "clean", "all"], realtime=False
+        )
+        if result.code:
+            result.code = EXIT.ERR_VM_UPDATE
+            return result
+
+        upgrade = self._distro_sync(target)
+        if upgrade.code:
+            upgrade.code = EXIT.ERR_VM_UPDATE
+            result += upgrade
+            return result
+
+        result += upgrade
+        self._report_progress(100.0)
+        return result
+
+    def _distro_sync(self, target: str) -> ProcessResult:
+        """
+        Run the release bump with the dnf command line.
+
+        A whole-release CLI distro-sync has no usable fine-grained
+        progress, so the streamed package output is what gives the user
+        liveliness. The API subclasses (DNF, DNF5) override this with
+        callback-driven progress reporting.
+        """
+        return self.run_cmd(
+            [
+                self.package_manager,
+                f"--releasever={target}",
+                "distro-sync",
+                "--best",
+                "--allowerasing",
+                "--assumeyes",
+            ]
+        )
 
     def clean(self) -> int:
         """

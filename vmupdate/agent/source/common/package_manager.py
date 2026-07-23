@@ -78,6 +78,33 @@ class PackageManager:
                 print(result.err, file=sys.stderr, flush=True)
         return result.code
 
+    def version_upgrade(
+        self,
+        target_version: str,
+        print_streams: bool = False,
+    ) -> int:
+        """
+        Upgrade the distribution to the next major release.
+
+        Separate from `upgrade`, which only refreshes packages within the
+        current release. The family-specific work lives in
+        `_release_upgrade`.
+
+        :param target_version: the major release to move to, e.g. "42"
+        :param print_streams: dump captured output to std streams
+        :return: return code (0 on success)
+        """
+        result = self._release_upgrade(target_version)
+        self._log_output("version-upgrade", result)
+        # Logs are for the agent log; print_streams is only CLI passthrough.
+        # Avoid printing again when the subprocess already streamed live.
+        if print_streams and not result.posted:
+            if result.out:
+                print(result.out, flush=True)
+            if result.err:
+                print(result.err, file=sys.stderr, flush=True)
+        return result.code
+
     def _upgrade(
         self,
         refresh: bool,
@@ -311,6 +338,60 @@ class PackageManager:
         cmd = [self.package_manager, *self.get_action(remove_obsolete)]
 
         return self.run_cmd(cmd)
+
+    def _release_upgrade(self, target_version: str) -> ProcessResult:
+        """
+        Perform a distribution release upgrade.
+
+        Overridden per package-manager family. The default raises
+        NotImplementedError; callers (e.g. entrypoint.main) catch it and
+        decide how to report the unsupported path.
+        """
+        raise NotImplementedError(
+            "Distribution version upgrade is not implemented for this "
+            f"package manager ({self.package_manager})."
+        )
+
+    def _verify_release_upgrade(
+        self, target: str, os_data: dict
+    ) -> ProcessResult:
+        """
+        Refuse (errored ProcessResult) unless ``target`` is a plain release
+        number exactly one above the in-qube major release. dom0 derives the
+        target from qvm-features that can drift, hence this in-qube re-check
+        before anything irreversible. Families extend it with their own
+        checks.
+        """
+        if not target.isdigit():
+            return self._refuse(f"invalid target release {target!r}.")
+
+        current_major = os_data.get("release", "").split(".")[0]
+        if not current_major.isdigit():
+            return self._refuse(
+                f"cannot read a numeric in-qube release from "
+                f"{os_data.get('release')!r}."
+            )
+        if int(target) != int(current_major) + 1:
+            return self._refuse(
+                f"in-qube release {os_data.get('release')!r} can only move "
+                f"to {int(current_major) + 1} (single step), not {target!r}."
+            )
+
+        return ProcessResult()
+
+    def _refuse(self, reason: str) -> ProcessResult:
+        """Log and build the standard "refusing version upgrade" error."""
+        msg = f"Refusing version upgrade: {reason}"
+        self.log.error(msg)
+        return ProcessResult(EXIT.ERR_VM_UPDATE, out="", err=msg)
+
+    @staticmethod
+    def _report_progress(percent: float) -> None:
+        """
+        Emit a progress milestone: a bare float per line on stderr, parsed
+        by dom0's QubeConnection. 100.0 signals completion.
+        """
+        print(f"{percent:.2f}", flush=True, file=sys.stderr)
 
     def clean(self) -> int:
         """

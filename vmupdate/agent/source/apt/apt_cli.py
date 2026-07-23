@@ -21,11 +21,14 @@
 
 # pylint: disable=unused-argument
 
+import csv
 import fcntl
+import glob
 import os
 import contextlib
-from typing import List
+from typing import List, Optional
 
+from source.utils import get_os_data
 from source.common.package_manager import PackageManager, AgentType
 from source.common.process_result import ProcessResult
 from source.common.exit_codes import EXIT
@@ -33,6 +36,18 @@ from source.common.exit_codes import EXIT
 
 class APTCLI(PackageManager):
     PROGRESS_REPORTING = False
+
+    # Maintained by Debian's distro-info-data package, which is a
+    # qubes-core-agent dependency (including in minimal templates).
+    DEBIAN_RELEASES_FILE = "/usr/share/distro-info/debian.csv"
+
+    # Every apt source definition that can name a release codename, in both
+    # the one-line (`.list`) and deb822 (`.sources`) formats.
+    APT_SOURCE_GLOBS = (
+        "/etc/apt/sources.list",
+        "/etc/apt/sources.list.d/*.list",
+        "/etc/apt/sources.list.d/*.sources",
+    )
 
     def __init__(self, log_handler, log_level, agent_type: AgentType):
         super().__init__(log_handler, log_level, agent_type)
@@ -173,3 +188,180 @@ class APTCLI(PackageManager):
 
         result.code = EXIT.ERR_VM_CLEANUP if result.code != 0 else 0
         return result
+
+    def _release_upgrade(self, target_version: str) -> ProcessResult:
+        """
+        Move the qube to the next Debian release.
+
+        apt addresses releases by codename (unlike dnf's ``--releasever``),
+        so after bringing the current release fully up to date we rewrite
+        the codename across all apt sources, then ``update`` +
+        ``dist-upgrade`` onto the new release.
+        """
+        target = str(target_version).strip()
+        os_data = get_os_data(self.log)
+
+        guard = self._verify_release_upgrade(target, os_data)
+        if guard.code:
+            return guard
+
+        old_codename = os_data["codename"]
+        try:
+            new_codename = self._debian_codename(target)
+        except (OSError, csv.Error) as exc:
+            return self._refuse(
+                f"cannot read Debian release data from "
+                f"{self.DEBIAN_RELEASES_FILE}: {exc}."
+            )
+        if not new_codename:
+            return self._refuse(
+                f"no Debian codename for release {target!r} in "
+                f"{self.DEBIAN_RELEASES_FILE}."
+            )
+
+        self._report_progress(0.0)
+        result = ProcessResult()
+
+        # bring the current release fully up to date, point the sources at
+        # the new release, then update + dist-upgrade onto it; a stale
+        # system risks unresolvable transactions across the boundary
+        steps = (
+            lambda: self.refresh(hard_fail=True),
+            lambda: self.upgrade_internal(remove_obsolete=False),
+            lambda: self._rewrite_sources(old_codename, new_codename),
+            lambda: self.refresh(hard_fail=True),
+            lambda: self.upgrade_internal(remove_obsolete=False),
+            self._dist_upgrade,
+        )
+        for step in steps:
+            step_result = step()
+            result += step_result
+            if step_result.code:
+                result.code = EXIT.ERR_VM_UPDATE
+                return result
+
+        try:
+            upgraded_os_data = get_os_data(self.log)
+        except OSError as exc:
+            msg = f"failed to verify the upgraded Debian release: {exc}"
+            self.log.error(msg)
+            result += ProcessResult(EXIT.ERR_VM_UPDATE, out="", err=msg)
+            return result
+
+        upgraded_release = upgraded_os_data.get("release", "").split(".")[0]
+        upgraded_codename = upgraded_os_data.get("codename", "")
+        if upgraded_release != target or upgraded_codename != new_codename:
+            msg = (
+                f"Debian release upgrade did not reach {target} "
+                f"({new_codename}); os-release reports "
+                f"{upgraded_os_data.get('release')!r} "
+                f"({upgraded_codename or 'no codename'})."
+            )
+            self.log.error(msg)
+            result += ProcessResult(EXIT.ERR_VM_UPDATE, out="", err=msg)
+            return result
+
+        # old kernels are heavy but non-critical: a cleanup failure must not
+        # discard a template that actually reached the new release
+        cleanup = self.remove_obsolete_kernels()
+        result += cleanup
+        if cleanup.code:
+            self.log.warning(
+                "post-upgrade obsolete-kernel cleanup failed (non-fatal): %s",
+                cleanup.err,
+            )
+        result.code = EXIT.OK
+
+        self._report_progress(100.0)
+        return result
+
+    def _dist_upgrade(self) -> ProcessResult:
+        """
+        Plain `apt-get dist-upgrade`, without APTCLI's obsolete-kernel
+        cleanup, so the fatal release bump and the best-effort cleanup
+        can fail independently.
+        """
+        return PackageManager.upgrade_internal(self, remove_obsolete=True)
+
+    def _verify_release_upgrade(
+        self, target: str, os_data: dict
+    ) -> ProcessResult:
+        """
+        The shared single-step check plus the current Debian codename check.
+        """
+        result = super()._verify_release_upgrade(target, os_data)
+        if result.code:
+            return result
+
+        if not os_data.get("codename"):
+            return self._refuse(
+                "cannot read the in-qube release codename from os-release."
+            )
+
+        return ProcessResult()
+
+    @classmethod
+    def _debian_codename(cls, target: str) -> Optional[str]:
+        """Return Debian's codename for a numeric release."""
+        with open(
+            cls.DEBIAN_RELEASES_FILE,
+            "r",
+            encoding="utf-8",
+            newline="",
+        ) as releases_file:
+            for release in csv.DictReader(releases_file):
+                if release.get("version") == target:
+                    return release.get("series") or None
+        return None
+
+    def _rewrite_sources(
+        self, old_codename: str, new_codename: str
+    ) -> ProcessResult:
+        """
+        Substring-replace the old codename with the new across every apt
+        source file, covering ``-security``/``-updates``/``-backports``
+        variants in both the one-line and deb822 formats. Missing files are
+        skipped; I/O errors abort.
+
+        Refuses if no file mentioned the old codename: such sources address
+        the release symbolically (e.g. ``stable``), the rewrite would be a
+        no-op and the qube would silently stay on the old release.
+
+        The plain substring replace matches the manual ``sed`` procedure in
+        qubes-doc; switch to per-field deb822 parsing if it ever over-matches.
+        """
+        changed = 0
+        try:
+            for pattern in self.APT_SOURCE_GLOBS:
+                for path in glob.glob(pattern):
+                    with open(path, "r", encoding="utf-8") as f_src:
+                        content = f_src.read()
+                    updated = content.replace(old_codename, new_codename)
+                    if updated == content:
+                        continue  # no codename here -> no spurious write
+                    # write-then-rename so a mid-write kill cannot leave a
+                    # truncated sources file behind (apt would treat an
+                    # empty sources list as "nothing to do" and succeed)
+                    tmp_path = path + ".tmp"
+                    with open(tmp_path, "w", encoding="utf-8") as f_src:
+                        f_src.write(updated)
+                        f_src.flush()
+                        os.fsync(f_src.fileno())
+                    os.replace(tmp_path, path)
+                    changed += 1
+                    self.log.info(
+                        "Rewrote apt source %s: %s -> %s",
+                        path,
+                        old_codename,
+                        new_codename,
+                    )
+        except OSError as exc:
+            msg = f"failed rewriting apt sources: {exc}"
+            self.log.error(msg)
+            return ProcessResult(EXIT.ERR_VM_UPDATE, out="", err=msg)
+        if not changed:
+            return self._refuse(
+                f"no apt source references codename {old_codename!r}; "
+                "refusing upgrade."
+            )
+        return ProcessResult()
