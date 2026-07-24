@@ -12,6 +12,19 @@ lint:
   variables:
     DIR: vmupdate
 
+mypy:
+  stage: checks
+  tags:
+    - docker
+  before_script:
+    - sudo dnf install -y python3-mypy python3-pip
+    - sudo python3 -m pip install lxml-stubs types-docutils
+  script:
+    - mypy --install-types --non-interactive --ignore-missing-imports --junit-xml mypy.xml vmupdate
+  artifacts:
+    reports:
+      junit: mypy.xml
+
 checks:tests:
   stage: checks
   variables:
