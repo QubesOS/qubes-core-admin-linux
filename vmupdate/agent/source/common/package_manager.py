@@ -182,6 +182,7 @@ class PackageManager:
                         break
                 else:
                     to_upgrade[pkg] = version
+        assert isinstance(self.package_manager, str)
         if to_install:
             cmd = [self.package_manager, "-q", "-y", "install", *to_install]
             result += self.run_cmd(cmd)
@@ -308,6 +309,7 @@ class PackageManager:
         """
         Just run upgrade via CLI.
         """
+        assert isinstance(self.package_manager, str)
         cmd = [self.package_manager, *self.get_action(remove_obsolete)]
 
         return self.run_cmd(cmd)

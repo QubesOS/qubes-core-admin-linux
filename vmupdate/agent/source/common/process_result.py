@@ -66,7 +66,7 @@ class ProcessResult:
         if untrusted_out is None:
             untrusted_out_bytes = b""
         elif isinstance(untrusted_out, str):
-            untrusted_out_bytes: bytes = untrusted_out.encode()
+            untrusted_out_bytes = untrusted_out.encode()
         else:
             untrusted_out_bytes = untrusted_out
         out = ProcessResult.sanitize_output(untrusted_out_bytes)
@@ -74,7 +74,7 @@ class ProcessResult:
         if untrusted_err is None:
             untrusted_err_bytes = b""
         elif isinstance(untrusted_err, str):
-            untrusted_err_bytes: bytes = untrusted_err.encode()
+            untrusted_err_bytes = untrusted_err.encode()
         else:
             untrusted_err_bytes = untrusted_err
         err = ProcessResult.sanitize_output(untrusted_err_bytes)

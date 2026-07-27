@@ -29,7 +29,7 @@ import queue
 import logging
 import multiprocessing
 from os.path import join
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Callable
 
 from tqdm import tqdm
 
@@ -215,6 +215,7 @@ class SimpleTerminalBar:
 
     def set_description(self, desc: str):
         self.desc = desc
+        assert SimpleTerminalBar.PARENT_MULTI_BAR is not None
         SimpleTerminalBar.PARENT_MULTI_BAR.print()
 
     def close(self):
@@ -231,7 +232,9 @@ class MultipleUpdateMultipleProgressBar:
     Show update info for each qube in the terminal.
     """
 
-    def __init__(self, dummy, output, max_concurrency, printer: Optional):
+    def __init__(
+        self, dummy, output, max_concurrency, printer: Optional[Callable]
+    ):
         self.dummy = dummy
 
         self.manager = multiprocessing.Manager()
@@ -247,9 +250,9 @@ class MultipleUpdateMultipleProgressBar:
         # set SIGINT handler to graceful termination
         signal.signal(signal.SIGINT, self.signal_handler_during_feeding)
 
-        self.progresses = {}
-        self.progress_bars = {}
-        self.statuses = {}
+        self.progresses: dict[str, int | float] = {}
+        self.progress_bars: dict[str, SimpleTerminalBar | tqdm] = {}
+        self.statuses: dict[str, FinalStatus] = {}
         self.output_class = output
         self.print = printer
 
@@ -267,7 +270,7 @@ class MultipleUpdateMultipleProgressBar:
             desc=f"{qname} ({Status.PENDING.value})",
         )
 
-    def feeding(self):
+    def feeding(self) -> None:
         """
         Consume info from queues and update progress bars.
 
@@ -279,7 +282,7 @@ class MultipleUpdateMultipleProgressBar:
         left_to_finish = len(self.progresses)
         while left_to_finish:
             try:
-                feed: Optional[StatusInfo, str] = self.status_notifier.get(
+                feed: Optional[StatusInfo | str] = self.status_notifier.get(
                     block=True
                 )
                 if feed is None:
@@ -420,17 +423,18 @@ class UpdateAgentManager:
         self, agent_args, status_notifier, termination
     ) -> ProcessResult:
         self.log.info("Running update agent for %s", self.qube.name)
-        dest_dir = None
-        src_dir = None
+        dest_dir: Optional[str] = None
+        src_dir: Optional[str] = None
         cleanup = False
         if self.qube.klass == "AdminVM":
             if self.dom0:
-                entrypoint = ["sudo", "qubes-dom0-update", "-y"]
+                entrypoint_cmd = ["sudo", "qubes-dom0-update", "-y"]
                 if agent_args.just_print_progress or self.show_progress:
-                    entrypoint.append("--just-print-progress")
+                    entrypoint_cmd.append("--just-print-progress")
                 if agent_args.quiet:
                     # silent is equivalent to quiet for dom0-update
-                    entrypoint.append("--silent")
+                    entrypoint_cmd.append("--silent")
+                entrypoint: list[str] | str = entrypoint_cmd
             else:
                 this_dir = os.path.dirname(os.path.realpath(__file__))
                 entrypoint = join(this_dir, UpdateAgentManager.ENTRYPOINT)
@@ -473,7 +477,9 @@ class UpdateAgentManager:
                 return result
         return result
 
-    def _run_entrypoint(self, qconn, entrypoint, agent_args) -> ProcessResult:
+    def _run_entrypoint(
+        self, qconn: QubeConnection, entrypoint: list[str] | str, agent_args
+    ) -> ProcessResult:
         result = ProcessResult()
         self.log.info(
             "The agent is starting the task in qube: %s", self.qube.name

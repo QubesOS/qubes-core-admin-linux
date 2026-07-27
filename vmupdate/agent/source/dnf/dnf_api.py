@@ -194,7 +194,7 @@ class FetchProgress(DownloadProgress, Progress):
         self.bytes_to_fetch = None
         self.bytes_fetched = 0
         self.action = "refresh" if refresh else "fetch"
-        self.package_bytes = {}
+        self.package_bytes: dict[int, int] = {}
 
     def end(self, payload, status, msg):
         """Communicate the information that `payload` has finished downloading.

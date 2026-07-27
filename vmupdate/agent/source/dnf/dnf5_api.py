@@ -164,10 +164,10 @@ class FetchProgress(DownloadCallbacks, Progress):
     def __init__(self, weight: int, log):
         DownloadCallbacks.__init__(self)
         Progress.__init__(self, weight, log)
-        self.bytes_to_fetch = 0
-        self.bytes_fetched = 0
-        self.package_bytes = {}
-        self.package_names = {}
+        self.bytes_to_fetch = 0.0
+        self.bytes_fetched = 0.0
+        self.package_bytes: dict[int, float] = {}
+        self.package_names: dict[int, str] = {}
         self.count = 0
         self.fetching_notified = False
 
@@ -267,9 +267,9 @@ class UpgradeProgress(TransactionCallbacks, Progress):
     def __init__(self, weight: int, log):
         TransactionCallbacks.__init__(self)
         Progress.__init__(self, weight, log)
-        self.pgks = None
-        self.pgks_done = None
-        self.processed_packages = set()
+        self.pgks: int | None = None
+        self.pgks_done: int | None = None
+        self.processed_packages: set[str] = set()
 
     def install_progress(
         self, item: libdnf5.base.TransactionPackage, amount: int, total: int
@@ -287,6 +287,8 @@ class UpgradeProgress(TransactionCallbacks, Progress):
             print(f"Installing {package}", flush=True)
             self.processed_packages.add(package)
         pkg_progress = amount / total
+        assert isinstance(self.pgks_done, int)
+        assert isinstance(self.pgks, int)
         percent = (self.pgks_done + pkg_progress) / self.pgks * 100
         self.notify_callback(percent)
 
@@ -314,6 +316,8 @@ class UpgradeProgress(TransactionCallbacks, Progress):
             print(f"Uninstalling {package}", flush=True)
             self.processed_packages.add(package)
         pkg_progress = amount / total
+        assert isinstance(self.pgks_done, int)
+        assert isinstance(self.pgks, int)
         percent = (self.pgks_done + pkg_progress) / self.pgks * 100
         self.notify_callback(percent)
 

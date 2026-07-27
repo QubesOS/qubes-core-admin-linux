@@ -72,7 +72,11 @@ class AgentArgs:
             "help": argparse.SUPPRESS,
         },
     }
-    ALL_OPTIONS = {**OPTIONS, **EXCLUSIVE_OPTIONS_1, **EXCLUSIVE_OPTIONS_2}
+    ALL_OPTIONS: dict[tuple, dict[str, str]] = {
+        **OPTIONS,
+        **EXCLUSIVE_OPTIONS_1,
+        **EXCLUSIVE_OPTIONS_2,
+    }
 
     @staticmethod
     def add_arguments(parser):

@@ -23,6 +23,7 @@ import io
 import os
 import sys
 from typing import Callable, Optional
+from logging import Logger
 
 
 class Progress:
@@ -32,13 +33,13 @@ class Progress:
         log,
     ):
         self.weight = weight
-        self._callback = None
-        self._start_percent = None
-        self._stop_percent = None
-        self._last_percent = None
-        self._stdout = None
-        self._stderr = None
-        self.log = log
+        self._callback: Optional[Callable[[float], None]] = None
+        self._start_percent: Optional[float] = None
+        self._stop_percent: Optional[float] = None
+        self._last_percent: Optional[float] = None
+        self._stdout: Optional[io.TextIOWrapper] = None
+        self._stderr: Optional[io.TextIOWrapper] = None
+        self.log: Logger = log
 
     def init(
         self,

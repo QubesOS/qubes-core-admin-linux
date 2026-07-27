@@ -22,9 +22,10 @@
 import re
 import ast
 from typing import Optional, Dict, Any
+from logging import Logger
 
 
-def get_os_data(logger: Optional = None) -> Dict[str, Any]:
+def get_os_data(logger: Optional[Logger] = None) -> Dict[str, Any]:
     """
     Return dictionary with info about the operating system
 
@@ -72,7 +73,7 @@ def get_os_data(logger: Optional = None) -> Dict[str, Any]:
     return data
 
 
-def _load_os_release(*os_release_files, logger: Optional):
+def _load_os_release(*os_release_files, logger: Optional[Logger]):
     """
     Load os-release as dictionary.
 
