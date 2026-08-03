@@ -20,6 +20,7 @@
 # USA.
 
 from typing import List, Dict
+from logging import Handler
 
 from source.common.package_manager import PackageManager, AgentType
 from source.common.process_result import ProcessResult
@@ -29,7 +30,9 @@ from source.common.exit_codes import EXIT
 class PACMANCLI(PackageManager):
     PROGRESS_REPORTING = False
 
-    def __init__(self, log_handler, log_level, agent_type: AgentType):
+    def __init__(
+        self, log_handler: Handler, log_level: int, agent_type: AgentType
+    ) -> None:
         super().__init__(log_handler, log_level, agent_type)
         if self.type is AgentType.UPDATE_VM:
             raise NotImplementedError("Pacman do not support update proxy VM.")
@@ -67,7 +70,7 @@ class PACMANCLI(PackageManager):
         return packages
 
     # pylint: disable=unused-argument
-    def get_action(self, remove_obsolete) -> List[str]:
+    def get_action(self, remove_obsolete: bool) -> List[str]:
         """
         Pacman will handle obsoletions itself
         """

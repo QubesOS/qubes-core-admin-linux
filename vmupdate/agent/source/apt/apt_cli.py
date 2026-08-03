@@ -24,7 +24,8 @@
 import fcntl
 import os
 import contextlib
-from typing import List
+from typing import List, Iterator
+from logging import Handler
 
 from source.common.package_manager import PackageManager, AgentType
 from source.common.process_result import ProcessResult
@@ -34,7 +35,9 @@ from source.common.exit_codes import EXIT
 class APTCLI(PackageManager):
     PROGRESS_REPORTING = False
 
-    def __init__(self, log_handler, log_level, agent_type: AgentType):
+    def __init__(
+        self, log_handler: Handler, log_level: int, agent_type: AgentType
+    ) -> None:
         super().__init__(log_handler, log_level, agent_type)
         if self.type is AgentType.UPDATE_VM:
             raise NotImplementedError("APT do not support update proxy VM.")
@@ -44,7 +47,7 @@ class APTCLI(PackageManager):
         os.environ["DEBIAN_FRONTEND"] = "noninteractive"
 
     @contextlib.contextmanager
-    def apt_lock(self):
+    def apt_lock(self) -> Iterator:
         """
         Contex manager for locking compatible with 'apt-get update' lock.
         """
@@ -52,7 +55,7 @@ class APTCLI(PackageManager):
             fcntl.lockf(f_lock.fileno(), fcntl.LOCK_EX)
             yield
 
-    def wait_for_lock(self):
+    def wait_for_lock(self) -> None:
         """
         Wait for any other apt-get instance to finish.
         """
@@ -86,7 +89,7 @@ class APTCLI(PackageManager):
         result.error_from_messages()
         return result
 
-    def get_packages(self):
+    def get_packages(self) -> dict[str, list[str]]:
         """
         Use dpkg-query to return the installed packages and their versions.
         """
@@ -100,7 +103,7 @@ class APTCLI(PackageManager):
         # install ok installed qubes-core-agent 4.1.35-1+deb11u1
         result = self.run_cmd(cmd, realtime=False)
 
-        packages = {}
+        packages: dict[str, list[str]] = {}
         for line in result.out.splitlines():
             cols = line.split()
             selection, _flag, status, package, version = cols

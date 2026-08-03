@@ -22,6 +22,7 @@
 import os
 import logging
 import grp
+from logging import Logger, FileHandler, Formatter
 from pathlib import Path
 
 LOGPATH = "/var/log/qubes/qubes-update"
@@ -30,13 +31,13 @@ LOG_FILE = "update-agent.log"
 
 
 def init_logs(
-    directory=LOGPATH,
-    file=LOG_FILE,
-    format_=FORMAT_LOG,
-    level="INFO",
-    truncate_file=False,
-    qname=None,
-):
+    directory: str = LOGPATH,
+    file: str = LOG_FILE,
+    format_: str = FORMAT_LOG,
+    level: str = "INFO",
+    truncate_file: bool = False,
+    qname: str | None = None,
+) -> tuple[Logger, FileHandler, str, str, Formatter]:
     Path(directory).mkdir(parents=True, exist_ok=True)
     log_path = os.path.join(directory, file)
 

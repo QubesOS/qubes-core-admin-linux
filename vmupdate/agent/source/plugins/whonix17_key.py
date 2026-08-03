@@ -23,6 +23,9 @@
 import os
 import subprocess
 
+from logging import Logger
+from typing import Any
+
 KICKSECURE_KEY = """-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mQINBFLYY+gBEACb5AqqsBuxzGlqSQZoua/CI/kr9YOagD9G8I+aBXoTUqyTSafy
@@ -177,7 +180,7 @@ KEYFILE_PATH = "/usr/share/keyrings/derivative.asc"
 # sub:e:4096:1:CB8D50BB77BB3C48:1389913659:1769172143:::
 
 
-def whonix17_key(os_data, log, **kwargs):
+def whonix17_key(os_data: dict, log: Logger, **kwargs: Any) -> None:
     """
     Update kicksecure signing key - https://www.kicksecure.com/wiki/EXPKEYSIG
     """

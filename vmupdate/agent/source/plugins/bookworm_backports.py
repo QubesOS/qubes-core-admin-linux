@@ -22,6 +22,8 @@
 
 import os
 import subprocess
+from logging import Logger
+from typing import Any
 
 sources_list = "/etc/apt/sources.list.d/backports.list"
 base_repo_url = "deb.debian.org/debian/dists/bookworm/InRelease"
@@ -45,7 +47,7 @@ Pin-Priority: 600
 """
 
 
-def add_backports_repo():
+def add_backports_repo() -> None:
     # find URL flavor used for deb.debian.org
     try:
         output = subprocess.check_output(
@@ -72,7 +74,7 @@ def add_backports_repo():
             sources.write(backports_line.format(baseurl=baseurl))
 
 
-def check_package_not_from_backports(package):
+def check_package_not_from_backports(package: str) -> bool:
     # check if package is installed but not from backports
     try:
         output = subprocess.check_output(
@@ -88,7 +90,7 @@ def check_package_not_from_backports(package):
 
 
 # pylint: disable=unused-argument
-def bookworm_backports(os_data, log, **kwargs):
+def bookworm_backports(os_data: dict, log: Logger, **kwargs: Any) -> None:
     """
     Update firmware and/or pipewire packages from backports repository.
 

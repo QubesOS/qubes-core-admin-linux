@@ -22,17 +22,23 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
 # USA.
 
+import argparse
 import os
 import signal
 import sys
 import queue
 import logging
 import multiprocessing
+import multiprocessing.managers
+from logging import Logger
 from os.path import join
-from typing import Optional, Tuple, Callable
+from types import FrameType
+from typing import Any, Optional, Tuple, Callable, Union
 
 from tqdm import tqdm
 
+from qubesadmin.app import QubesBase
+from qubesadmin.vm import QubesVM
 from vmupdate.agent.source.log_config import init_logs
 from vmupdate.agent.source.common.process_result import ProcessResult
 from vmupdate.agent.source.common.exit_codes import EXIT
@@ -45,7 +51,13 @@ class UpdateManager:
     Update multiple qubes simultaneously.
     """
 
-    def __init__(self, qubes, args, log, dom0=False) -> None:
+    def __init__(
+        self,
+        qubes: list[QubesVM],
+        args: argparse.Namespace,
+        log: Logger,
+        dom0: bool = False,
+    ) -> None:
         self.qubes = qubes
         self.max_concurrency = args.max_concurrency
         self.show_output = args.show_output
@@ -60,7 +72,7 @@ class UpdateManager:
         self.log = log
         self.dom0 = dom0
 
-    def run(self, agent_args) -> tuple[int, dict]:
+    def run(self, agent_args: argparse.Namespace) -> tuple[int, dict]:
         """
         Run simultaneously `update_qube` for all qubes as separate processes.
         """
@@ -152,7 +164,7 @@ class UpdateManager:
         elif not self.quiet and self.no_progress:
             self.print(result.out)
 
-    def print(self, *args) -> None:
+    def print(self, *args: Any) -> None:
         if self.buffered:
             self.buffer += " ".join(map(str, args)) + "\n"
         else:
@@ -233,9 +245,12 @@ class SimpleTerminalBar:
         """Implementation of tqdm API"""
 
     @staticmethod
-    def reinit_class(download_only=False) -> None:
+    def reinit_class(download_only: bool = False) -> None:
         SimpleTerminalBar.PARENT_MULTI_BAR = TerminalMultiBar()
         SimpleTerminalBar.DOWNLOAD_ONLY = download_only
+
+
+Bar = Union[SimpleTerminalBar, tqdm]
 
 
 class MultipleUpdateMultipleProgressBar:
@@ -244,8 +259,12 @@ class MultipleUpdateMultipleProgressBar:
     """
 
     def __init__(
-        self, dummy, output, max_concurrency, printer: Optional[Callable]
-    ):
+        self,
+        dummy: bool,
+        output: Callable[..., Bar],
+        max_concurrency: int,
+        printer: Optional[Callable],
+    ) -> None:
         self.dummy = dummy
 
         self.manager = multiprocessing.Manager()
@@ -302,12 +321,14 @@ class MultipleUpdateMultipleProgressBar:
                     status_name = feed.status.value
                     if feed.status == Status.DONE:
                         left_to_finish -= 1
+                        assert isinstance(feed.info, FinalStatus)
                         status_name = feed.info.value
                         self.statuses[feed.qname] = FinalStatus(status_name)
                     self.progress_bars[feed.qname].set_description(
                         f"{feed.qname} ({status_name})"
                     )
                     if feed.status == Status.UPDATING:
+                        assert isinstance(feed.info, float)
                         self._update(feed.qname, feed.info)
                 elif self.print is not None:
                     self.print(str(feed))
@@ -320,7 +341,9 @@ class MultipleUpdateMultipleProgressBar:
         self.progress_bars[qname].update(progress)
         self.progresses[qname] += progress
 
-    def signal_handler_during_feeding(self, _sig, _frame) -> None:
+    def signal_handler_during_feeding(
+        self, _sig: int, _frame: FrameType | None
+    ) -> None:
         self.termination.value = True
 
     def close(self) -> None:
@@ -337,7 +360,12 @@ class MultipleUpdateMultipleProgressBar:
 
 
 def update_qube(
-    qube, agent_args, show_progress, status_notifier, termination, dom0
+    qube: QubesVM,
+    agent_args: argparse.Namespace,
+    show_progress: bool,
+    status_notifier: Any,
+    termination: Any,
+    dom0: bool,
 ) -> Tuple[str, ProcessResult]:
     """
     Create and run `UpdateAgentManager` for qube.
@@ -392,7 +420,14 @@ class UpdateAgentManager:
     FORMAT_LOG = "%(asctime)s %(message)s"
     WORKDIR = "/run/qubes-update/"
 
-    def __init__(self, app, qube, agent_args, show_progress, dom0) -> None:
+    def __init__(
+        self,
+        app: QubesBase,
+        qube: QubesVM,
+        agent_args: argparse.Namespace,
+        show_progress: bool,
+        dom0: bool,
+    ) -> None:
         self.qube = qube
         self.app = app
         self.dom0 = dom0
@@ -416,22 +451,29 @@ class UpdateAgentManager:
         self.show_progress = show_progress
 
     def run_agent(
-        self, agent_args, status_notifier, termination
+        self,
+        agent_args: argparse.Namespace,
+        status_notifier: Any,
+        termination: multiprocessing.managers.ValueProxy,
     ) -> ProcessResult:
         """
         Copy agent file to dest vm, run entrypoint, collect output and logs.
         """
+        new_status_notifier = status_notifier
         if self.qube.klass == "AdminVM" and not self.dom0:
             # using UpdateVM to download updates
-            status_notifier = StatusNotifierWrapper(status_notifier, "dom0")
+            new_status_notifier = StatusNotifierWrapper(status_notifier, "dom0")
 
-        result = self._run_agent(agent_args, status_notifier, termination)
+        result = self._run_agent(agent_args, new_status_notifier, termination)
 
         self._log_output(result, agent_args.show_output)
         return result
 
     def _run_agent(
-        self, agent_args, status_notifier, termination
+        self,
+        agent_args: argparse.Namespace,
+        status_notifier: Any,
+        termination: multiprocessing.managers.ValueProxy,
     ) -> ProcessResult:
         self.log.info("Running update agent for %s", self.qube.name)
         dest_dir: Optional[str] = None
@@ -476,9 +518,12 @@ class UpdateAgentManager:
 
         return result
 
-    def _transfer_agent(self, qconn, src_dir) -> ProcessResult:
+    def _transfer_agent(
+        self, qconn: QubeConnection, src_dir: Optional[str]
+    ) -> ProcessResult:
         result = ProcessResult()
         if self.qube.klass != "AdminVM":
+            assert src_dir is not None
             self.log.info(
                 "Transferring files to destination qube: %s", self.qube.name
             )
@@ -489,7 +534,10 @@ class UpdateAgentManager:
         return result
 
     def _run_entrypoint(
-        self, qconn: QubeConnection, entrypoint: list[str] | str, agent_args
+        self,
+        qconn: QubeConnection,
+        entrypoint: list[str] | str,
+        agent_args: argparse.Namespace,
     ) -> ProcessResult:
         result = ProcessResult()
         self.log.info(
@@ -501,7 +549,7 @@ class UpdateAgentManager:
             qconn.status = FinalStatus.SUCCESS
         return result
 
-    def _read_logs(self, qconn) -> None:
+    def _read_logs(self, qconn: QubeConnection) -> None:
         result_logs = qconn.read_logs()
         if result_logs:
             self.log.error(
@@ -535,11 +583,11 @@ class StatusNotifierWrapper:
     Masks proxy VM with display name.
     """
 
-    def __init__(self, status_notifier, qube_name) -> None:
+    def __init__(self, status_notifier: Any, qube_name: str) -> None:
         self.status_notifier = status_notifier
         self.qube_name = qube_name
 
-    def put(self, message) -> None:
+    def put(self, message: StatusInfo | FormatedLine) -> None:
         if isinstance(message, (StatusInfo, FormatedLine)):
             message.qname = self.qube_name
         self.status_notifier.put(message)

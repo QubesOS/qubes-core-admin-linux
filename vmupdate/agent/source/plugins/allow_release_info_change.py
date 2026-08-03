@@ -19,11 +19,16 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
 # USA.
 
+from logging import Logger
+from typing import Any
+
 APT_CONF = "/etc/apt/apt.conf.d/01qubes-update"
 
 
 # pylint: disable=unused-argument
-def allow_release_info_change(os_data, log, **kwargs):
+def allow_release_info_change(
+    os_data: dict, log: Logger, **kwargs: Any
+) -> None:
     """
     Add apt conf file to disable `AllowReleaseInfoChange` for `buster`.
 

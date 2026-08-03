@@ -12,6 +12,8 @@ from typing import Set, Iterable, Dict, Tuple
 
 import qubesadmin
 import qubesadmin.exc
+from qubesadmin.vm import QubesVM
+from qubesadmin.app import QubesBase
 from vmupdate.agent.source.status import FinalStatus
 from vmupdate.agent.source.common.exit_codes import EXIT
 from vmupdate.utils import (
@@ -32,15 +34,17 @@ class ArgumentError(Exception):
     """Nonsense arguments"""
 
 
-def main(args=None, app=qubesadmin.Qubes()):
-    args = parse_args(args, app)
+def main(
+    args: list[str] | None = None, app: QubesBase = qubesadmin.Qubes()
+) -> int:
+    parsed_args = parse_args(args, app)
 
     log_handler = logging.FileHandler(LOGPATH, encoding="utf-8")
     log_formatter = logging.Formatter(LOG_FORMAT)
     log_handler.setFormatter(log_formatter)
 
     log = logging.getLogger("vm-update")
-    log.setLevel(args.log)
+    log.setLevel(parsed_args.log)
     log.addHandler(log_handler)
     try:
         gid = grp.getgrnam("qubes").gr_gid
@@ -51,19 +55,19 @@ def main(args=None, app=qubesadmin.Qubes()):
         pass
 
     try:
-        targets = get_targets(args, app)
+        targets = get_targets(parsed_args, app)
     except ArgumentError as err:
         print(str(err), file=sys.stderr)
         log.error(str(err))
         return EXIT.ERR_USAGE
 
     if not targets:
-        if not args.quiet:
+        if not parsed_args.quiet:
             print(
                 "No qube eligible for update. Try --force-update to ensure ",
                 "all qubes are checked for new updates.",
             )
-        return EXIT.OK_NO_UPDATES if args.signal_no_updates else EXIT.OK
+        return EXIT.OK_NO_UPDATES if parsed_args.signal_no_updates else EXIT.OK
 
     admin = [target for target in targets if target.klass == "AdminVM"]
     independent = [
@@ -83,19 +87,19 @@ def main(args=None, app=qubesadmin.Qubes()):
         message = f"The admin VM ({admin[0].name}) will be updated."
     else:
         message = "The admin VM will not be updated."
-    if args.dry_run:
+    if parsed_args.dry_run:
         print(message)
     elif admin:
         log.debug(message)
-        if args.just_print_progress and args.no_refresh:
+        if parsed_args.just_print_progress and parsed_args.no_refresh:
             # internal usage just for installing ready updates, use carefully
             ret_code_admin, admin_status = run_update(
-                admin, args, log, "admin VM"
+                admin, parsed_args, log, "admin VM"
             )
         else:
             # use qubes-dom0-update to update dom0
             ret_code_admin, admin_status = run_update(
-                admin, args, log, "admin VM", dom0=True
+                admin, parsed_args, log, "admin VM", dom0=True
             )
         no_updates = all(
             stat == FinalStatus.NO_UPDATES for stat in admin_status.values()
@@ -105,7 +109,7 @@ def main(args=None, app=qubesadmin.Qubes()):
 
     # independent qubes first (TemplateVMs, StandaloneVMs)
     ret_code_independent, templ_statuses = run_update(
-        independent, args, log, "templates and standalones"
+        independent, parsed_args, log, "templates and standalones"
     )
     no_updates = (
         all(stat == FinalStatus.NO_UPDATES for stat in templ_statuses.values())
@@ -114,7 +118,7 @@ def main(args=None, app=qubesadmin.Qubes()):
     if ret_code_independent == EXIT.SIGINT:
         return EXIT.SIGINT
     # then derived qubes (AppVMs...)
-    ret_code_appvm, app_statuses = run_update(derived, args, log)
+    ret_code_appvm, app_statuses = run_update(derived, parsed_args, log)
     no_updates = (
         all(stat == FinalStatus.NO_UPDATES for stat in app_statuses.values())
         and no_updates
@@ -123,20 +127,20 @@ def main(args=None, app=qubesadmin.Qubes()):
         return EXIT.SIGINT
 
     ret_code_restart = apply_updates_to_appvm(
-        args, independent, templ_statuses, app_statuses, log
+        parsed_args, independent, templ_statuses, app_statuses, log
     )
 
     ret_code = max(
         ret_code_admin, ret_code_independent, ret_code_appvm, ret_code_restart
     )
-    if ret_code == EXIT.OK and no_updates and args.signal_no_updates:
+    if ret_code == EXIT.OK and no_updates and parsed_args.signal_no_updates:
         return EXIT.OK_NO_UPDATES
-    if ret_code == EXIT.OK_NO_UPDATES and not args.signal_no_updates:
+    if ret_code == EXIT.OK_NO_UPDATES and not parsed_args.signal_no_updates:
         return EXIT.OK
     return ret_code
 
 
-def parse_args(args, app):
+def parse_args(args: list[str] | None, app: QubesBase) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     try:
         default_update_if_stale = int(
@@ -252,21 +256,21 @@ def parse_args(args, app):
     )
 
     AgentArgs.add_arguments(parser)
-    args = parser.parse_args(args)
+    parsed_args = parser.parse_args(args)
 
-    if args.update_if_stale < 0:
+    if parsed_args.update_if_stale < 0:
         raise ArgumentError("Wrong value for --update-if-stale")
 
-    return args
+    return parsed_args
 
 
-def get_targets(args, app) -> Set[qubesadmin.vm.QubesVM]:
+def get_targets(args: argparse.Namespace, app: QubesBase) -> Set[QubesVM]:
     preselected_targets = preselect_targets(args, app)
     selected_targets = select_targets(preselected_targets, args)
     return selected_targets
 
 
-def preselect_targets(args, app) -> Set[qubesadmin.vm.QubesVM]:
+def preselect_targets(args: argparse.Namespace, app: QubesBase) -> Set[QubesVM]:
     targets = set()
     updatable = {vm for vm in app.domains if getattr(vm, "updateable", False)}
     default_targeting = (
@@ -328,7 +332,9 @@ def preselect_targets(args, app) -> Set[qubesadmin.vm.QubesVM]:
     return targets
 
 
-def select_targets(targets, args) -> Set[qubesadmin.vm.QubesVM]:
+def select_targets(
+    targets: Set[QubesVM], args: argparse.Namespace
+) -> Set[QubesVM]:
     # try to update all preselected targets
     if args.force_update:
         return targets
@@ -386,7 +392,11 @@ def select_targets(targets, args) -> Set[qubesadmin.vm.QubesVM]:
 
 
 def run_update(
-    targets, args, log, qube_klass="qubes", dom0=False
+    targets: list[QubesVM],
+    args: argparse.Namespace,
+    log: logging.Logger,
+    qube_klass: str = "qubes",
+    dom0: bool = False,
 ) -> Tuple[int, Dict[str, FinalStatus]]:
     if targets:
         message = f"Following {qube_klass} will be updated: " + ", ".join(
@@ -418,11 +428,11 @@ def run_update(
 
 
 def apply_updates_to_appvm(
-    args,
+    args: argparse.Namespace,
     vm_updated: Iterable,
     template_statuses: Dict[str, FinalStatus],
     derived_statuses: Dict[str, FinalStatus],
-    log,
+    log: logging.Logger,
 ) -> int:
     """
     Shutdown running templates and then restart/shutdown derived AppVMs.
@@ -495,7 +505,9 @@ def apply_updates_to_appvm(
     return ret_code
 
 
-def get_derived_vm_to_apply(templates, derived_statuses):
+def get_derived_vm_to_apply(
+    templates: list[QubesVM], derived_statuses: dict[str, FinalStatus]
+) -> tuple[set[QubesVM], set[QubesVM]]:
     possibly_changed_vms = set()
     for template in templates:
         possibly_changed_vms.update(template.derived_vms)
@@ -517,7 +529,7 @@ def get_derived_vm_to_apply(templates, derived_statuses):
     return to_restart, to_shutdown
 
 
-def restart_vms(to_restart, log):
+def restart_vms(to_restart: set[QubesVM], log: logging.Logger) -> int:
     """
     Try to restart vms.
     """

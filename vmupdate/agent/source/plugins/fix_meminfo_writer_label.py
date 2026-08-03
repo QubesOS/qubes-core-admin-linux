@@ -2,9 +2,12 @@ import subprocess
 import os
 import signal
 
+from logging import Logger
+from typing import Any
+
 
 # pylint: disable=unused-argument
-def fix_meminfo_writer_label(os_data, log, **kwargs):
+def fix_meminfo_writer_label(os_data: dict, log: Logger, **kwargs: Any) -> None:
     """
     Fix meminfo-writer SELinux label to make memory ballooning work again
 

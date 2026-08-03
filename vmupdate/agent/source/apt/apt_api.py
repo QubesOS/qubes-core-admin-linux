@@ -21,6 +21,7 @@
 
 import os
 from pathlib import Path
+from logging import Handler, Logger
 
 import apt
 import apt.progress.base
@@ -37,7 +38,9 @@ from .apt_cli import APTCLI
 class APT(APTCLI):
     PROGRESS_REPORTING = True
 
-    def __init__(self, log_handler, log_level, agent_type: AgentType):
+    def __init__(
+        self, log_handler: Handler, log_level: int, agent_type: AgentType
+    ) -> None:
         super().__init__(log_handler, log_level, agent_type)
         self.apt_cache = apt.Cache()
         update = FetchProgress(
@@ -112,12 +115,12 @@ class APT(APTCLI):
 
 
 class FetchProgress(apt.progress.base.AcquireProgress, Progress):
-    def __init__(self, weight: int, log, refresh: bool = False):
+    def __init__(self, weight: int, log: Logger, refresh: bool = False) -> None:
         Progress.__init__(self, weight, log)
         self.action = "refresh" if refresh else "fetch"
         self.fetching_notified = False
 
-    def fail(self, item):
+    def fail(self, item: apt_pkg.AcquireItemDesc) -> None:
         """
         Write an error message to the fake stderr.
         """
@@ -129,7 +132,7 @@ class FetchProgress(apt.progress.base.AcquireProgress, Progress):
             file=self._stderr,
         )
 
-    def pulse(self, _owner):
+    def pulse(self, _owner: apt_pkg.Acquire) -> bool:
         """
         Report ongoing progress on fetching packages.
 
@@ -147,7 +150,7 @@ class FetchProgress(apt.progress.base.AcquireProgress, Progress):
         self.notify_callback(self.current_bytes / self.total_bytes * 100)
         return True
 
-    def start(self):
+    def start(self) -> None:
         """Invoked when the Acquire process starts running."""
         self.log.info(f"{self.action.capitalize()} started.")
         if self.action == "refresh":
@@ -155,7 +158,7 @@ class FetchProgress(apt.progress.base.AcquireProgress, Progress):
         super().start()
         self.notify_callback(0)
 
-    def stop(self):
+    def stop(self) -> None:
         """Invoked when the Acquire process stops running."""
         self.log.info(f"{self.action.capitalize()} ended.")
         print(f"{self.action.capitalize()}ed.", flush=True)
@@ -164,17 +167,17 @@ class FetchProgress(apt.progress.base.AcquireProgress, Progress):
 
 
 class UpgradeProgress(apt.progress.base.InstallProgress, Progress):
-    def __init__(self, weight: int, log):
+    def __init__(self, weight: int, log: Logger) -> None:
         apt.progress.base.InstallProgress.__init__(self)
         Progress.__init__(self, weight, log)
 
-    def status_change(self, _pkg, percent, _status):
+    def status_change(self, _pkg: str, percent: float, _status: str) -> None:
         """
         Report ongoing progress on installing/upgrading packages.
         """
         self.notify_callback(percent)
 
-    def error(self, pkg, errormsg):
+    def error(self, pkg: str, errormsg: str) -> None:
         """
         Write an error message to the fake stderr.
         """
@@ -184,12 +187,12 @@ class UpgradeProgress(apt.progress.base.InstallProgress, Progress):
             file=self._stderr,
         )
 
-    def start_update(self):
+    def start_update(self) -> None:
         print("Updating packages.", flush=True)
         super().start_update()
         self.notify_callback(0)
 
-    def finish_update(self):
+    def finish_update(self) -> None:
         print("Updated.", flush=True)
         super().finish_update()
         self.notify_callback(100)

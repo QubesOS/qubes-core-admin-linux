@@ -21,8 +21,11 @@
 
 import os
 
+from logging import Logger
+from typing import Any
 
-def manage_rpm_macro(os_data, log, **kwargs):
+
+def manage_rpm_macro(os_data: dict, log: Logger, **kwargs: Any) -> None:
     """
     Prepare requirements depend on os version.
     """

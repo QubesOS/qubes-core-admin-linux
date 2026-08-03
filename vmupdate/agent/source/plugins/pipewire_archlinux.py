@@ -19,9 +19,12 @@
 
 import subprocess
 
+from logging import Logger
+from typing import Any
+
 
 # pylint: disable=unused-argument
-def pipewire_archlinux(os_data, log, **kwargs):
+def pipewire_archlinux(os_data: dict, log: Logger, **kwargs: Any) -> None:
     """Help with unattended switch from pulseaudio to pipewire-pulse"""
     # pacman proposes to remove pulseaudio when installing pipewire-pulse,
     # but the default answer is "n", so the update with --noconfirm fails

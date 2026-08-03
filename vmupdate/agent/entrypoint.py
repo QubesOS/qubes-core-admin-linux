@@ -1,7 +1,10 @@
 #!/usr/bin/python3
+
 import os
 import sys
 import argparse
+from logging import Logger, Handler
+from typing import Any
 
 from source import plugins
 from source.args import AgentArgs
@@ -11,36 +14,41 @@ from source.common.exit_codes import EXIT
 from source.common.package_manager import AgentType
 
 
-def main(args=None):
+def main(args: list[str] | None = None) -> int:
     """
     Run the appropriate package manager.
     """
-    args = parse_args(args)
+    parsed_args = parse_args(args)
     log, log_handler, log_level, _log_path, _log_formatter = init_logs(
-        level=args.log, truncate_file=True
+        level=parsed_args.log, truncate_file=True
     )
-    log.debug("Run entrypoint with args: %s", str(args))
+    log.debug("Run entrypoint with args: %s", str(parsed_args))
     os_data = get_os_data()
 
     log.debug("Selecting package manager.")
     agent_type = AgentType.VM
     if os_data["id"] == "qubes":
         agent_type = AgentType.DOM0
-    if args.download_only:
+    if parsed_args.download_only:
         agent_type = AgentType.UPDATE_VM
     pkg_mng = get_package_manager(
-        os_data, log, log_handler, log_level, agent_type, args.no_progress
+        os_data,
+        log,
+        log_handler,
+        log_level,
+        agent_type,
+        parsed_args.no_progress,
     )
 
     log.debug("Running upgrades.")
     return_code = pkg_mng.upgrade(
-        refresh=not args.no_refresh,
-        hard_fail=not args.force_upgrade,
-        remove_obsolete=not args.leave_obsolete,
-        print_streams=args.show_output,
+        refresh=not parsed_args.no_refresh,
+        hard_fail=not parsed_args.force_upgrade,
+        remove_obsolete=not parsed_args.leave_obsolete,
+        print_streams=parsed_args.show_output,
     )
 
-    if not pkg_mng.PROGRESS_REPORTING and not args.no_progress:
+    if not pkg_mng.PROGRESS_REPORTING and not parsed_args.no_progress:
         # even if progress reporting is unavailable we want info that update finished
         if agent_type is AgentType.UPDATE_VM:
             print(f"{55:.2f}", flush=True, file=sys.stderr)
@@ -51,7 +59,7 @@ def main(args=None):
         log.debug("Notify dom0 about upgrades.")
         os.system("/usr/lib/qubes/upgrades-status-notify")
 
-    if not args.no_cleanup:
+    if not parsed_args.no_cleanup:
         return_code = max(pkg_mng.clean(), return_code)
 
     if return_code not in EXIT.VM_HANDLED:
@@ -59,16 +67,21 @@ def main(args=None):
     return return_code
 
 
-def parse_args(args):
+def parse_args(args: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     AgentArgs.add_arguments(parser)
-    args = parser.parse_args(args)
-    return args
+    parsed_args = parser.parse_args(args)
+    return parsed_args
 
 
 def get_package_manager(
-    os_data, log, log_handler, log_level, agent_type, no_progress
-):
+    os_data: dict,
+    log: Logger,
+    log_handler: Handler,
+    log_level: int,
+    agent_type: AgentType,
+    no_progress: bool,
+) -> Any:
     """
     Returns instance of `PackageManager`.
 
@@ -76,7 +89,7 @@ def get_package_manager(
     cli based version is returned.
     """
     # pylint: disable=import-outside-toplevel
-    requirements = {}
+    requirements: dict = {}
     # plugins MUST be applied before import anything from package managers.
     # in case of apt configuration is loaded on `import apt`.
     if agent_type is not AgentType.UPDATE_VM:
@@ -88,7 +101,7 @@ def get_package_manager(
     elif os_data["os_family"] == "Debian":
         PackageManager = import_debian_package_manager(log, no_progress)
     elif os_data["os_family"] == "ArchLinux":
-        from source.pacman.pacman_cli import PACMANCLI as PackageManager
+        from source.pacman.pacman_cli import PACMANCLI as PackageManager  # type: ignore[no-redef]
 
         print("Progress reporting not supported.", flush=True)
     elif os_data["os_family"] == "Qubes":
@@ -103,7 +116,9 @@ def get_package_manager(
     return pkg_mng
 
 
-def import_rhel_package_manager(os_data, log, no_progress):
+def import_rhel_package_manager(
+    os_data: dict, log: Logger, no_progress: bool
+) -> Any:
     """
     Import dnf package manager.
     """
@@ -143,7 +158,7 @@ def import_rhel_package_manager(os_data, log, no_progress):
     return PackageManager
 
 
-def import_debian_package_manager(log, no_progress):
+def import_debian_package_manager(log: Logger, no_progress: bool) -> Any:
     """
     Import apt package manager.
     """
@@ -163,7 +178,9 @@ def import_debian_package_manager(log, no_progress):
     return PackageManager
 
 
-def import_dom0_package_manager(os_data, log, no_progress):
+def import_dom0_package_manager(
+    os_data: dict, log: Logger, no_progress: bool
+) -> Any:
     """
     Import dnf package manager for dom0.
     """

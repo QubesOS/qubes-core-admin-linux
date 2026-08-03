@@ -20,13 +20,18 @@
 # USA.
 import asyncio
 from datetime import datetime
+from logging import Logger
+from typing import Any
 
 import qubesadmin.exc
+from qubesadmin.vm import QubesVM
 from qubesadmin.events.utils import wait_for_domain_shutdown
 from vmupdate.agent.source.common.exit_codes import EXIT
 
 
-def shutdown_domains(to_shutdown, log):
+def shutdown_domains(
+    to_shutdown: QubesVM, log: Logger
+) -> tuple[int, list[QubesVM]]:
     """
     Try to shut down vms and wait to finish.
     """
@@ -45,7 +50,9 @@ def shutdown_domains(to_shutdown, log):
     return ret_code, wait_for
 
 
-def get_feature(vm, feature_name, default_value=None):
+def get_feature(
+    vm: QubesVM, feature_name: str, default_value: Any = None
+) -> Any:
     """Get feature, with a working default_value."""
     try:
         return vm.features.get(feature_name, default_value)
@@ -53,7 +60,9 @@ def get_feature(vm, feature_name, default_value=None):
         return default_value
 
 
-def get_boolean_feature(vm, feature_name, default=False):
+def get_boolean_feature(
+    vm: QubesVM, feature_name: str, default: Any = False
+) -> bool:
     """Helper function to get a feature converted to bool if it exists.
 
     Necessary because true/false in features are coded as 1/empty string.
@@ -66,7 +75,7 @@ def get_boolean_feature(vm, feature_name, default=False):
     return result
 
 
-def is_stale(vm, expiration_period):
+def is_stale(vm: QubesVM, expiration_period: int) -> bool:
     """Return True if VM has not been checked for updates recently."""
     today = datetime.today()
     try:

@@ -22,9 +22,12 @@
 
 import pathlib
 
+from logging import Logger
+from typing import Any
+
 
 # pylint: disable=unused-argument
-def updatesproxy_fix(os_data, log, **kwargs):
+def updatesproxy_fix(os_data: dict, log: Logger, **kwargs: Any) -> None:
     """
     Deploy #9025 fix
     """

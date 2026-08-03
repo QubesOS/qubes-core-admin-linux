@@ -18,6 +18,8 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
 # USA.
+
+import argparse
 import os
 import shutil
 import signal
@@ -26,10 +28,12 @@ import tempfile
 import concurrent.futures
 from os.path import join
 from subprocess import CalledProcessError
-from typing import List
+from logging import Logger
+from typing import List, Self, Any, Type
 
 import qubesadmin
 import qubesadmin.exc
+from qubesadmin.vm import QubesVM
 from vmupdate.agent.source.args import AgentArgs
 from vmupdate.agent.source.log_config import LOGPATH, LOG_FILE
 from vmupdate.agent.source.status import StatusInfo, FinalStatus, FormatedLine
@@ -51,8 +55,14 @@ class QubeConnection:
     PYTHON_PATH = "/usr/bin/python3"
 
     def __init__(
-        self, qube, dest_dir, cleanup, logger, show_progress, status_notifier
-    ):
+        self,
+        qube: QubesVM,
+        dest_dir: str | None,
+        cleanup: bool,
+        logger: Logger,
+        show_progress: bool,
+        status_notifier: Any,
+    ) -> None:
         self.qube = qube
         self.dest_dir = dest_dir
         self.cleanup = cleanup
@@ -63,12 +73,17 @@ class QubeConnection:
         self._initially_running = None
         self.__connected = False
 
-    def __enter__(self):
+    def __enter__(self) -> Self:
         self._initially_running = self.qube.is_running()
         self.__connected = True
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: Type[BaseException],
+        exc_val: BaseException | None,
+        exc_tb: Any,
+    ) -> None:
         """
         Do cleanup.
 
@@ -82,6 +97,7 @@ class QubeConnection:
         if self.cleanup:
             self.logger.info("Remove %s", self.dest_dir)
             try:
+                assert self.dest_dir is not None
                 self._run_shell_command_in_qube(
                     self.qube, ["rm", "-r", self.dest_dir]
                 )
@@ -106,7 +122,7 @@ class QubeConnection:
         self.__connected = False
 
     @staticmethod
-    def _has_assigned_pci_devices(vm) -> bool:
+    def _has_assigned_pci_devices(vm: QubesVM) -> bool:
         """Return True when VM has assigned PCI devices."""
         try:
             return any(vm.devices["pci"].get_assigned_devices())
@@ -120,6 +136,7 @@ class QubeConnection:
         :param src_dir: str: path to local (dom0) directory
         """
         assert self.__connected  # open the connection first
+        assert self.dest_dir is not None
 
         arch_format = ".tar.gz"
 
@@ -148,7 +165,7 @@ class QubeConnection:
         result += self._run_shell_command_in_qube(self.qube, command)
         return result
 
-    def _copy_file_from_dom0(self, src, dest) -> ProcessResult:
+    def _copy_file_from_dom0(self, src: str, dest: str) -> ProcessResult:
         write_dest = ["cat", ">", dest]
         command = " ".join(write_dest)
         self.logger.debug("run command: %s < %s", command, src)
@@ -168,7 +185,7 @@ class QubeConnection:
         return result
 
     def run_entrypoint(
-        self, entrypoint_path: str | List, agent_args
+        self, entrypoint_path: str | List, agent_args: argparse.Namespace
     ) -> ProcessResult:
         """
         Run a script in the qube.
@@ -201,7 +218,7 @@ class QubeConnection:
         return result
 
     def _run_shell_command_in_qube(
-        self, target, command: List[str], show: bool = False
+        self, target: QubesVM, command: List[str], show: bool = False
     ) -> ProcessResult:
         self.logger.debug(
             "run command in %s: %s", target.name, " ".join(command)
@@ -211,7 +228,7 @@ class QubeConnection:
         return self._run_command_and_actively_report_progress(target, command)
 
     def _run_command_and_wait_for_output(
-        self, target, command: List[str]
+        self, target: QubesVM, command: List[str]
     ) -> ProcessResult:
         self.logger.debug("Wait for output")
         result = ProcessResult()
@@ -251,7 +268,7 @@ class QubeConnection:
         return result
 
     def _run_command_and_actively_report_progress(
-        self, target, command: List[str]
+        self, target: QubesVM, command: List[str]
     ) -> ProcessResult:
         self.logger.debug("Progress reporting enabled.")
         if self.qube.klass == "AdminVM":
@@ -290,8 +307,10 @@ class QubeConnection:
             result.code = 0
         return result
 
-    def _collect_stderr(self, proc) -> bytes:
+    def _collect_stderr(self, proc: subprocess.Popen) -> bytes:
         progress_finished = False
+        if proc.stderr is None:
+            return b""
         for untrusted_line in iter(proc.stderr.readline, b""):
             if not untrusted_line:
                 continue
@@ -325,7 +344,9 @@ class QubeConnection:
 
         return b""
 
-    def _collect_stdout(self, proc) -> bytes:
+    def _collect_stdout(self, proc: subprocess.Popen) -> bytes:
+        if proc.stdout is None:
+            return b""
         for untrusted_line in iter(proc.stdout.readline, b""):
             if untrusted_line:
                 line = ProcessResult.sanitize_output(

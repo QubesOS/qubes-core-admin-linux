@@ -73,7 +73,9 @@ def get_os_data(logger: Optional[Logger] = None) -> Dict[str, Any]:
     return data
 
 
-def _load_os_release(*os_release_files, logger: Optional[Logger]):
+def _load_os_release(
+    *os_release_files: str, logger: Optional[Logger]
+) -> dict[str, str]:
     """
     Load os-release as dictionary.
 

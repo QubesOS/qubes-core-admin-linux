@@ -19,9 +19,17 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
 # USA.
 
+from logging import Logger
+from typing import Any
+
 
 # pylint: disable=unused-argument
-def disable_deltarpm(os_data, log, dnf_conf="/etc/dnf/dnf.conf", **kwargs):
+def disable_deltarpm(
+    os_data: dict,
+    log: Logger,
+    dnf_conf: str = "/etc/dnf/dnf.conf",
+    **kwargs: Any
+) -> None:
     """
     Modify dnf.conf file to disable `deltarpm`.
     """
