@@ -45,7 +45,7 @@ class UpdateManager:
     Update multiple qubes simultaneously.
     """
 
-    def __init__(self, qubes, args, log, dom0=False):
+    def __init__(self, qubes, args, log, dom0=False) -> None:
         self.qubes = qubes
         self.max_concurrency = args.max_concurrency
         self.show_output = args.show_output
@@ -60,7 +60,7 @@ class UpdateManager:
         self.log = log
         self.dom0 = dom0
 
-    def run(self, agent_args):
+    def run(self, agent_args) -> tuple[int, dict]:
         """
         Run simultaneously `update_qube` for all qubes as separate processes.
         """
@@ -104,7 +104,7 @@ class UpdateManager:
             if qube.klass == "AdminVM" and show_progress:
                 # progress of AdminVM is continuation of different process,
                 # so we want to skip 0 value at beginning
-                progress_bar.progress_bars[qube.name].progress = None
+                progress_bar.progress_bars[qube.name].reset()
 
         progress_bar.pool.close()
         progress_bar.feeding()
@@ -130,7 +130,7 @@ class UpdateManager:
 
         return self.ret_code, progress_bar.statuses
 
-    def collect_result(self, result_tuple: Tuple[str, ProcessResult]):
+    def collect_result(self, result_tuple: Tuple[str, ProcessResult]) -> None:
         """
         Callback method to process `update_qube` output.
         """
@@ -152,7 +152,7 @@ class UpdateManager:
         elif not self.quiet and self.no_progress:
             self.print(result.out)
 
-    def print(self, *args):
+    def print(self, *args) -> None:
         if self.buffered:
             self.buffer += " ".join(map(str, args)) + "\n"
         else:
@@ -164,10 +164,10 @@ class TerminalMultiBar:
     Handles multiple progress bars in terminal.
     """
 
-    def __init__(self):
-        self.progresses = []
+    def __init__(self) -> None:
+        self.progresses: list[SimpleTerminalBar] = []
 
-    def print(self):
+    def print(self) -> None:
         for progress in self.progresses:
             print(progress, file=sys.stderr, flush=True)
 
@@ -180,14 +180,17 @@ class SimpleTerminalBar:
     PARENT_MULTI_BAR = None
     DOWNLOAD_ONLY = False
 
-    def __init__(self, total, position, desc):
+    def __init__(
+        self, total: int | float, position: int, desc: Optional[str]
+    ) -> None:
+        assert SimpleTerminalBar.PARENT_MULTI_BAR is not None
         assert position == len(SimpleTerminalBar.PARENT_MULTI_BAR.progresses)
         SimpleTerminalBar.PARENT_MULTI_BAR.progresses.append(self)
-        self.desc = desc
-        self.progress = 0
-        self.total = total
+        self.desc: str = desc
+        self.progress: float | None = 0.0
+        self.total: int | float = total
 
-    def __str__(self):
+    def __str__(self) -> str:
         info = None
         name, status = self.desc.split(" ", 1)
         status = status[1:-1]  # remove brackets
@@ -204,25 +207,33 @@ class SimpleTerminalBar:
         if status == Status.UPDATING.value:
             if self.progress is None:
                 return ""
-            info = self.progress
+            info = str(self.progress)
         return f"{name} {status} {info}"
 
-    def update(self, progress):
-        if self.progress is None:
-            self.progress = 0
-        self.progress += progress
+    def reset(self, total: int | float | None = None) -> None:
+        if total is not None:
+            self.total = total
+        self.progress = None
+        assert SimpleTerminalBar.PARENT_MULTI_BAR is not None
         SimpleTerminalBar.PARENT_MULTI_BAR.print()
 
-    def set_description(self, desc: str):
+    def update(self, progress: float) -> None:
+        if self.progress is None:
+            self.progress = 0.0
+        self.progress += progress
+        assert SimpleTerminalBar.PARENT_MULTI_BAR is not None
+        SimpleTerminalBar.PARENT_MULTI_BAR.print()
+
+    def set_description(self, desc: str) -> None:
         self.desc = desc
         assert SimpleTerminalBar.PARENT_MULTI_BAR is not None
         SimpleTerminalBar.PARENT_MULTI_BAR.print()
 
-    def close(self):
+    def close(self) -> None:
         """Implementation of tqdm API"""
 
     @staticmethod
-    def reinit_class(download_only=False):
+    def reinit_class(download_only=False) -> None:
         SimpleTerminalBar.PARENT_MULTI_BAR = TerminalMultiBar()
         SimpleTerminalBar.DOWNLOAD_ONLY = download_only
 
@@ -256,7 +267,7 @@ class MultipleUpdateMultipleProgressBar:
         self.output_class = output
         self.print = printer
 
-    def add_bar(self, qname: str):
+    def add_bar(self, qname: str) -> None:
         """
         Add progress bar for a qube given by the name.
         """
@@ -303,16 +314,16 @@ class MultipleUpdateMultipleProgressBar:
             except queue.Empty:
                 pass
 
-    def _update(self, qname: str, value: float):
+    def _update(self, qname: str, value: float) -> None:
         current = value
         progress = current - self.progresses[qname]
         self.progress_bars[qname].update(progress)
         self.progresses[qname] += progress
 
-    def signal_handler_during_feeding(self, _sig, _frame):
+    def signal_handler_during_feeding(self, _sig, _frame) -> None:
         self.termination.value = True
 
-    def close(self):
+    def close(self) -> None:
         """
         This method should be called after `multiprocessing.Pool.join`
         """
@@ -381,7 +392,7 @@ class UpdateAgentManager:
     FORMAT_LOG = "%(asctime)s %(message)s"
     WORKDIR = "/run/qubes-update/"
 
-    def __init__(self, app, qube, agent_args, show_progress, dom0):
+    def __init__(self, app, qube, agent_args, show_progress, dom0) -> None:
         self.qube = qube
         self.app = app
         self.dom0 = dom0
@@ -490,7 +501,7 @@ class UpdateAgentManager:
             qconn.status = FinalStatus.SUCCESS
         return result
 
-    def _read_logs(self, qconn):
+    def _read_logs(self, qconn) -> None:
         result_logs = qconn.read_logs()
         if result_logs:
             self.log.error(
@@ -506,7 +517,7 @@ class UpdateAgentManager:
                 self.log.critical("%s", log_line)
         self.log_handler.setFormatter(self.log_formatter)
 
-    def _log_output(self, result: ProcessResult, show_output: bool):
+    def _log_output(self, result: ProcessResult, show_output: bool) -> None:
         output = result.out.split("\n") + result.err.split("\n")
         for line in output:
             self.log.debug("agent output: %s", line)
@@ -524,11 +535,11 @@ class StatusNotifierWrapper:
     Masks proxy VM with display name.
     """
 
-    def __init__(self, status_notifier, qube_name):
+    def __init__(self, status_notifier, qube_name) -> None:
         self.status_notifier = status_notifier
         self.qube_name = qube_name
 
-    def put(self, message):
+    def put(self, message) -> None:
         if isinstance(message, (StatusInfo, FormatedLine)):
             message.qname = self.qube_name
         self.status_notifier.put(message)
