@@ -20,6 +20,7 @@
 # USA.
 
 import shutil
+from logging import Handler
 from typing import List
 
 from source.common.package_manager import PackageManager, AgentType
@@ -31,7 +32,9 @@ class DNFCLI(PackageManager):
     PROGRESS_REPORTING = False
     UPDATE_VM_INSTALLROOT = "/var/lib/qubes/dom0-updates"
 
-    def __init__(self, log_handler, log_level, agent_type: AgentType):
+    def __init__(
+        self, log_handler: Handler, log_level: int, agent_type: AgentType
+    ):
         super().__init__(log_handler, log_level, agent_type)
         pck_mng_path = shutil.which("dnf")
         if pck_mng_path is not None:
@@ -85,7 +88,7 @@ class DNFCLI(PackageManager):
             result = ProcessResult()
         return result
 
-    def get_packages(self):
+    def get_packages(self) -> dict[str, list[str]]:
         """
         Use rpm to return the installed packages and their versions.
         """
@@ -100,7 +103,7 @@ class DNFCLI(PackageManager):
         # qubes-core-agent 4.1.351.fc34
         result = self.run_cmd(cmd, realtime=False)
 
-        packages = {}
+        packages: dict[str, list[str]] = {}
         for line in result.out.splitlines():
             cols = line.split()
             package, version = cols
@@ -108,7 +111,7 @@ class DNFCLI(PackageManager):
 
         return packages
 
-    def get_action(self, remove_obsolete) -> List[str]:
+    def get_action(self, remove_obsolete: bool) -> List[str]:
         """
         Disable or enforce obsolete flag in dnf/yum.
         """

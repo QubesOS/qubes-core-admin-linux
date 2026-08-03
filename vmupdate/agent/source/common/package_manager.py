@@ -25,7 +25,7 @@ import logging
 import subprocess
 import sys
 import enum
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Any
 from .process_result import ProcessResult
 from .exit_codes import EXIT
 
@@ -39,7 +39,12 @@ class AgentType(enum.Enum):
 class PackageManager:
     """main package manager class"""
 
-    def __init__(self, log_handler, log_level, agent_type: AgentType):
+    def __init__(
+        self,
+        log_handler: logging.Handler,
+        log_level: int,
+        agent_type: AgentType,
+    ) -> None:
         self.package_manager: Optional[str] = None
         self.log = logging.getLogger(
             f"vm-update.agent.{self.__class__.__name__}"
@@ -56,7 +61,7 @@ class PackageManager:
         hard_fail: bool,
         remove_obsolete: bool,
         print_streams: bool = False,
-    ):
+    ) -> int:
         """
         Upgrade packages using system package manager.
 
@@ -146,7 +151,7 @@ class PackageManager:
 
         return result
 
-    def _log_output(self, title, result):
+    def _log_output(self, title: str, result: ProcessResult) -> None:
         log_as_error = bool(result.code)
         if result.out:
             out_lines = result.out.split("\n")
@@ -226,7 +231,9 @@ class PackageManager:
         return result
 
     @staticmethod
-    def compare_packages(old, new):
+    def compare_packages(
+        old: dict[str, list[str]], new: dict[str, list[str]]
+    ) -> dict[str, dict]:
         """
         Compare installed packages and return dictionary with differences.
 
@@ -243,7 +250,7 @@ class PackageManager:
             "removed": {pkg: old[pkg] for pkg in old if pkg not in new},
         }
 
-    def _print_changes(self, changes):
+    def _print_changes(self, changes: dict[str, dict]) -> ProcessResult:
         result = ProcessResult()
         result.out += self._print_to_string("Installed packages:")
         if changes["installed"]:
@@ -277,7 +284,7 @@ class PackageManager:
         return result
 
     @staticmethod
-    def _print_to_string(*args, **kwargs):
+    def _print_to_string(*args: Any, **kwargs: Any) -> str:
         strio = io.StringIO()
         print(*args, file=strio, **kwargs)
         result = strio.getvalue()

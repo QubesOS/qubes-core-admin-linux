@@ -19,8 +19,9 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
 # USA.
 import sys
+import subprocess
 from copy import deepcopy
-from typing import Union, Optional
+from typing import Union, Optional, Self
 from .exit_codes import EXIT
 
 
@@ -38,7 +39,7 @@ class ProcessResult:
         out: str = "",
         err: str = "",
         realtime: bool = False,
-    ):
+    ) -> None:
         self.code: int = code
         self.out: str = out
         self.err: str = err
@@ -52,7 +53,7 @@ class ProcessResult:
             self.posted = True
 
     @classmethod
-    def process_communicate(cls, proc):
+    def process_communicate(cls, proc: subprocess.Popen) -> Self:
         result = cls.from_untrusted_out_err(*proc.communicate())
         result.code = proc.returncode
         return result
@@ -62,7 +63,7 @@ class ProcessResult:
         cls,
         untrusted_out: Optional[Union[str, bytes]],
         untrusted_err: Optional[Union[str, bytes]] = "",
-    ):
+    ) -> Self:
         if untrusted_out is None:
             untrusted_out_bytes = b""
         elif isinstance(untrusted_out, str):
@@ -92,12 +93,12 @@ class ProcessResult:
             ]
         )
 
-    def __add__(self, other):
+    def __add__(self, other: Self) -> Self:
         new = deepcopy(self)
         new += other
         return new
 
-    def __iadd__(self, other):
+    def __iadd__(self, other: Self) -> Self:
         if not isinstance(other, ProcessResult):
             raise TypeError(
                 "unsupported operand type(s) for +:"
@@ -115,13 +116,13 @@ class ProcessResult:
             other.posted = True
         return self
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         return bool(self.code)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{self.code}; {self.out}; {self.err}"
 
-    def error_from_messages(self):
+    def error_from_messages(self) -> None:
         out_lines = (self.out + "\n" + self.err).splitlines()
         if any(line.lower().startswith("err") for line in out_lines):
             self.code = EXIT.ERR

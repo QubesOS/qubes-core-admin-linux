@@ -21,10 +21,12 @@
 # USA.
 
 import subprocess
+from logging import Logger, Handler
+from typing import Any
 
 import libdnf5
 from libdnf5.repo import DownloadCallbacks
-from libdnf5.rpm import TransactionCallbacks
+from libdnf5.rpm import TransactionCallbacks, Nevra
 from libdnf5.base import Goal
 
 from source.common.process_result import ProcessResult
@@ -42,7 +44,9 @@ class TransactionError(RuntimeError):
 class DNF5(DNFCLI):
     PROGRESS_REPORTING = True
 
-    def __init__(self, log_handler, log_level, agent_type: AgentType):
+    def __init__(
+        self, log_handler: Handler, log_level: int, agent_type: AgentType
+    ) -> None:
         super().__init__(log_handler, log_level, agent_type)
 
         self.base = libdnf5.base.Base()
@@ -161,7 +165,7 @@ class DNF5(DNFCLI):
 
 
 class FetchProgress(DownloadCallbacks, Progress):
-    def __init__(self, weight: int, log):
+    def __init__(self, weight: int, log: Logger) -> None:
         DownloadCallbacks.__init__(self)
         Progress.__init__(self, weight, log)
         self.bytes_to_fetch = 0.0
@@ -172,7 +176,7 @@ class FetchProgress(DownloadCallbacks, Progress):
         self.fetching_notified = False
 
     def add_new_download(
-        self, _user_data, description: str, total_to_download: float
+        self, _user_data: Any, description: str, total_to_download: float
     ) -> int:
         """
         Notify the client that a new download has been created.
@@ -264,7 +268,7 @@ class FetchProgress(DownloadCallbacks, Progress):
 
 
 class UpgradeProgress(TransactionCallbacks, Progress):
-    def __init__(self, weight: int, log):
+    def __init__(self, weight: int, log: Logger) -> None:
         TransactionCallbacks.__init__(self)
         Progress.__init__(self, weight, log)
         self.pgks: int | None = None
@@ -273,7 +277,7 @@ class UpgradeProgress(TransactionCallbacks, Progress):
 
     def install_progress(
         self, item: libdnf5.base.TransactionPackage, amount: int, total: int
-    ):
+    ) -> None:
         r"""
         Report the package installation progress periodically.
 
@@ -292,7 +296,7 @@ class UpgradeProgress(TransactionCallbacks, Progress):
         percent = (self.pgks_done + pkg_progress) / self.pgks * 100
         self.notify_callback(percent)
 
-    def transaction_start(self, total: int):
+    def transaction_start(self, total: int) -> None:
         r"""
         Preparation phase has started.
 
@@ -303,7 +307,7 @@ class UpgradeProgress(TransactionCallbacks, Progress):
 
     def uninstall_progress(
         self, item: libdnf5.base.TransactionPackage, amount: int, total: int
-    ):
+    ) -> None:
         """
         Report the package removal progress periodically.
 
@@ -322,7 +326,9 @@ class UpgradeProgress(TransactionCallbacks, Progress):
         self.notify_callback(percent)
 
     # pylint: disable=unused-argument
-    def elem_progress(self, item, amount: int, total: int):
+    def elem_progress(
+        self, item: libdnf5.base.TransactionPackage, amount: int, total: int
+    ) -> None:
         r"""
         The installation/removal process for the item has started
 
@@ -338,8 +344,11 @@ class UpgradeProgress(TransactionCallbacks, Progress):
 
     # pylint: disable=unused-argument,redefined-builtin
     def script_start(
-        self, item: libdnf5.base.TransactionPackage, nevra, type: int
-    ):
+        self,
+        item: libdnf5.base.TransactionPackage,
+        nevra: libdnf5.rpm.Nevra,
+        type: int,
+    ) -> None:
         r"""
         Execution of the rpm scriptlet has started
 

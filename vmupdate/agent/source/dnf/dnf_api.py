@@ -21,6 +21,9 @@
 
 import os
 import subprocess
+from logging import Handler, Logger
+from typing import Iterable
+
 import dnf
 import dnf.conf
 import dnf.rpm
@@ -39,7 +42,9 @@ from .dnf_cli import DNFCLI
 class DNF(DNFCLI):
     PROGRESS_REPORTING = True
 
-    def __init__(self, log_handler, log_level, agent_type: AgentType):
+    def __init__(
+        self, log_handler: Handler, log_level: int, agent_type: AgentType
+    ) -> None:
         super().__init__(log_handler, log_level, agent_type)
 
         if self.type == AgentType.UPDATE_VM:
@@ -161,7 +166,9 @@ class DNF(DNFCLI):
         return result
 
 
-def sign_check(base, packages, log) -> ProcessResult:
+def sign_check(
+    base: dnf.Base, packages: Iterable, log: Logger
+) -> ProcessResult:
     """
     Check a signature of packages.
     """
@@ -189,14 +196,14 @@ def sign_check(base, packages, log) -> ProcessResult:
 
 
 class FetchProgress(DownloadProgress, Progress):
-    def __init__(self, weight: int, log, refresh: bool = False):
+    def __init__(self, weight: int, log: Logger, refresh: bool = False) -> None:
         Progress.__init__(self, weight, log)
-        self.bytes_to_fetch = None
+        self.bytes_to_fetch: int | None = None
         self.bytes_fetched = 0
         self.action = "refresh" if refresh else "fetch"
-        self.package_bytes: dict[int, int] = {}
+        self.package_bytes: dict[str, int] = {}
 
-    def end(self, payload, status, msg):
+    def end(self, payload: str, status: int, msg: bytes | str) -> None:
         """Communicate the information that `payload` has finished downloading.
 
         :api, `status` is a constant denoting the type of outcome, `err_msg` is
@@ -210,13 +217,13 @@ class FetchProgress(DownloadProgress, Progress):
         else:
             print(f"{payload}: {self.action.capitalize()}ed", flush=True)
 
-    def message(self, msg):
+    def message(self, msg: bytes | str) -> None:
         if isinstance(msg, bytes):
             msg = msg.decode("ascii", errors="ignore")
         if msg:
             print(msg, flush=True, file=self._stdout)
 
-    def progress(self, payload, done):
+    def progress(self, payload: str, done: int) -> None:
         """Update the progress display. :api
 
         `payload` is the payload this call reports progress for, `done` is how
@@ -225,10 +232,13 @@ class FetchProgress(DownloadProgress, Progress):
         """
         self.bytes_fetched += done - self.package_bytes.get(payload, 0)
         self.package_bytes[payload] = done
+        assert self.bytes_to_fetch is not None
         percent = self.bytes_fetched / self.bytes_to_fetch * 100
         self.notify_callback(percent)
 
-    def start(self, total_files, total_size, total_drpms=0):
+    def start(
+        self, total_files: int, total_size: int, total_drpms: int = 0
+    ) -> None:
         """Start new progress metering. :api
 
         `total_files` the number of files that will be downloaded,
@@ -250,11 +260,19 @@ class FetchProgress(DownloadProgress, Progress):
 
 
 class UpgradeProgress(TransactionDisplay, Progress):
-    def __init__(self, weight: int, log):
+    def __init__(self, weight: int, log: Logger) -> None:
         TransactionDisplay.__init__(self)
         Progress.__init__(self, weight, log)
 
-    def progress(self, _package, action, ti_done, ti_total, ts_done, ts_total):
+    def progress(
+        self,
+        _package: str,
+        action: str,
+        ti_done: int,
+        ti_total: int,
+        ts_done: int,
+        ts_total: int,
+    ) -> None:
         """
         Report ongoing progress on a transaction item.
 
@@ -273,7 +291,7 @@ class UpgradeProgress(TransactionDisplay, Progress):
         percent = (ti_done / ti_total + ts_done - 1) / ts_total * 100
         self.notify_callback(percent)
 
-    def scriptout(self, msgs):
+    def scriptout(self, msgs: bytes | str) -> None:
         """
         Write an output message to the fake stdout.
         """
@@ -282,10 +300,10 @@ class UpgradeProgress(TransactionDisplay, Progress):
                 msgs = msgs.decode("ascii", errors="ignore")
             print(msgs, flush=True)
 
-    def filelog(self, package, action):
+    def filelog(self, package: str, action: str) -> None:
         print(f"{package}: {dnf.transaction.FILE_ACTIONS[action]}", flush=True)
 
-    def error(self, message):
+    def error(self, message: bytes | str) -> None:
         """
         Write an error message to the fake stderr.
         """

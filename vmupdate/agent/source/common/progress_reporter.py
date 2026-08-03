@@ -30,8 +30,8 @@ class Progress:
     def __init__(
         self,
         weight: int,
-        log,
-    ):
+        log: Logger,
+    ) -> None:
         self.weight = weight
         self._callback: Optional[Callable[[float], None]] = None
         self._start_percent: Optional[float] = None
@@ -48,7 +48,7 @@ class Progress:
         callback: Callable[[float], None],
         stdout: io.TextIOWrapper,
         stderr: io.TextIOWrapper,
-    ):
+    ) -> None:
         self._callback = callback
         self._start_percent = start
         self._stop_percent = stop
@@ -56,11 +56,14 @@ class Progress:
         self._stdout = stdout
         self._stderr = stderr
 
-    def notify_callback(self, percent):
+    def notify_callback(self, percent: float) -> None:
         """
         Report ongoing progress.
         """
+        assert self._last_percent is not None  # call init() first!
         assert self._start_percent is not None  # call init() first!
+        assert self._stop_percent is not None  # call init() first!
+        assert self._callback is not None  # call init() first!
         _percent = (
             self._start_percent
             + percent * (self._stop_percent - self._start_percent) / 100
@@ -71,7 +74,7 @@ class Progress:
             self._last_percent = _percent
 
     @staticmethod
-    def _format_bytes(size):
+    def _format_bytes(size: int | float) -> str:
         units = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"]
         factor = 1024
         for unit in units:
@@ -95,7 +98,7 @@ class ProgressReporter:
         fetch: Progress,
         upgrade: Progress,
         callback: Optional[Callable[[float], None]] = None,
-    ):
+    ) -> None:
         saved_stdout = os.dup(sys.stdout.fileno())
         saved_stderr = os.dup(sys.stderr.fileno())
         self.stdout = io.TextIOWrapper(os.fdopen(saved_stdout, "wb"))

@@ -23,7 +23,9 @@ import argparse
 
 class AgentArgs:
     # To avoid code repeating when we want to retrieve arguments
-    OPTIONS = {
+    OPTIONS: dict[
+        tuple[str] | tuple[str, str] | tuple[str, str, str], dict[str, str]
+    ] = {
         ("--log",): {
             "action": "store",
             "default": "INFO",
@@ -52,7 +54,9 @@ class AgentArgs:
             "help": "Only download packages",
         },
     }
-    EXCLUSIVE_OPTIONS_1 = {
+    EXCLUSIVE_OPTIONS_1: dict[
+        tuple[str] | tuple[str, str] | tuple[str, str, str], dict[str, str]
+    ] = {
         ("--show-output", "--verbose", "-v"): {
             "action": "store_true",
             "help": "Show output of management commands",
@@ -62,7 +66,9 @@ class AgentArgs:
             "help": "Do not print anything to stdout",
         },
     }
-    EXCLUSIVE_OPTIONS_2 = {
+    EXCLUSIVE_OPTIONS_2: dict[
+        tuple[str] | tuple[str, str] | tuple[str, str, str], dict[str, str]
+    ] = {
         ("--no-progress",): {
             "action": "store_true",
             "help": "Do not show upgrading progress.",
@@ -72,28 +78,30 @@ class AgentArgs:
             "help": argparse.SUPPRESS,
         },
     }
-    ALL_OPTIONS: dict[tuple, dict[str, str]] = {
+    ALL_OPTIONS: dict[
+        tuple[str] | tuple[str, str] | tuple[str, str, str], dict[str, str]
+    ] = {
         **OPTIONS,
         **EXCLUSIVE_OPTIONS_1,
         **EXCLUSIVE_OPTIONS_2,
     }
 
     @staticmethod
-    def add_arguments(parser):
+    def add_arguments(parser: argparse.ArgumentParser) -> None:
         """
         Add common arguments to the parser.
         """
         for arg, properties in AgentArgs.OPTIONS.items():
-            parser.add_argument(*arg, **properties)
+            parser.add_argument(*arg, **properties)  # type: ignore[arg-type]
         verbosity = parser.add_mutually_exclusive_group()
         for arg, properties in AgentArgs.EXCLUSIVE_OPTIONS_1.items():
-            verbosity.add_argument(*arg, **properties)
+            verbosity.add_argument(*arg, **properties)  # type: ignore[arg-type]
         progress_reporting = parser.add_mutually_exclusive_group()
         for arg, properties in AgentArgs.EXCLUSIVE_OPTIONS_2.items():
-            progress_reporting.add_argument(*arg, **properties)
+            progress_reporting.add_argument(*arg, **properties)  # type: ignore[arg-type]
 
     @staticmethod
-    def to_cli_args(args):
+    def to_cli_args(args: argparse.Namespace) -> list:
         """
         Parse selected args values to flags ready to pass
         to an agent entrypoint.
