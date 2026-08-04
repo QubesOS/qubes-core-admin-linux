@@ -247,8 +247,7 @@ def select_targets(targets, args) -> Set[qubesadmin.vm.QubesVM]:
         if skip_update or prohibit_start:
             if not args.quiet:
                 print(
-                    "Skipped {}. Marked to skip updates or start prohibited",
-                    vm.name,
+                    f"Skipped {vm.name}. Marked to skip updates or start prohibited"
                 )
             continue
 
@@ -262,9 +261,8 @@ def select_targets(targets, args) -> Set[qubesadmin.vm.QubesVM]:
         if args.update_if_available:
             if not args.quiet:
                 print(
-                    "Skipped {}. No updates available or not recently ",
-                    "checked for updates.",
-                    vm.name,
+                    f"Skipped {vm.name}. No updates available or not recently "
+                    "checked for updates."
                 )
             continue
 
@@ -273,9 +271,8 @@ def select_targets(targets, args) -> Set[qubesadmin.vm.QubesVM]:
         else:
             if not args.quiet:
                 print(
-                    "Skipped {}. No updates available or last check still ",
-                    "within stale period.",
-                    vm.name,
+                    f"Skipped {vm.name}. No updates available or last check still "
+                    "with"
                 )
 
     return selected
