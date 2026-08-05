@@ -50,6 +50,7 @@ class DNF(DNFCLI):
         conf.read(filename=dnfconf)
 
         if self.type == AgentType.UPDATE_VM:
+            self.configure_whonix_maybe(conf)
             conf.best = True
             conf.plugins = False
             conf.installroot = self.UPDATE_VM_INSTALLROOT

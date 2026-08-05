@@ -49,6 +49,7 @@ class DNF5(DNFCLI):
         conf = self.base.get_config()
 
         if self.type == AgentType.UPDATE_VM:
+            self.configure_whonix_maybe(conf)
             conf.config_file_path = (
                 self.UPDATE_VM_INSTALLROOT + "/etc/dnf/dnf.conf"
             )
