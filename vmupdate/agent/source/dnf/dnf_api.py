@@ -37,6 +37,7 @@ class DNF(DNFCLI):
         super().__init__(log_handler, log_level)
         self.base = dnf.Base()
         self.base.conf.read()  # load dnf.conf
+        self.configure_whonix_maybe(self.base.conf)
         update = FetchProgress(weight=0, log=self.log)  # % of total time
         fetch = FetchProgress(weight=50, log=self.log)  # % of total time
         upgrade = UpgradeProgress(weight=50, log=self.log)  # % of total time
