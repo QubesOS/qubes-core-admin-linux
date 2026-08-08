@@ -22,6 +22,10 @@
 import shutil
 from logging import Handler
 from typing import List
+import os
+import random
+import string
+import subprocess
 
 from source.common.package_manager import PackageManager, AgentType
 from source.common.process_result import ProcessResult
@@ -46,6 +50,51 @@ class DNFCLI(PackageManager):
             else:
                 raise RuntimeError("Package manager not found!")
         self.package_manager: str = pck_mngr
+
+    def configure_whonix_maybe(self, conf):
+        """
+        If running inside Whonix gateway, configure DNF options as Whonix
+        normally does. Ironically, the DNFCLI class is the only one not needing
+        any extra steps, because Whonix installs a wrapper at /usr/bin/dnf, but
+        using DNF (either DNF4 or DNF5) via API needs doing it separately.
+        Place this function here, as a common place for both DNF and DNF5
+        classes.
+        """
+        # based on condition to start tor in Whonix Gateway
+        if not os.path.exists("/usr/share/anon-gw-base-files/gateway"):
+            return
+        if not os.path.exists(
+            "/run/qubes/this-is-netvm"
+        ) and not os.path.exists("/run/qubes/this-is-proxyvm"):
+            return
+
+        # now we know it's Whonix Gateway
+        # apply custom steps of dnf uwt wrapper to the conf object
+        # try to keep in sync with https://github.com/Whonix/uwt/blob/master/usr/bin/dnf-3.anondist
+
+        if (
+            shutil.which("leaprun")
+            and subprocess.call(
+                ["leaprun", "--check", "try-wait-for-tor-service-running"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            == 0
+        ):
+            subprocess.check_call(
+                ["leaprun", "try-wait-for-tor-service-running"]
+            )
+        else:
+            subprocess.check_call(
+                ["/usr/libexec/helper-scripts/try-wait-for-tor-service-running"]
+            )
+
+        random_socks_password = "".join(
+            random.choices(string.ascii_letters + string.digits, k=43)
+        )
+        conf.proxy = "socks5h://127.0.0.1:9050/"
+        conf.proxy_username = "<torS0X>0"
+        conf.proxy_password = f"dnf-wrapper_{random_socks_password}"
 
     def refresh(self, hard_fail: bool) -> ProcessResult:
         """
