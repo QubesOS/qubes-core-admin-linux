@@ -4,6 +4,7 @@ Update qubes.
 """
 
 import argparse
+import asyncio
 import logging
 import sys
 import os
@@ -11,6 +12,7 @@ import grp
 from typing import Set, Iterable, Dict, Tuple
 
 import qubesadmin
+import qubesadmin.utils
 import qubesadmin.exc
 from qubesadmin.vm import QubesVM
 from qubesadmin.app import QubesBase
@@ -18,6 +20,7 @@ from vmupdate.agent.source.status import FinalStatus
 from vmupdate.agent.source.common.exit_codes import EXIT
 from vmupdate.utils import (
     shutdown_domains,
+    restart_vms,
     get_feature,
     get_boolean_feature,
     is_stale,
@@ -126,8 +129,10 @@ def main(
     if ret_code_appvm == EXIT.SIGINT:
         return EXIT.SIGINT
 
-    ret_code_restart = apply_updates_to_appvm(
-        parsed_args, independent, templ_statuses, app_statuses, log
+    ret_code_restart = asyncio.run(
+        apply_updates_to_appvm(
+            parsed_args, independent, templ_statuses, app_statuses, log
+        )
     )
 
     ret_code = max(
@@ -427,7 +432,7 @@ def run_update(
     return ret_code, statuses
 
 
-def apply_updates_to_appvm(
+async def apply_updates_to_appvm(
     args: argparse.Namespace,
     vm_updated: Iterable,
     template_statuses: Dict[str, FinalStatus],
@@ -476,7 +481,7 @@ def apply_updates_to_appvm(
 
     # first shutdown templates to apply changes to the root volume
     # they are no need to start templates automatically
-    ret_code, _ = shutdown_domains(templates_to_shutdown, log)
+    ret_code, _ = await shutdown_domains(templates_to_shutdown, log)
 
     if ret_code != EXIT.OK:
         log.error("Shutdown of some templates fails with code %d", ret_code)
@@ -495,11 +500,11 @@ def apply_updates_to_appvm(
         )
 
     # both flags `restart` and `apply-to-all` include service vms
-    ret_code_ = restart_vms(to_restart, log)
+    ret_code_ = await restart_vms(to_restart, log)
     ret_code = max(ret_code, ret_code_)
     if args.apply_to_all:
         # there is no need to start plain AppVMs automatically
-        ret_code_, _ = shutdown_domains(to_shutdown, log)
+        ret_code_, _ = await shutdown_domains(to_shutdown, log)
         ret_code = max(ret_code, ret_code_)
 
     return ret_code
@@ -527,23 +532,6 @@ def get_derived_vm_to_apply(
                 to_shutdown.add(vm)
 
     return to_restart, to_shutdown
-
-
-def restart_vms(to_restart: set[QubesVM], log: logging.Logger) -> int:
-    """
-    Try to restart vms.
-    """
-    ret_code, shutdowns = shutdown_domains(to_restart, log)
-
-    # restart shutdown qubes
-    for vm in shutdowns:
-        try:
-            vm.start()
-        except qubesadmin.exc.QubesVMError as exc:
-            log.error(str(exc))
-            ret_code = EXIT.ERR_START_APP
-
-    return ret_code
 
 
 if __name__ == "__main__":
