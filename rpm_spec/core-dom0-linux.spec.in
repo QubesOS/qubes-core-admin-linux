@@ -161,6 +161,10 @@ install -m 755 -D system-config/kernel-grub2.install $RPM_BUILD_ROOT/usr/lib/ker
 install -m 755 -D system-config/kernel-xen-efi.install $RPM_BUILD_ROOT/usr/lib/kernel/install.d/90-xen-efi.install
 install -m 755 -D system-config/kernel-remove-bls.install $RPM_BUILD_ROOT/usr/lib/kernel/install.d/99-remove-bls.install
 install -m 755 -D system-config/zvol_is_qubes_volume $RPM_BUILD_ROOT%_prefix/lib/udev/zvol_is_qubes_volume
+install -m 0755 -D system-config/qubes-starfighter-display-quirk \
+    $RPM_BUILD_ROOT/usr/lib/qubes/qubes-starfighter-display-quirk
+install -m 0644 -D system-config/qubes-starfighter-display-quirk.service \
+    $RPM_BUILD_ROOT%_unitdir/qubes-starfighter-display-quirk.service
 install -m 644 -D system-config/75-qubes-dom0.preset \
     $RPM_BUILD_ROOT%_presetdir/75-qubes-dom0.preset
 install -m 644 -D system-config/75-qubes-dom0-user.preset \
@@ -215,6 +219,7 @@ set -eo pipefail
 
 systemctl --quiet enable qubes-suspend.service
 systemctl --quiet preset usbguard.service
+systemctl --quiet preset qubes-starfighter-display-quirk.service
 
 # migrate dom0-updates check disable flag
 if [ $1 -ge 2 ]; then
@@ -253,6 +258,8 @@ if [ "$1" = 0 ] ; then
 	# no more packages left
 
     systemctl disable qubes-suspend.service > /dev/null 2>&1
+    systemctl disable qubes-starfighter-display-quirk.service > /dev/null 2>&1
+    rm -f /etc/X11/xorg.conf.d/10-qubes-starfighter-4k.conf
 fi
 
 %triggerin -- PackageKit
@@ -316,6 +323,8 @@ chmod -x /etc/grub.d/10_linux
 %_udevrulesdir/11-qubes-ignore-zvol-devices.rules
 %_udevrulesdir/99z-qubes-mark-ready.rules
 %attr(0755,root,root) %_prefix/lib/udev/zvol_is_qubes_volume
+/usr/lib/qubes/qubes-starfighter-display-quirk
+%_unitdir/qubes-starfighter-display-quirk.service
 %attr(0644,root,root) /etc/cron.d/qubes-sync-clock.cron
 /etc/cron.daily/lvm-cleanup
 %config(noreplace) /etc/profile.d/zz-disable-lesspipe.sh
