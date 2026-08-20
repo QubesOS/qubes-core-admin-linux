@@ -36,7 +36,7 @@ class DNFCLI(PackageManager):
         self, log_handler: Handler, log_level: int, agent_type: AgentType
     ):
         super().__init__(log_handler, log_level, agent_type)
-        for pck_mngr in ("dnf", "yum"):
+        for pck_mngr in ("dnf5", "dnf", "yum"):
             if shutil.which(pck_mngr) is not None:
                 self.package_manager: str = pck_mngr
                 break
