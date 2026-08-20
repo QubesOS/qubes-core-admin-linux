@@ -34,7 +34,7 @@ from source.common.exit_codes import EXIT
 class DNFCLI(PackageManager):
     def __init__(self, log_handler, log_level):
         super().__init__(log_handler, log_level)
-        for pck_mngr in ("dnf", "yum"):
+        for pck_mngr in ("dnf5", "dnf", "yum"):
             if shutil.which(pck_mngr) is not None:
                 self.package_manager: str = pck_mngr
                 break
