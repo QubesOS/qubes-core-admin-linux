@@ -1,0 +1,15 @@
+[Unit]
+Description=Apply StarFighter 4K dom0 display quirk
+DefaultDependencies=no
+After=local-fs.target
+Before=display-manager.service
+ConditionFirmware=smbios-field(sys_vendor$=Star*Labs)
+ConditionFirmware=smbios-field(product_name=StarFighter)
+ConditionPathExistsGlob=/sys/class/drm/*-eDP-*/modes
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/qubes/qubes-starfighter-display-quirk
+
+[Install]
+WantedBy=graphical.target

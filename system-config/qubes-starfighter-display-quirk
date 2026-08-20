@@ -1,0 +1,47 @@
+#!/bin/sh
+set -eu
+
+CONF_DIR=/etc/X11/xorg.conf.d
+CONF_FILE="$CONF_DIR/10-qubes-starfighter-4k.conf"
+PREFERRED_MODE=1920x1200
+NATIVE_MODE=3840x2400
+
+read_dmi() {
+    cat "/sys/class/dmi/id/$1" 2>/dev/null || true
+}
+
+remove_quirk() {
+    rm -f "$CONF_FILE"
+}
+
+if [ "$(read_dmi sys_vendor)" != "Star Labs" ] ||
+        [ "$(read_dmi product_name)" != "StarFighter" ]; then
+    remove_quirk
+    exit 0
+fi
+
+OUTPUT=
+for modes in /sys/class/drm/*-eDP-*/modes; do
+    [ -f "$modes" ] || continue
+    grep -qx "$NATIVE_MODE" "$modes" || continue
+
+    output=${modes%/modes}
+    output=${output##*/}
+    output=${output#card*-}
+    OUTPUT=$output
+    break
+done
+
+if [ -z "$OUTPUT" ]; then
+    remove_quirk
+    exit 0
+fi
+
+install -d -m 0755 "$CONF_DIR"
+
+cat > "$CONF_FILE" <<EOF
+Section "Monitor"
+    Identifier "$OUTPUT"
+    Option "PreferredMode" "$PREFERRED_MODE"
+EndSection
+EOF
