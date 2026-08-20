@@ -34,16 +34,12 @@ from source.common.exit_codes import EXIT
 class DNFCLI(PackageManager):
     def __init__(self, log_handler, log_level):
         super().__init__(log_handler, log_level)
-        pck_mng_path = shutil.which('dnf')
-        if pck_mng_path is not None:
-            pck_mngr = 'dnf'
+        for pck_mngr in ("dnf", "yum"):
+            if shutil.which(pck_mngr) is not None:
+                self.package_manager: str = pck_mngr
+                break
         else:
-            pck_mng_path = shutil.which('yum')
-            if pck_mng_path is not None:
-                pck_mngr = 'yum'
-            else:
-                raise RuntimeError("Package manager not found!")
-        self.package_manager: str = pck_mngr
+            raise RuntimeError("Package manager not found!")
 
     def configure_whonix_maybe(self, conf):
         """
