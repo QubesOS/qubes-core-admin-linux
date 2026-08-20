@@ -36,15 +36,12 @@ class DNFCLI(PackageManager):
         self, log_handler: Handler, log_level: int, agent_type: AgentType
     ):
         super().__init__(log_handler, log_level, agent_type)
-        pck_mng_path = shutil.which("dnf")
-        if pck_mng_path is not None:
-            pck_mngr = "dnf"
+        for pck_mngr in ("dnf", "yum"):
+            if shutil.which(pck_mngr) is not None:
+                self.package_manager: str = pck_mngr
+                break
         else:
-            pck_mng_path = shutil.which("yum")
-            if pck_mng_path is not None:
-                pck_mngr = "yum"
-            else:
-                raise RuntimeError("Package manager not found!")
+            raise RuntimeError("Package manager not found!")
         self.package_manager: str = pck_mngr
 
     def refresh(self, hard_fail: bool) -> ProcessResult:
