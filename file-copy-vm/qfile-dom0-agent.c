@@ -4,6 +4,8 @@
 #include <string.h>
 #include <libgen.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <signal.h>
 #include <fcntl.h>
 #include <malloc.h>
@@ -13,25 +15,45 @@
 #include <libqubes-rpc-filecopy.h>
 
 void display_error(const char *fmt, va_list args) {
-    char *dialog_cmd;
     char buf[1024];
+    char msg[1200];
     struct stat st_buf;
     int ret;
+    pid_t pid;
 
     (void) vsnprintf(buf, sizeof(buf), fmt, args);
     ret = stat("/usr/bin/kdialog", &st_buf);
-#define KDIALOG_CMD "kdialog --title 'File copy/move error' --sorry "
-#define ZENITY_CMD "zenity --title 'File copy/move error' --warning --text "
-    if (asprintf(&dialog_cmd, "%s '%s: %s (error type: %s)'",
-                ret==0 ? KDIALOG_CMD : ZENITY_CMD,
-                program_invocation_short_name, buf, strerror(errno)) < 0) {
-        fprintf(stderr, "Failed to allocate memory for error message :(\n");
+
+    snprintf(msg, sizeof(msg), "%s: %s (error type: %s)",
+             program_invocation_short_name, buf, strerror(errno));
+
+    fprintf(stderr, "%s\n", buf);
+
+    pid = fork();
+    if (pid < 0) {
+        fprintf(stderr, "fork failed: %s\n", strerror(errno));
         return;
     }
-#undef KDIALOG_CMD
-#undef ZENITY_CMD
-    fprintf(stderr, "%s\n", buf);
-    system(dialog_cmd);
+    if (pid == 0) {
+        /* child: exec dialog directly, no shell */
+        if (ret == 0) {
+            execlp("kdialog", "kdialog",
+                   "--title", "File copy/move error",
+                   "--sorry", msg,
+                   (char *)NULL);
+        } else {
+            execlp("zenity", "zenity",
+                   "--title", "File copy/move error",
+                   "--warning",
+                   "--text", msg,
+                   (char *)NULL);
+        }
+        /* exec failed */
+        _exit(127);
+    }
+    /* parent: reap child to avoid zombies */
+    while (waitpid(pid, NULL, 0) < 0 && errno == EINTR)
+        ;
 }
 
 _Noreturn void gui_fatal(const char *fmt, ...) {
