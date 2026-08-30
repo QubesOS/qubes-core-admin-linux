@@ -19,16 +19,20 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
 # USA.
 import argparse
+from collections.abc import Callable
 
 
 class AgentArgs:
     # To avoid code repeating when we want to retrieve arguments
     OPTIONS: dict[
-        tuple[str] | tuple[str, str] | tuple[str, str, str], dict[str, str]
+        tuple[str] | tuple[str, str] | tuple[str, str, str],
+        dict[str, str | Callable | list[str]],
     ] = {
         ("--log",): {
             "action": "store",
             "default": "INFO",
+            "type": str.upper,
+            "choices": ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
             "help": "Provide logging level. Values: DEBUG, "
             "INFO (default), WARNING, ERROR, CRITICAL",
         },
@@ -55,7 +59,8 @@ class AgentArgs:
         },
     }
     EXCLUSIVE_OPTIONS_1: dict[
-        tuple[str] | tuple[str, str] | tuple[str, str, str], dict[str, str]
+        tuple[str] | tuple[str, str] | tuple[str, str, str],
+        dict[str, str | Callable | list[str]],
     ] = {
         ("--show-output", "--verbose", "-v"): {
             "action": "store_true",
@@ -67,7 +72,8 @@ class AgentArgs:
         },
     }
     EXCLUSIVE_OPTIONS_2: dict[
-        tuple[str] | tuple[str, str] | tuple[str, str, str], dict[str, str]
+        tuple[str] | tuple[str, str] | tuple[str, str, str],
+        dict[str, str | Callable | list[str]],
     ] = {
         ("--no-progress",): {
             "action": "store_true",
@@ -79,7 +85,8 @@ class AgentArgs:
         },
     }
     ALL_OPTIONS: dict[
-        tuple[str] | tuple[str, str] | tuple[str, str, str], dict[str, str]
+        tuple[str] | tuple[str, str] | tuple[str, str, str],
+        dict[str, str | Callable | list[str]],
     ] = {
         **OPTIONS,
         **EXCLUSIVE_OPTIONS_1,
