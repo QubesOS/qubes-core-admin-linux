@@ -46,7 +46,6 @@ class DNFCLI(PackageManager):
                 break
         else:
             raise RuntimeError("Package manager not found!")
-        self.package_manager: str = pck_mngr
 
     def configure_whonix_maybe(self, conf):
         """
