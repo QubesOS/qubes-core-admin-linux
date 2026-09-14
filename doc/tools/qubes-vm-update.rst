@@ -87,6 +87,16 @@ Additionally, not all VMs in the system can be updated directly (such as AppVMs)
 
 VMs with `skip-update` feature set to True will be excluded from update, unless directly targeted with `--targets` option.
 
+HOOKS
+=====
+
+After the package manager finished in a TemplateVM or StandaloneVM, the
+agent runs `/etc/qubes-rpc/qubes.PostUpdate` in that qube, which executes
+every executable `.sh` file in `/etc/qubes/post-update.d/`. The hook runs
+whether or not any package was changed, so it suits secondary package
+managers (flatpak, nix, pip, ...) that should be refreshed on every update
+run. A non-zero exit of the hook is reported with return code 27.
+
 RETURN CODES
 ============
 
@@ -115,6 +125,8 @@ RETURN CODES
 25:  error inside updated vm during cleanup
 
 26:  unhandled error inside updated vm
+
+27:  error inside updated vm during post-update hook
 
 40:  qrexec error, communication across domains was interrupted
 

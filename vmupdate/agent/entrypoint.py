@@ -12,6 +12,10 @@ from source.utils import get_os_data
 from source.log_config import init_logs
 from source.common.exit_codes import EXIT
 from source.common.package_manager import AgentType
+from source.common.post_update_hook import (
+    POST_UPDATE_HOOK,
+    run_post_update_hook,
+)
 
 
 def main(args: list[str] | None = None) -> int:
@@ -47,6 +51,17 @@ def main(args: list[str] | None = None) -> int:
         remove_obsolete=not parsed_args.leave_obsolete,
         print_streams=parsed_args.show_output,
     )
+
+    if agent_type is AgentType.VM and return_code in (
+        EXIT.OK,
+        EXIT.OK_NO_UPDATES,
+    ):
+        hook_result = run_post_update_hook(
+            POST_UPDATE_HOOK, log, print_streams=parsed_args.show_output
+        )
+        # not max(): OK_NO_UPDATES (100) would outrank the hook error code
+        if hook_result:
+            return_code = hook_result.code
 
     if not pkg_mng.PROGRESS_REPORTING and not parsed_args.no_progress:
         # even if progress reporting is unavailable we want info that update finished
