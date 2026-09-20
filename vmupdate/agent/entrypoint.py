@@ -200,8 +200,11 @@ def import_dom0_package_manager(
     Import dnf package manager for dom0.
     """
     # pylint: disable=import-outside-toplevel
-    major, minor = os_data["release"].split(".")
-    major, minor = int(major), int(minor)
+    if os_data["release"] == "devel":
+        major, minor = 99, 0
+    else:
+        major, minor = os_data["release"].split(".")
+        major, minor = int(major), int(minor)
     loaded = False
     if major >= 5 or (major == 4 and minor >= 3):
         try:
