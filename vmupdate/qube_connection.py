@@ -20,6 +20,7 @@
 # USA.
 
 import argparse
+import asyncio
 import os
 import shutil
 import signal
@@ -34,11 +35,11 @@ from typing import List, Self, Any, Type
 import qubesadmin
 import qubesadmin.exc
 from qubesadmin.vm import QubesVM
+from qubesadmin.utils import shutdown
 from vmupdate.agent.source.args import AgentArgs
 from vmupdate.agent.source.log_config import LOGPATH, LOG_FILE
 from vmupdate.agent.source.status import StatusInfo, FinalStatus, FormatedLine
 from vmupdate.agent.source.common.process_result import ProcessResult
-from vmupdate.utils import shutdown_domains
 
 
 class QubeConnection:
@@ -109,15 +110,20 @@ class QubeConnection:
                 )
 
         if self.qube.is_running() and not self._initially_running:
+            wait = False
             if self._has_assigned_pci_devices(self.qube):
                 self.logger.info(
                     "Waiting for full shutdown %s (PCI devices assigned)",
                     self.qube.name,
                 )
-                shutdown_domains([self.qube], self.logger)
-            else:
-                self.logger.info("Shutdown %s", self.qube.name)
-                self.qube.shutdown()
+                wait = True
+            failed = asyncio.run(
+                shutdown(domains=[self.qube], force=False, wait=wait)
+            )
+            if failed:
+                exc = list(failed.values())[0]
+                self.logger.error(str(exc))
+                raise exc
 
         self.__connected = False
 

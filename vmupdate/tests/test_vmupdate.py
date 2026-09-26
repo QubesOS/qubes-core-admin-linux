@@ -383,11 +383,9 @@ def test_selection(
 @patch("vmupdate.update_manager.UpdateAgentManager")
 @patch("multiprocessing.Pool")
 @patch("multiprocessing.Manager")
-@patch("asyncio.run")
 @patch("subprocess.Popen")
 def test_restarting(
     dummy_subprocess,
-    arun,
     mp_manager,
     mp_pool,
     agent_mng,
@@ -506,7 +504,6 @@ def test_restarting(
 
     fails = {args: failed[args] for args in failed if failed[args]}
     assert not fails
-    arun.asseert_called()
 
 
 stat = FinalStatus
@@ -719,7 +716,6 @@ def test_error(
 @patch("os.chown")
 @patch("logging.FileHandler")
 @patch("logging.getLogger")
-@patch("asyncio.run")
 @pytest.mark.parametrize(
     "action, code",
     (
@@ -729,7 +725,6 @@ def test_error(
     ),
 )
 def test_error_apply(
-    _arun,
     _logger,
     _log_file,
     _chmod,
