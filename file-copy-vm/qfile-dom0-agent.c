@@ -20,14 +20,29 @@ void display_error(const char *fmt, va_list args) {
     struct stat st_buf;
     int ret;
     pid_t pid;
+    const char *progress_type;
+    int saved_errno = errno;
 
     (void) vsnprintf(buf, sizeof(buf), fmt, args);
+
+    fprintf(stderr, "%s\n", buf);
+
+    /* Don't spawn GUI error dialog when running in a terminal or headless */
+    progress_type = getenv("PROGRESS_TYPE");
+    if (progress_type) {
+        if (strcmp(progress_type, "gui") != 0) {
+            errno = saved_errno;
+            return;
+        }
+    } else if (isatty(STDERR_FILENO) || !getenv("DISPLAY")) {
+        errno = saved_errno;
+        return;
+    }
+
     ret = stat("/usr/bin/kdialog", &st_buf);
 
     snprintf(msg, sizeof(msg), "%s: %s (error type: %s)",
-             program_invocation_short_name, buf, strerror(errno));
-
-    fprintf(stderr, "%s\n", buf);
+             program_invocation_short_name, buf, strerror(saved_errno));
 
     pid = fork();
     if (pid < 0) {
