@@ -20,14 +20,20 @@
 # USA.
 """package manager for VMs"""
 
+import contextlib
+import enum
 import io
 import logging
 import subprocess
 import sys
-import enum
-from typing import Optional, Dict, List, Any
+import time
+from typing import Optional, Dict, List, Any, Iterator
 from .process_result import ProcessResult
 from .exit_codes import EXIT
+from .progress_reporter import ReleaseUpgradeTail
+
+# Where a release upgrade leaves the bar before qubes.PostInstall runs.
+RELEASE_UPGRADE_ALMOST_DONE = ReleaseUpgradeTail.TAIL_STOP
 
 
 class AgentType(enum.Enum):
@@ -76,6 +82,46 @@ class PackageManager:
             refresh, hard_fail, remove_obsolete, self.requirements
         )
         self._log_output("agent", result)
+        if print_streams and not result.posted:
+            if result.out:
+                print(result.out, flush=True)
+            if result.err:
+                print(result.err, file=sys.stderr, flush=True)
+        return result.code
+
+    def version_upgrade(
+        self,
+        target_version: str,
+        print_streams: bool = False,
+    ) -> int:
+        """Upgrade to the next major release.
+
+        Backends implement the family-specific work.
+        """
+        result = self._release_upgrade(target_version)
+        if result.code == EXIT.OK and self.type is AgentType.VM:
+            # Refresh dom0 metadata after a successful VM release upgrade.
+            # Warn only if the refresh fails.
+            self.log.info("Notifying dom0 about the new release")
+            try:
+                postinstall = subprocess.call(
+                    ["/etc/qubes-rpc/qubes.PostInstall"]
+                )
+            except OSError as exc:
+                postinstall = -1
+                self.log.warning("could not run qubes.PostInstall: %s", exc)
+            if postinstall != 0:
+                self.log.warning(
+                    "qubes.PostInstall exited with %d; qube features will "
+                    "refresh on next qube start.",
+                    postinstall,
+                )
+        if result.code == EXIT.OK:
+            # After qubes.PostInstall, whose fstrim runs long enough that
+            # reporting 100 first leaves the bar apparently stuck.
+            self._finish_progress()
+        self._log_output("version-upgrade", result)
+        # Do not duplicate output that already streamed live.
         if print_streams and not result.posted:
             if result.out:
                 print(result.out, flush=True)
@@ -320,6 +366,87 @@ class PackageManager:
         cmd = [self.package_manager, *self.get_action(remove_obsolete)]
 
         return self.run_cmd(cmd)
+
+    def _release_upgrade(self, target_version: str) -> ProcessResult:
+        """Perform a distribution release upgrade. Must be overridden by subclasses."""
+        raise NotImplementedError(
+            "Distribution version upgrade is not implemented for this "
+            f"package manager ({self.package_manager})."
+        )
+
+    def _verify_release_upgrade(
+        self, target: str, os_data: dict
+    ) -> ProcessResult:
+        """Verify the target is a valid single-step upgrade from the current release."""
+        # str.isdigit() also accepts Unicode digits, while package-manager
+        # release identifiers must use the ASCII digits accepted by their CLIs.
+        if not (target.isascii() and target.isdigit()):
+            return self._refuse(f"invalid target release {target!r}.")
+
+        release = os_data.get("release", "")
+        current_major = release.split(".")[0]
+        if not (current_major.isascii() and current_major.isdigit()):
+            return self._refuse(
+                f"cannot read a numeric in-qube release from {release!r}."
+            )
+        if int(target) != int(current_major) + 1:
+            return self._refuse(
+                f"in-qube release {release!r} can only move "
+                f"to {int(current_major) + 1} (single step), not {target!r}."
+            )
+
+        return ProcessResult()
+
+    @contextlib.contextmanager
+    def _time_operation(self, description: str) -> Iterator[None]:
+        """Log at DEBUG how long a package-manager operation took.
+
+        Nothing is logged when the block raises: the caller's error
+        handling reports the failure, and a duration would only add noise
+        next to it.
+        """
+        started = time.monotonic()
+        yield
+        self.log.debug("%s took %.3fs", description, time.monotonic() - started)
+
+    def _refuse(self, reason: str) -> ProcessResult:
+        """Log and build the standard "refusing version upgrade" error."""
+        msg = f"Refusing version upgrade: {reason}"
+        self.log.error(msg)
+        return ProcessResult(EXIT.ERR_VM_UPDATE, out="", err=msg)
+
+    @staticmethod
+    def _report_progress(percent: float) -> None:
+        """Emit a progress percentage for dom0.
+
+        A bare float per line on stderr, parsed by dom0's QubeConnection.
+        """
+        print(f"{percent:.2f}", flush=True, file=sys.stderr)
+
+    def _set_progress_step(
+        self, start: float, stop: float, installs: bool
+    ) -> None:
+        """
+        Claim `start`..`stop` for the next step, if the backend reports.
+        """
+        progress = getattr(self, "progress", None)
+        if progress is not None:
+            progress.set_step_range(start, stop, installs)
+
+    def _report_milestone(self, percent: float) -> None:
+        """
+        Report `percent` unless callback progress already passed it.
+        """
+        progress = getattr(self, "progress", None)
+        if progress is not None:
+            if progress.last_percent >= percent:
+                return
+            progress.last_percent = percent
+        self._report_progress(percent)
+
+    def _finish_progress(self) -> None:
+        """Report 100% completion if not already reported."""
+        self._report_milestone(100.0)
 
     def clean(self) -> int:
         """

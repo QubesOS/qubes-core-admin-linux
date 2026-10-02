@@ -27,7 +27,12 @@ import random
 import string
 import subprocess
 
-from source.common.package_manager import PackageManager, AgentType
+from source.utils import get_os_data
+from source.common.package_manager import (
+    PackageManager,
+    AgentType,
+    RELEASE_UPGRADE_ALMOST_DONE,
+)
 from source.common.process_result import ProcessResult
 from source.common.exit_codes import EXIT
 
@@ -189,6 +194,74 @@ class DNFCLI(PackageManager):
                 # yum
                 result.append("update")
         return result
+
+    def _release_upgrade(self, target_version: str) -> ProcessResult:
+        """Move a Fedora/RHEL qube with distro-sync at target releasever."""
+        target = str(target_version).strip()
+
+        # _distro_sync uses dnf-only flags (--best, --allowerasing).
+        if self.package_manager == "yum":
+            return self._refuse("release upgrade requires dnf.")
+
+        try:
+            os_data = get_os_data(self.log)
+        except OSError as exc:
+            return self._refuse(f"cannot read os-release: {exc}")
+
+        guard = self._verify_release_upgrade(target, os_data)
+        if guard.code:
+            return guard
+
+        self._report_progress(0.0)
+
+        # Clear old-release caches before resolving the target transaction.
+        result = self.run_cmd(
+            [self.package_manager, "clean", "all"], realtime=False
+        )
+        if result.code:
+            result.code = EXIT.ERR_VM_UPDATE
+            return result
+
+        result += self._distro_sync(target)
+        if result.code:
+            result.code = EXIT.ERR_VM_UPDATE
+            return result
+
+        # Verify os-release reflects the target release.
+        try:
+            upgraded_os_data = get_os_data(self.log)
+        except OSError as exc:
+            msg = f"failed to verify the upgraded release: {exc}"
+            self.log.error(msg)
+            result += ProcessResult(EXIT.ERR_VM_UPDATE, out="", err=msg)
+            return result
+
+        upgraded_release = upgraded_os_data.get("release", "").split(".")[0]
+        if upgraded_release != target:
+            msg = (
+                f"release upgrade did not reach {target}; os-release "
+                f"reports {upgraded_os_data.get('release')!r}."
+            )
+            self.log.error(msg)
+            result += ProcessResult(EXIT.ERR_VM_UPDATE, out="", err=msg)
+            return result
+
+        # version_upgrade() owns the jump to 100, after qubes.PostInstall.
+        self._report_milestone(RELEASE_UPGRADE_ALMOST_DONE)
+        return result
+
+    def _distro_sync(self, target: str) -> ProcessResult:
+        """Run distro-sync for the target release via DNF CLI."""
+        return self.run_cmd(
+            [
+                self.package_manager,
+                f"--releasever={target}",
+                "distro-sync",
+                "--best",
+                "--allowerasing",
+                "--assumeyes",
+            ]
+        )
 
     def clean(self) -> int:
         """

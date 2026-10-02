@@ -2,3 +2,4 @@ rpm/
 pkgs/
 
 __pycache__/
+*.egg-info/
