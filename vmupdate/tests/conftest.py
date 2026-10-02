@@ -51,11 +51,16 @@ class TestVM:
         self.features = Features(name, app)
         self.shutdown = Mock()
         self.start = Mock()
+        self.kill = Mock()
         for key, value in kwargs.items():
             setattr(self, key, value)
 
     def is_running(self):
         return self.running
+
+    def get_power_state(self):
+        # mirrors qubesadmin's power states as far as the tests need
+        return "Running" if self.running else "Halted"
 
     def __str__(self):
         return self.name
