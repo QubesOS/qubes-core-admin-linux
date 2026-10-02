@@ -18,8 +18,11 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
 # USA.
+import io
+
 from unittest.mock import Mock, patch
 
+from vmupdate.agent.source.status import FormatedLine, StatusInfo
 from vmupdate.qube_connection import QubeConnection
 
 
@@ -93,3 +96,34 @@ def test_do_not_shutdown_if_vm_was_already_running(shutdown_domains):
 
     vm.shutdown.assert_not_called()
     shutdown_domains.assert_not_called()
+
+
+def test_collect_stderr_drops_repeated_final_milestone():
+    """Duplicate 100.0 milestone is not treated as error text."""
+    connection = QubeConnection.__new__(QubeConnection)
+    connection.qube = Mock()
+    connection.qube.name = "fedora-42-xfce"
+    connection.logger = Mock()
+    connection.status_notifier = Mock()
+    proc = Mock()
+    proc.stderr = io.BytesIO(b"50.00\n100.00\n100.00\n42.00\nreal error\n")
+
+    connection._collect_stderr(proc)
+
+    items = [
+        call.args[0] for call in connection.status_notifier.put.call_args_list
+    ]
+    progress = [i.info for i in items if isinstance(i, StatusInfo)]
+    assert progress == [50.0, 100.0]
+    # only the exact repeated 100 milestone is dropped; other numeric
+    # stderr (like the stray "42.00") stays visible
+    errors = [i.message for i in items if isinstance(i, FormatedLine)]
+    assert errors == ["42.00", "real error"]
+
+
+def test_collect_stdout_handles_none_stdout():
+    """_collect_stdout returns empty bytes if proc.stdout is None."""
+    connection = QubeConnection.__new__(QubeConnection)
+    proc = Mock()
+    proc.stdout = None
+    assert connection._collect_stdout(proc) == b""

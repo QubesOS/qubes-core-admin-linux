@@ -19,13 +19,13 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
 # USA.
 import argparse
+from typing import Any
 
 
 class AgentArgs:
     # To avoid code repeating when we want to retrieve arguments
-    OPTIONS: dict[
-        tuple[str] | tuple[str, str] | tuple[str, str, str], dict[str, str]
-    ] = {
+    # Values are heterogeneous: "default" may be None, so not just str.
+    OPTIONS: dict[tuple, dict[str, Any]] = {
         ("--log",): {
             "action": "store",
             "default": "INFO",
@@ -53,6 +53,13 @@ class AgentArgs:
             "action": "store_true",
             "help": "Only download packages",
         },
+        # Hidden: only qvm-template-upgrade may drive an in-place
+        # release upgrade; qubes-vm-update rejects it in parse_args.
+        ("--version-upgrade",): {
+            "action": "store",
+            "default": None,
+            "help": argparse.SUPPRESS,
+        },
     }
     EXCLUSIVE_OPTIONS_1: dict[
         tuple[str] | tuple[str, str] | tuple[str, str, str], dict[str, str]
@@ -78,9 +85,7 @@ class AgentArgs:
             "help": argparse.SUPPRESS,
         },
     }
-    ALL_OPTIONS: dict[
-        tuple[str] | tuple[str, str] | tuple[str, str, str], dict[str, str]
-    ] = {
+    ALL_OPTIONS: dict[tuple, dict[str, Any]] = {
         **OPTIONS,
         **EXCLUSIVE_OPTIONS_1,
         **EXCLUSIVE_OPTIONS_2,
@@ -116,5 +121,10 @@ class AgentArgs:
                 if args_dict[param_name]:
                     cli_args.append(keys[0])
             else:
-                cli_args.extend((keys[0], args_dict[param_name]))
+                # Value-bearing options default to None when unset (e.g.
+                # --version-upgrade on a normal update). Skip those so we
+                # never inject a bare "None" into the agent command line.
+                arg_value = args_dict[param_name]
+                if arg_value is not None:
+                    cli_args.extend((keys[0], str(arg_value)))
         return cli_args

@@ -33,7 +33,11 @@ import dnf.transaction
 
 from source.common.process_result import ProcessResult
 from source.common.exit_codes import EXIT
-from source.common.progress_reporter import ProgressReporter, Progress
+from source.common.progress_reporter import (
+    ProgressReporter,
+    Progress,
+    ReleaseUpgradeTail,
+)
 from source.common.package_manager import AgentType
 
 from .dnf_cli import DNFCLI
@@ -166,6 +170,68 @@ class DNF(DNFCLI):
 
         return result
 
+    def _distro_sync(self, target: str) -> ProcessResult:
+        """Run release upgrade via DNF API with callback progress reporting."""
+        print(
+            "Preparing distribution upgrade; dependency calculation may "
+            "take some time...",
+            flush=True,
+        )
+        result = ProcessResult()
+        try:
+            conf = dnf.conf.Conf()
+            conf.read()
+            # mirror the CLI flags: --best (--allowerasing is set on
+            # resolve below)
+            conf.best = True
+            conf.substitutions["releasever"] = target
+            base = dnf.Base(conf)
+            try:
+                base.read_all_repos()
+                with self._time_operation(
+                    f"dnf fill_sack for release {target}"
+                ):
+                    base.fill_sack()
+                base.distro_sync()
+                # fill empty `Command line` column in dnf history
+                base.cmds = ["qubes-vm-update"]
+                print("Calculating package changes...", flush=True)
+                with self._time_operation(
+                    f"dnf dependency resolution for release {target}"
+                ):
+                    base.resolve(allow_erasing=True)
+                trans = base.transaction
+                if not trans:
+                    self.log.info("Distro-sync found nothing to do.")
+                    return result
+                with self._time_operation(
+                    f"dnf package download for release {target}"
+                ):
+                    base.download_packages(
+                        trans.install_set,
+                        progress=self.progress.fetch_progress,
+                    )
+                result += sign_check(base, trans.install_set, self.log)
+                if result.code == EXIT.OK:
+                    self.log.debug("Committing distro-sync to %s...", target)
+                    # Enable tail progress shaping for post-transaction scriptlets.
+                    self.progress.upgrade_progress.open_tail()
+                    with self._time_operation(
+                        f"dnf transaction for release {target}"
+                    ):
+                        try:
+                            base.do_transaction(self.progress.upgrade_progress)
+                        finally:
+                            self.progress.upgrade_progress.close_tail()
+            finally:
+                base.close()
+        except Exception as exc:
+            self.log.error(
+                "An error occurred during release upgrade: %s", str(exc)
+            )
+            result += ProcessResult(EXIT.ERR_VM_UPDATE, out="", err=str(exc))
+        return result
+
 
 def sign_check(
     base: dnf.Base, packages: Iterable, log: Logger
@@ -260,10 +326,12 @@ class FetchProgress(DownloadProgress, Progress):
         self.notify_callback(0)
 
 
-class UpgradeProgress(TransactionDisplay, Progress):
+class UpgradeProgress(TransactionDisplay, ReleaseUpgradeTail, Progress):
     def __init__(self, weight: int, log: Logger) -> None:
         TransactionDisplay.__init__(self)
         Progress.__init__(self, weight, log)
+        # Armed by _distro_sync() only, so ordinary runs are unaffected.
+        ReleaseUpgradeTail.__init__(self)
 
     def progress(
         self,
@@ -285,12 +353,14 @@ class UpgradeProgress(TransactionDisplay, Progress):
         :param ts_total: total number of actions in the whole transaction
         """
         self.log.info(_package)
-        fetch = 6
-        install = 7
-        if action not in (fetch, install):
+        # libdnf TransactionItemAction values: 6 is UPGRADE, 7 is
+        # UPGRADED (the cleanup element of an upgraded package).
+        upgrade = 6
+        upgraded_cleanup = 7
+        if action not in (upgrade, upgraded_cleanup):
             return
         percent = (ti_done / ti_total + ts_done - 1) / ts_total * 100
-        self.notify_callback(percent)
+        self.notify_callback(self._scaled_percent(percent))
 
     def scriptout(self, msgs: bytes | str) -> None:
         """

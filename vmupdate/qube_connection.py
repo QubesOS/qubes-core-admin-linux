@@ -335,6 +335,12 @@ class QubeConnection:
                     StatusInfo.updating(self.qube, progress)
                 )
             else:
+                # Ignore duplicate 100.0 milestone from agents that emit it twice.
+                try:
+                    if float(line) == 100.0:
+                        continue
+                except ValueError:
+                    pass
                 self.status_notifier.put(
                     FormatedLine(self.qube.name, "err", line)
                 )

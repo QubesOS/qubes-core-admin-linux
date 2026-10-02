@@ -21,19 +21,37 @@
 
 # pylint: disable=unused-argument
 
+import csv
 import fcntl
+import glob
 import os
 import contextlib
-from typing import List, Iterator
+from typing import List, Iterator, Optional
 from logging import Handler
 
-from source.common.package_manager import PackageManager, AgentType
+from source.utils import get_os_data
+from source.common.package_manager import (
+    PackageManager,
+    AgentType,
+    RELEASE_UPGRADE_ALMOST_DONE,
+)
 from source.common.process_result import ProcessResult
 from source.common.exit_codes import EXIT
 
 
 class APTCLI(PackageManager):
     PROGRESS_REPORTING = False
+
+    # Maintained by Debian's distro-info-data package, which is a
+    # qubes-core-agent dependency (including in minimal templates).
+    DEBIAN_RELEASES_FILE = "/usr/share/distro-info/debian.csv"
+
+    # APT source files in one-line (.list) and deb822 (.sources) formats.
+    APT_SOURCE_GLOBS = (
+        "/etc/apt/sources.list",
+        "/etc/apt/sources.list.d/*.list",
+        "/etc/apt/sources.list.d/*.sources",
+    )
 
     def __init__(
         self, log_handler: Handler, log_level: int, agent_type: AgentType
@@ -176,3 +194,224 @@ class APTCLI(PackageManager):
 
         result.code = EXIT.ERR_VM_CLEANUP if result.code != 0 else 0
         return result
+
+    def _release_upgrade(self, target_version: str) -> ProcessResult:
+        """Upgrade to the target Debian release by rewriting apt source codenames and running dist-upgrade."""
+        target = str(target_version).strip()
+        os_data = get_os_data(self.log)
+
+        guard = self._verify_release_upgrade(target, os_data)
+        if guard.code:
+            return guard
+
+        old_codename = os_data["codename"]
+        try:
+            new_codename = self._debian_codename(target)
+        except (OSError, csv.Error) as exc:
+            return self._refuse(
+                f"cannot read Debian release data from "
+                f"{self.DEBIAN_RELEASES_FILE}: {exc}."
+            )
+        if not new_codename:
+            return self._refuse(
+                f"no Debian codename for release {target!r} in "
+                f"{self.DEBIAN_RELEASES_FILE}."
+            )
+
+        # Refuse early if no source file references the old or new codename.
+        try:
+            sources = [
+                open(path, "r", encoding="utf-8").read()
+                for path in self._apt_source_paths()
+            ]
+        except OSError as exc:
+            return self._refuse(f"cannot read apt sources: {exc}.")
+        if not any(
+            old_codename in content or new_codename in content
+            for content in sources
+        ):
+            return self._refuse(
+                f"no apt source references codename {old_codename!r} "
+                f"or {new_codename!r}; refusing upgrade."
+            )
+
+        self._report_progress(0.0)
+        result = ProcessResult()
+
+        # Update before switching sources and running dist-upgrade: a stale
+        # system risks unresolvable transactions across the release boundary.
+        # Each step gets its own slice of the bar, proportional to its
+        # weight. The weights are the wall-clock share of each step in a
+        # complete Debian 12-to-13 template upgrade run with --log DEBUG:
+        # 6.6, 6.5, ~0, 9.1, 21.9 and 55.8 percent, rounded (source
+        # rewriting takes no measurable time but keeps a visible weight
+        # of 1). To re-measure after changing the steps, run an upgrade
+        # with --log DEBUG, take the timestamps where each step starts in
+        # the log, and divide every step's duration by the total. Only
+        # the ratios matter; the code normalizes by the sum.
+        # (bar weight, drives fetch/install phases, step)
+        steps = (
+            (7, False, lambda: self.refresh(hard_fail=True)),
+            (7, True, lambda: self.upgrade_internal(remove_obsolete=False)),
+            (
+                1,
+                False,
+                lambda: self._rewrite_sources(old_codename, new_codename),
+            ),
+            (9, False, lambda: self.refresh(hard_fail=True)),
+            (22, True, lambda: self.upgrade_internal(remove_obsolete=False)),
+            (54, True, self._dist_upgrade),
+        )
+        total = sum(weight for weight, _, _ in steps)
+        done = 0
+        for weight, installs, step in steps:
+            self._set_progress_step(
+                done / total * RELEASE_UPGRADE_ALMOST_DONE,
+                (done + weight) / total * RELEASE_UPGRADE_ALMOST_DONE,
+                installs,
+            )
+            done += weight
+            step_result = step()
+            result += step_result
+            if step_result.code:
+                result.code = EXIT.ERR_VM_UPDATE
+                return result
+
+        try:
+            upgraded_os_data = get_os_data(self.log)
+        except OSError as exc:
+            msg = f"failed to verify the upgraded Debian release: {exc}"
+            self.log.error(msg)
+            result += ProcessResult(EXIT.ERR_VM_UPDATE, out="", err=msg)
+            return result
+
+        upgraded_release = upgraded_os_data.get("release", "").split(".")[0]
+        upgraded_codename = upgraded_os_data.get("codename", "")
+        if upgraded_release != target or upgraded_codename != new_codename:
+            msg = (
+                f"Debian release upgrade did not reach {target} "
+                f"({new_codename}); os-release reports "
+                f"{upgraded_os_data.get('release')!r} "
+                f"({upgraded_codename or 'no codename'})."
+            )
+            self.log.error(msg)
+            result += ProcessResult(EXIT.ERR_VM_UPDATE, out="", err=msg)
+            return result
+
+        # Kernel cleanup failure must not discard a completed upgrade.
+        cleanup = self.remove_obsolete_kernels()
+        result += cleanup
+        if cleanup.code:
+            self.log.warning(
+                "post-upgrade obsolete-kernel cleanup failed (non-fatal): %s",
+                cleanup.err,
+            )
+        result.code = EXIT.OK
+
+        # version_upgrade() owns the jump to 100, after qubes.PostInstall.
+        self._report_milestone(RELEASE_UPGRADE_ALMOST_DONE)
+        return result
+
+    def _dist_upgrade(self) -> ProcessResult:
+        """Run dist-upgrade without kernel cleanup so failures are independent."""
+        return PackageManager.upgrade_internal(self, remove_obsolete=True)
+
+    def _verify_release_upgrade(
+        self, target: str, os_data: dict
+    ) -> ProcessResult:
+        """
+        The shared single-step check plus the current Debian codename check.
+        """
+        result = super()._verify_release_upgrade(target, os_data)
+        if result.code:
+            return result
+
+        if not os_data.get("codename"):
+            return self._refuse(
+                "cannot read the in-qube release codename from os-release."
+            )
+
+        return ProcessResult()
+
+    @classmethod
+    def _debian_codename(cls, target: str) -> Optional[str]:
+        """Return Debian's codename for a numeric release."""
+        with open(
+            cls.DEBIAN_RELEASES_FILE,
+            "r",
+            encoding="utf-8",
+            newline="",
+        ) as releases_file:
+            releases = csv.reader(releases_file)
+            next(releases, None)  # header
+            for row in releases:
+                # Columns: version,codename,series,created,release,eol,...
+                # Unreleased rows stop after "created", so pad before
+                # unpacking; sid/experimental have an empty version.
+                version, _codename, series, _created, released = (
+                    row + [""] * 5
+                )[:5]
+                if version != target:
+                    continue
+                if not released:
+                    # distro-info lists unreleased versions too;
+                    # not a released Debian yet, so no codename.
+                    return None
+                return series or None
+        return None
+
+    @classmethod
+    def _apt_source_paths(cls) -> List[str]:
+        """Every existing apt source file matched by APT_SOURCE_GLOBS."""
+        return [
+            path
+            for pattern in cls.APT_SOURCE_GLOBS
+            for path in glob.glob(pattern)
+        ]
+
+    def _rewrite_sources(
+        self, old_codename: str, new_codename: str
+    ) -> ProcessResult:
+        """Replace the old release codename with the new one in all apt source files.
+
+        Refuses if no source references either codename (e.g. symbolic 'stable' sources).
+        """
+        changed = 0
+        try:
+            for path in self._apt_source_paths():
+                with open(path, "r", encoding="utf-8") as f_src:
+                    content = f_src.read()
+                updated = content.replace(old_codename, new_codename)
+                if updated == content:
+                    if new_codename in content:
+                        # Already rewritten by an interrupted run.
+                        changed += 1
+                    continue  # no codename here -> no spurious write
+                # Atomic write: preserve symlinks, permissions, and ownership.
+                real_path = os.path.realpath(path)
+                st = os.stat(real_path)
+                tmp_path = real_path + ".tmp"
+                with open(tmp_path, "w", encoding="utf-8") as f_src:
+                    f_src.write(updated)
+                    f_src.flush()
+                    os.fsync(f_src.fileno())
+                os.chmod(tmp_path, st.st_mode)
+                os.chown(tmp_path, st.st_uid, st.st_gid)
+                os.replace(tmp_path, real_path)
+                changed += 1
+                self.log.info(
+                    "Rewrote apt source %s: %s -> %s",
+                    path,
+                    old_codename,
+                    new_codename,
+                )
+        except OSError as exc:
+            msg = f"failed rewriting apt sources: {exc}"
+            self.log.error(msg)
+            return ProcessResult(EXIT.ERR_VM_UPDATE, out="", err=msg)
+        if not changed:
+            return self._refuse(
+                f"no apt source references codename {old_codename!r}; "
+                "refusing upgrade."
+            )
+        return ProcessResult()

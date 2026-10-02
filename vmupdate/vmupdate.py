@@ -51,7 +51,7 @@ def main(
         os.chown(LOGPATH, -1, gid)
         os.chmod(LOGPATH, 0o664)
     except (PermissionError, KeyError):
-        # do it on the best effort basis
+        # non-critical; ignore if it fails
         pass
 
     try:
@@ -260,6 +260,11 @@ def parse_args(args: list[str] | None, app: QubesBase) -> argparse.Namespace:
 
     if parsed_args.update_if_stale < 0:
         raise ArgumentError("Wrong value for --update-if-stale")
+
+    if getattr(parsed_args, "version_upgrade", None):
+        parser.error(
+            "--version-upgrade is only supported via qvm-template-upgrade"
+        )
 
     return parsed_args
 

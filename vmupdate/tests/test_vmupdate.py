@@ -793,3 +793,14 @@ def test_error_usage_wrong_param(
         test_qapp,
     )
     assert retcode == EXIT.ERR_USAGE
+
+
+def test_version_upgrade_flag_rejected(test_qapp, capsys):
+    """--version-upgrade is exclusive to qvm-template-upgrade."""
+    _dom0 = TestVM("dom0", test_qapp, klass="AdminVM")
+    with pytest.raises(SystemExit):
+        vmupdate.parse_args(["--version-upgrade", "42"], test_qapp)
+    assert (
+        "--version-upgrade is only supported via qvm-template-upgrade"
+        in capsys.readouterr().err
+    )
