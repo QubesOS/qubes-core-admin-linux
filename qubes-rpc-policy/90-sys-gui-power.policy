@@ -1,0 +1,5 @@
+## Machine-power services (qubes.PowerShutdown / PowerReboot / PowerSuspend).
+## They run in dom0 and act on the whole machine, so they are denied by default.
+qubes.PowerShutdown  *  @anyvm  @anyvm  deny
+qubes.PowerReboot    *  @anyvm  @anyvm  deny
+qubes.PowerSuspend   *  @anyvm  @anyvm  deny
