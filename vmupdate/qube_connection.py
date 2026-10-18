@@ -296,7 +296,7 @@ class QubeConnection:
                 if line:
                     self._print("out", line)
 
-        proc.stderr.close()
+        proc.stdout.close()
         self.logger.debug("Agent stdout closed.")
 
         return b""
