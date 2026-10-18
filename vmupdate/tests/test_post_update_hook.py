@@ -20,9 +20,14 @@
 # USA.
 import logging
 
+import pytest
+
+from vmupdate.agent.source.common.exit_codes import EXIT
 from vmupdate.agent.source.common.post_update_hook import (
+    merge_hook_result_into_upgrade_code,
     run_post_update_hook,
 )
+from vmupdate.agent.source.common.process_result import ProcessResult
 
 log = logging.getLogger("test")
 
@@ -49,6 +54,30 @@ def test_failing_hook_maps_to_post_update_error(tmp_path):
     hook = write_hook(tmp_path, "echo boom >&2\nexit 3\n")
     result = run_post_update_hook(hook, log)
     assert repr(result) == "27; ; boom\n"
+
+
+def test_changing_hook_is_not_an_error(tmp_path):
+    hook = write_hook(tmp_path, "exit 10\n")
+    result = run_post_update_hook(hook, log)
+    assert repr(result) == "10; ; "
+
+
+@pytest.mark.parametrize(
+    "upgrade_code, hook_code, expected_code",
+    [
+        (EXIT.OK_NO_UPDATES, EXIT.OK, EXIT.OK_NO_UPDATES),
+        (EXIT.OK_NO_UPDATES, EXIT.OK_POST_UPDATE_CHANGES, EXIT.OK),
+        (EXIT.OK, EXIT.OK_POST_UPDATE_CHANGES, EXIT.OK),
+        (EXIT.OK_NO_UPDATES, EXIT.ERR_VM_POST_UPDATE, EXIT.ERR_VM_POST_UPDATE),
+    ],
+)
+def test_hook_result_merges_into_upgrade_code(
+    upgrade_code, hook_code, expected_code
+):
+    merged_code = merge_hook_result_into_upgrade_code(
+        upgrade_code, ProcessResult(hook_code)
+    )
+    assert merged_code == expected_code
 
 
 def test_print_streams_forwards_output(tmp_path, capsys):

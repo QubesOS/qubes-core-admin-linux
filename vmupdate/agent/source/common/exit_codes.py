@@ -25,6 +25,8 @@ from dataclasses import dataclass
 class EXIT:
     OK = 0
     OK_NO_UPDATES = 100
+    # internal: qubes.PostUpdate changed something, never returned to dom0
+    OK_POST_UPDATE_CHANGES = 10
 
     ERR = 1
     ERR_SHUTDOWN_TMPL = 11  # unable to shut down some TemplateVMs

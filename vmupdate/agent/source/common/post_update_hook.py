@@ -44,7 +44,8 @@ def run_post_update_hook(
     :param hook_path: path of the hook script
     :param log: agent logger
     :param print_streams: forward hook output to std streams
-    :return: hook result, `EXIT.ERR_VM_POST_UPDATE` if the hook failed
+    :return: hook result, `EXIT.OK_POST_UPDATE_CHANGES` if the hook changed
+        something, `EXIT.ERR_VM_POST_UPDATE` if the hook failed
     """
     if not os.access(hook_path, os.X_OK):
         log.debug("Post-update hook %s not found, skipping.", hook_path)
@@ -58,15 +59,36 @@ def run_post_update_hook(
         stderr=subprocess.PIPE,
     ) as proc:
         result += ProcessResult.process_communicate(proc)
-    if result.code != EXIT.OK:
+    if result.code not in (EXIT.OK, EXIT.OK_POST_UPDATE_CHANGES):
         log.warning("Post-update hook failed with exit code: %d", result.code)
         result.code = EXIT.ERR_VM_POST_UPDATE
     _log_output(log, result)
     return result
 
 
+def merge_hook_result_into_upgrade_code(
+    upgrade_code: int, hook_result: ProcessResult
+) -> int:
+    """
+    Combine the package manager's exit code with the hook result.
+
+    Changes made by the hook count as updates even if the package manager
+    had none. Not max(): `EXIT.OK_NO_UPDATES` would outrank both the hook
+    error code and `EXIT.OK`.
+
+    :param upgrade_code: exit code of the package manager upgrade
+    :param hook_result: result of `run_post_update_hook`
+    :return: exit code of the whole update run
+    """
+    if hook_result.code == EXIT.OK_POST_UPDATE_CHANGES:
+        return EXIT.OK
+    if hook_result:
+        return hook_result.code
+    return upgrade_code
+
+
 def _log_output(log: Logger, result: ProcessResult) -> None:
-    log_line = log.error if result else log.info
+    log_line = log.error if result.code == EXIT.ERR_VM_POST_UPDATE else log.info
     for line in result.out.splitlines():
         log_line("post-update hook out: %s", line)
     for line in result.err.splitlines():
