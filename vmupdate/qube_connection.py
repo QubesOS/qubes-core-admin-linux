@@ -280,7 +280,6 @@ class QubeConnection:
             proc = target.run_service(
                 "qubes.VMExec+"
                 + qubesadmin.utils.encode_for_vmexec(["fakeroot"] + command),
-                user="user",
                 preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_IGN),
             )
         else:
