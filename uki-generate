@@ -52,7 +52,7 @@ def main(args):
         section_name, size, start_vma = m.group(1), int(m.group(2), 16), int(m.group(3), 16)
         if section_name.startswith(b".annobin"):
             continue
-        max_vma = max(max_vma, size, + start_vma)
+        max_vma = max(max_vma, start_vma + size)
     def round_to_next(f: int) -> int:
         max_address = (0xffffffffffffffff & ~alignment_mask)
         if f > max_address:
