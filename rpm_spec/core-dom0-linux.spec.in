@@ -117,6 +117,8 @@ ln -s ../../usr/libexec/qubes/qubes-receive-updates $RPM_BUILD_ROOT/etc/qubes-rp
 install -d $RPM_BUILD_ROOT/etc/qubes/policy.d/
 install -m 0644 qubes-rpc-policy/90-default-linux.policy \
        $RPM_BUILD_ROOT/etc/qubes/policy.d/90-default-linux.policy
+install -m 0644 qubes-rpc-policy/90-sys-gui-power.policy \
+       $RPM_BUILD_ROOT/etc/qubes/policy.d/90-sys-gui-power.policy
 
 install -d $RPM_BUILD_ROOT/var/lib/qubes/updates
 
@@ -283,12 +285,15 @@ chmod -x /etc/grub.d/10_linux
 /usr/libexec/qubes/qubes-receive-updates
 /etc/qubes-rpc/qubes.ReceiveUpdates
 %attr(0664,root,qubes) %config(noreplace) /etc/qubes/policy.d/90-default-linux.policy
+%attr(0664,root,qubes) %config(noreplace) /etc/qubes/policy.d/90-sys-gui-power.policy
 %attr(0770,root,qubes) %dir /var/lib/qubes/updates
 # vm updates, in addition to INSTALLED_FILES
 %dir %{python3_sitelib}/qubes_vmupdate-*.egg-info
 # Qrexec services
 /etc/qubes-rpc/qubes.repos.*
 /usr/lib/qubes/qubes-rpc/qubes.repos.*
+/etc/qubes-rpc/qubes.Power*
+/usr/lib/qubes/qubes-rpc/qubes.Power*
 # Dracut module
 /usr/lib/dracut/dracut.conf.d/*
 %dir %{_dracutmoddir}/90macbook12-spi-driver
