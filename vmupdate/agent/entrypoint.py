@@ -14,6 +14,7 @@ from source.common.exit_codes import EXIT
 from source.common.package_manager import AgentType
 from source.common.post_update_hook import (
     POST_UPDATE_HOOK,
+    merge_hook_result_into_upgrade_code,
     run_post_update_hook,
 )
 
@@ -59,9 +60,9 @@ def main(args: list[str] | None = None) -> int:
         hook_result = run_post_update_hook(
             POST_UPDATE_HOOK, log, print_streams=parsed_args.show_output
         )
-        # not max(): OK_NO_UPDATES (100) would outrank the hook error code
-        if hook_result:
-            return_code = hook_result.code
+        return_code = merge_hook_result_into_upgrade_code(
+            return_code, hook_result
+        )
 
     if not pkg_mng.PROGRESS_REPORTING and not parsed_args.no_progress:
         # even if progress reporting is unavailable we want info that update finished

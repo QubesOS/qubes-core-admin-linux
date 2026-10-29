@@ -95,7 +95,9 @@ agent runs `/etc/qubes-rpc/qubes.PostUpdate` in that qube, which executes
 every executable `.sh` file in `/etc/qubes/post-update.d/`. The hook runs
 whether or not any package was changed, so it suits secondary package
 managers (flatpak, nix, pip, ...) that should be refreshed on every update
-run. A non-zero exit of the hook is reported with return code 27.
+run. A script that changed something exits with 10, so the qube is reported
+as updated even if the package manager had no updates. Any other non-zero
+exit of the hook is reported with return code 27.
 
 RETURN CODES
 ============
