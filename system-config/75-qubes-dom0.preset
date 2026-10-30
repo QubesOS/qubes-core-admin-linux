@@ -74,3 +74,4 @@ enable qubes-starfighter-display-quirk.service
 enable anti-evil-maid-unseal.service
 enable anti-evil-maid-check-mount-devs.service
 enable anti-evil-maid-seal.service
+enable systemd-cryptsetup@swap.service
