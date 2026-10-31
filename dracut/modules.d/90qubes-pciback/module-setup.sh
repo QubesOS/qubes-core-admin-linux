@@ -12,6 +12,7 @@ install () {
     inst lspci
     inst grep
     inst awk
+    inst /usr/lib/qubes/qubes-pci-quarantine
     mkdir -p -m 0700 -- "$initdir/etc/usbguard"
     mkdir -p -m 0755 -- "$systemdsystemunitdir/usbguard.service.d"
     inst_multiple /etc/nsswitch.conf
@@ -26,7 +27,7 @@ install () {
 installkernel() {
     local mod=
 
-    for mod in pciback xen-pciback; do
+    for mod in pciback xen-pciback xen-privcmd; do
         if modinfo -k "${kernel}" "${mod}" >/dev/null 2>&1; then
             hostonly='' instmods "${mod}"
         fi
