@@ -1,0 +1,36 @@
+#!/bin/bash
+#
+# Set the 'reboot-required' feature of dom0 to the names of packages that were
+# installed or updated since boot and need a system restart to take effect.
+# Remove the feature if there are none (for example at boot).
+# Print the names of these packages, if any.
+
+# Packages that are used only after a restart: Xen, dom0 kernel, CPU
+# microcode, firmware and the core libraries/services that dnf5
+# needs-restarting considers too.
+REBOOT_PACKAGES=(
+    xen-hypervisor
+    kernel
+    kernel-latest
+    microcode_ctl
+    linux-firmware
+    glibc
+    systemd
+    dbus-broker
+    openssl-libs
+    gnutls
+)
+
+boot_time=$(awk '$1 == "btime" { print $2 }' /proc/stat) || exit 1
+
+packages=$(rpm -qa --qf '%{INSTALLTIME} %{NAME}\n' -- "${REBOOT_PACKAGES[@]}" |
+    awk -v boot_time="$boot_time" '$1 > boot_time + 0 { print $2 }' |
+    sort -u | tr '\n' ' ')
+packages=${packages% }
+
+if [ -n "$packages" ]; then
+    qvm-features dom0 reboot-required "$packages" || exit 1
+    echo "$packages"
+else
+    qvm-features --unset dom0 reboot-required || exit 1
+fi

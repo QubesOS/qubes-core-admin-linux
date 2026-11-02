@@ -1,0 +1,11 @@
+[Unit]
+Description=Clear the dom0 'reboot-required' feature after a restart
+After=qubesd.service
+Requires=qubesd.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/qubes/qubes-check-reboot-required
+
+[Install]
+WantedBy=multi-user.target
