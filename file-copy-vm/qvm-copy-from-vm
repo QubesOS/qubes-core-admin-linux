@@ -1,0 +1,103 @@
+#!/bin/bash
+set -e -o pipefail
+#
+# The Qubes OS Project, http://www.qubes-os.org
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+#
+#
+
+usage() {
+    echo "usage: ${0##*/} [-y|--yes] [--] src_vmname file [file]+"
+}
+
+YES=
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -y|--yes) YES=1; shift;;
+        -h|--help) usage; exit 0;;
+        --) shift; break;;
+        -*) usage >&2; exit 1;;
+        *) break;;
+    esac
+done
+
+if [ $# -lt 2 ] ; then
+    usage >&2
+    exit 1
+fi
+
+VM="$1"
+shift
+
+# qube names never start with "-", so no "--" is needed below
+if [ "$VM" = "dom0" ] || [ "${VM#-}" != "$VM" ] ||
+        ! qvm-check -q "$VM" 2>/dev/null; then
+    echo "${0##*/}: no such qube: $VM" >&2
+    exit 1
+fi
+
+DEST="$HOME/QubesIncoming/$VM"
+
+if [ -z "$YES" ]; then
+    cat >&2 <<EOF
+WARNING: COPYING FILES INTO DOM0 IS DANGEROUS AND STRONGLY DISCOURAGED.
+
+You are about to copy files from qube '$VM' into dom0:
+    $DEST
+
+DOM0 CONTROLS THE WHOLE SYSTEM. If '$VM' is compromised, these files can
+be crafted to take over dom0 - and with it EVERY qube and ALL your data -
+as soon as they are opened, viewed, parsed, installed or run in dom0.
+
+DO NOT CONTINUE unless you fully trust '$VM', know exactly what you will
+do with these files, and there is no other way.
+
+EOF
+    if ! [ -t 0 ]; then
+        echo "${0##*/}: not asking for confirmation without a terminal; use --yes" >&2
+        exit 1
+    fi
+    read -r -p "Type 'yes' to continue: " answer
+    if [ "$answer" != "yes" ]; then
+        echo "Aborted." >&2
+        exit 1
+    fi
+fi
+
+# qvm-run does not reliably pass "--" through, so protect file names that
+# qfile-agent could take for options instead
+FILES=()
+for f in "$@"; do
+    case "$f" in
+        -*) FILES+=("./$f");;
+        *) FILES+=("$f");;
+    esac
+done
+
+mkdir -p -- "$HOME/QubesIncoming"
+
+TMPDIR=`mktemp -d`
+trap 'rm -rf -- "$TMPDIR"' EXIT
+RESPONSE=$TMPDIR/response
+mkfifo -- "$RESPONSE"
+
+if ! qvm-run --no-gui --pass-io "$VM" /usr/lib/qubes/qfile-agent "${FILES[@]}" \
+        <"$RESPONSE" |
+        /usr/libexec/qubes/qfile-dom0-unpacker "$(id -un)" "$DEST" \
+        >"$RESPONSE"; then
+    echo "${0##*/}: copying from '$VM' failed; files copied so far are in $DEST" >&2
+    exit 1
+fi

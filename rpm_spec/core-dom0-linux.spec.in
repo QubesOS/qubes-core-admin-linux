@@ -190,6 +190,7 @@ touch $RPM_BUILD_ROOT/var/lib/qubes/.qubes-exclude-block-devices
 # file copy to VM
 install -m 755 file-copy-vm/qfile-dom0-agent $RPM_BUILD_ROOT/usr/lib/qubes/
 install -m 755 file-copy-vm/qvm-copy-to-vm $RPM_BUILD_ROOT/usr/bin/
+install -m 755 file-copy-vm/qvm-copy-from-vm $RPM_BUILD_ROOT/usr/bin/
 install -m 755 file-copy-vm/qvm-copy $RPM_BUILD_ROOT/usr/bin/
 ln -s qvm-copy-to-vm $RPM_BUILD_ROOT/usr/bin/qvm-move-to-vm
 ln -s qvm-copy $RPM_BUILD_ROOT/usr/bin/qvm-move
@@ -305,6 +306,7 @@ chmod -x /etc/grub.d/10_linux
 # file copy
 %_bindir/qvm-copy-to-vm
 %_bindir/qvm-move-to-vm
+%_bindir/qvm-copy-from-vm
 %_bindir/qvm-copy
 %_bindir/qvm-move
 /usr/lib/qubes/qfile-dom0-agent
