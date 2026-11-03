@@ -89,15 +89,11 @@ done
 
 mkdir -p -- "$HOME/QubesIncoming"
 
-TMPDIR=`mktemp -d`
-trap 'rm -rf -- "$TMPDIR"' EXIT
-RESPONSE=$TMPDIR/response
-mkfifo -- "$RESPONSE"
-
-if ! qvm-run --no-gui --pass-io "$VM" /usr/lib/qubes/qfile-agent "${FILES[@]}" \
-        <"$RESPONSE" |
-        /usr/libexec/qubes/qfile-dom0-unpacker "$(id -un)" "$DEST" \
-        >"$RESPONSE"; then
+# --localcmd is run by a shell; pass the paths through the environment
+export QVM_COPY_USER="$(id -un)" QVM_COPY_DEST="$DEST"
+if ! qvm-run --no-gui --pass-io \
+        --localcmd='/usr/libexec/qubes/qfile-dom0-unpacker "$QVM_COPY_USER" "$QVM_COPY_DEST"' \
+        "$VM" /usr/lib/qubes/qfile-agent "${FILES[@]}"; then
     echo "${0##*/}: copying from '$VM' failed; files copied so far are in $DEST" >&2
     exit 1
 fi
