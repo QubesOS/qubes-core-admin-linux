@@ -111,6 +111,7 @@ int main(int argc, char ** argv)
 
     bytes_limit = parse_limit_env("UPDATES_MAX_BYTES", bytes_limit);
     files_limit = parse_limit_env("UPDATES_MAX_FILES", files_limit);
+    set_per_file_size_limit(parse_limit_env("UPDATES_MAX_BYTES_PER_FILE", 0));
 
     set_size_limit(bytes_limit, files_limit);
 
