@@ -4,7 +4,7 @@ from logging import Logger
 from typing import Any
 
 # Based on previous script for DSA-4371.
-SCRIPT=b'''
+SCRIPT = b"""
 set -eu -o pipefail
 
 tmp=
@@ -130,7 +130,8 @@ main() {
 }
 
 main
-'''
+"""
+
 
 def dsa_6607(os_data: dict, log: Logger, **kwargs: Any) -> None:
     """
