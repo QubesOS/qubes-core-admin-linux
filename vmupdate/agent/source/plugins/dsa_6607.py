@@ -52,9 +52,6 @@ main() {
     tmp="$(mktemp -d --tmpdir)"
 
     codename="$(cat /etc/debian_version)"
-    # since
-    # https://salsa.debian.org/apt-team/apt/-/commit/0f51535e9b26fd7973e72bae21e35e48da605f25
-    # apt depends on the newest libapt-pkg
     pkg="apt"
     case "$codename" in
         */sid|14.*)
