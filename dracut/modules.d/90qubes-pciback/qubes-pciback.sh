@@ -1,7 +1,7 @@
 #!/bin/bash --
 
 type getarg >/dev/null 2>&1 || . /lib/dracut-lib.sh
-unset re HIDE_PCI usb_in_dom0 dev skip exposed
+unset re HIDE_PCI usb_in_dom0 dev skip exposed quarantine
 
 resolve_dev() {
     local dev="$1"
@@ -63,6 +63,11 @@ ws=$' \n'
 [[ $HIDE_PCI =~ ^[0-9a-f_.:$ws-]+$ ]] ||
     die 'Bogus PCI device list - fix your kernel command line!'
 modprobe xen-pciback 2>/dev/null || :
+quarantine=false
+if getargbool 1 rd.qubes.pci_quarantine; then
+    quarantine=true
+    modprobe xen-privcmd 2>/dev/null || :
+fi
 dom0_usb=$(getarg rd.qubes.dom0_usb)
 if [[ "$dom0_usb" == *[!0-9a-f_.:,-]* ]] ; then
     warn 'Bogus rd.qubes.dom0_usb option - fix your kernel command line!'
@@ -91,6 +96,12 @@ for dev in $HIDE_PCI; do
     fi
     echo -n "$BDF" > /sys/bus/pci/drivers/pciback/new_slot
     echo -n "$BDF" > /sys/bus/pci/drivers/pciback/bind
+    # pciback alone leaves the device in dom0's IOMMU context; move it to
+    # Xen's quarantine domain until a qube uses it
+    if [ "$quarantine" = true ]; then
+        /usr/lib/qubes/qubes-pci-quarantine "$BDF" ||
+            warn "Cannot quarantine PCI device $BDF"
+    fi
 done
 ) || {
     hypervisor_type=
