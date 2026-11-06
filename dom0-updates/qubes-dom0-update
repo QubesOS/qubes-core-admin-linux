@@ -545,6 +545,18 @@ elif [ "$AUDIO_SWITCH" = "pulseaudio" ]; then
     echo 1 > /var/lib/qubes/.audio-switch-done
 fi
 
+# Tell the user (and the update widget, via the 'reboot-required' feature)
+# if installed packages take effect only after a system restart
+if [ -z "$DOWNLOADONLY" ]; then
+    if reboot_packages=$(/usr/lib/qubes/qubes-check-reboot-required); then
+        if [ -n "$reboot_packages" ] && [ "$REBOOT_REQUIRED" != 1 ]; then
+            echo "Restart the system to finish applying updates of: $reboot_packages"
+        fi
+    else
+        echo "*** WARNING: cannot check if a system restart is required" >&2
+    fi
+fi
+
 if [ "$REBOOT_REQUIRED" = 1 ]; then
     echo "This upgrade requires system restart before doing anything else."
     echo -n "Do you want to restart now? [Y/n] "
