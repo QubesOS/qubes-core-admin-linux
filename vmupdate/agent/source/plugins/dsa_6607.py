@@ -7,8 +7,6 @@ from typing import Any
 SCRIPT = b"""
 set -eu -o pipefail
 
-tmp=
-
 error() {
     echo "Error: $*"
     exit 1
@@ -26,16 +24,59 @@ cleanup() {
 }
 
 check_apt_version() {
-    local pkg="$1"
-    local fixed_version="$2"
-    if [ -z "$fixed_version" ] || [ -z "$pkg" ]; then
-        error "Bug: Invalid argument!"
-    fi
+    local installed_version
+    local fixed_version
 
-    installed_version="$(dpkg -s $pkg | grep '^Version: ' | cut -d ' ' -f 2)"
+    installed_version="$(dpkg -s apt | grep '^Version: ' | cut -d ' ' -f 2)"
     if [ -z "$installed_version" ]; then
         error "Failed to get apt version."
     fi
+
+    case "$installed_version" in
+        1.2.*)
+            fixed_version="1.2.36"
+            ;;
+        1.4.*)
+            fixed_version="1.4.12"
+            ;;
+        1.6.*)
+            fixed_version="1.6.19"
+            ;;
+        1.8.2.*)
+            fixed_version="1.8.2.4"
+            ;;
+        2.0.*)
+            fixed_version="2.0.12"
+            ;;
+        2.2.*)
+            fixed_version="2.2.5"
+            ;;
+        2.4.*)
+            fixed_version="2.4.15"
+            ;;
+        2.6.*)
+            fixed_version="2.6.2"
+            ;;
+        2.8.*)
+            fixed_version="2.8.4"
+            ;;
+        3.0.*)
+            fixed_version="3.0.4"
+            ;;
+        3.2.*)
+            fixed_version="3.2.1"
+            ;;
+        3.3.3ubuntu*)
+            # For 26.10 Ubuntu did backport the fix instead of updating to the
+            # fixed point release, so we need to special case that here.
+            fixed_version="3.3.3ubuntu0.1"
+            ;;
+        *)
+            # For anything that doesn't match a known stable branch require the
+            # first non-backported fixed version.
+            fixed_version="3.3.6"
+            ;;
+    esac
 
     rc=0
     dpkg --compare-versions "$installed_version" ge "$fixed_version" || rc=$?
@@ -48,80 +89,26 @@ check_apt_version() {
 }
 
 main() {
-    trap cleanup EXIT
-    tmp="$(mktemp -d --tmpdir)"
-
-    codename="$(cat /etc/debian_version)"
-    pkg="apt"
-    case "$codename" in
-        */sid|14.*)
-            # We will treat testing as sid here. This hopefully won't break
-            # anything ...
-            codename="sid"
-            fixed_version="3.3.6"
-            ;;
-        13.*)
-            codename="trixie"
-            fixed_version="3.0.4"
-            ;;
-        12.*)
-            codename="bookworm"
-            fixed_version="2.6.2"
-            ;;
-        *)
-            error 'Error: Could not determine Debian release!'
-    esac
-
-    if check_apt_version "$pkg" "$fixed_version"; then
+    if check_apt_version; then
         exit_ok 'Nothing to do, apt already fixed.'
     fi
 
     echo "apt not fixed, updating it ..."
 
-    : > "$tmp/sources.list"
-    mkdir "$tmp/sources.list.d"
-
-    # Make sure that any old (maybe bogus) list is removed.
-    apt-get \
-        -o "Acquire::http::AllowRedirect=false" \
-        -o "Acquire::Retries=0" \
-        -o "Dir::Etc::SourceList=$tmp/sources.list" \
-        -o "Dir::Etc::SourceParts=$tmp/sources.list.d" \
-        --list-cleanup \
-        update
-
-    printf 'deb https://deb.debian.org/debian %s main\n' "$codename" > "$tmp/sources.list"
-    if [ "$codename" != "sid" ]; then
-        printf 'deb https://deb.debian.org/debian-security %s-security main\n' "$codename" >> "$tmp/sources.list"
-    fi
-
-    # Don't fetch Translation and Contents file. We don't need them and we will
-    # throw them away later anyway.
     apt-get \
         -o "Acquire::Retries=0" \
-        -o "Acquire::http::AllowRedirect=false" \
-        -o "Acquire::Languages=none" \
-        -o "Acquire::IndexTargets::deb::Contents-deb::DefaultEnabled=false" \
-        -o "Dir::Etc::SourceList=$tmp/sources.list" \
-        -o "Dir::Etc::SourceParts=$tmp/sources.list.d" \
         update
 
     apt-get \
         -o "Acquire::Retries=0" \
-        -o "Acquire::http::AllowRedirect=false" \
-        -o "Dir::Etc::SourceList=$tmp/sources.list" \
-        -o "Dir::Etc::SourceParts=$tmp/sources.list.d" \
         --no-remove \
         --only-upgrade \
         -y \
-        install "$pkg"
+        install apt
 
-    if ! check_apt_version "$pkg" "$fixed_version"; then
+    if ! check_apt_version; then
         error 'apt version is still not fixed!'
     fi
-
-    # Run update again to restore normal package sources.
-    apt-get update
 
     exit_ok "apt has been successfully updated."
 }
