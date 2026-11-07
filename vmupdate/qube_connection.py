@@ -29,7 +29,7 @@ import concurrent.futures
 from os.path import join
 from subprocess import CalledProcessError
 from logging import Logger
-from typing import List, Self, Any, Type
+from typing import IO, Iterator, List, Optional, Self, Any, Tuple, Type
 
 import qubesadmin
 import qubesadmin.exc
@@ -53,6 +53,13 @@ class QubeConnection:
     """
 
     PYTHON_PATH = "/usr/bin/python3"
+
+    # Limits on what is kept from each output stream of a command run in the
+    # qube, which can send any amount of output. The rest is read and dropped.
+    MAX_LINE_BYTES = 64 * 1024
+    MAX_OUTPUT_LINES = 100_000
+    MAX_OUTPUT_BYTES = 10 * 1024 * 1024
+    TRUNCATED_LINE = b"[qubes-vm-update: output truncated]\n"
 
     def __init__(
         self,
@@ -171,9 +178,17 @@ class QubeConnection:
         self.logger.debug("run command: %s < %s", command, src)
         try:
             with open(src, "rb") as file:
-                untrusted_stdout_and_stderr = self.qube.run(
-                    command, user="root", input=file.read()
+                shell_input = self.qube.prepare_input_for_vmshell(
+                    command, file.read()
                 )
+                proc = self.qube.run_service("qubes.VMShell", user="root")
+                untrusted_stdout_and_stderr = self._communicate_limited(
+                    proc, shell_input
+                )
+                if proc.returncode:
+                    raise CalledProcessError(
+                        proc.returncode, command, *untrusted_stdout_and_stderr
+                    )
                 result = ProcessResult.from_untrusted_out_err(
                     *untrusted_stdout_and_stderr
                 )
@@ -213,7 +228,14 @@ class QubeConnection:
         """
         Read vm logs file.
         """
-        command = ["cat", str(join(LOGPATH, LOG_FILE))]
+        # tail: a well-behaving qube sends the end of a long log, where errors
+        # are; the size limit is still applied when reading the output
+        command = [
+            "tail",
+            "-c",
+            str(QubeConnection.MAX_OUTPUT_BYTES),
+            str(join(LOGPATH, LOG_FILE)),
+        ]
         result = self._run_shell_command_in_qube(self.qube, command)
         return result
 
@@ -237,17 +259,19 @@ class QubeConnection:
                 proc = subprocess.Popen(
                     command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
                 )
-                untrusted_stdout_and_stderr = proc.communicate()
-                if proc.returncode:
-                    raise CalledProcessError(
-                        proc.returncode,
-                        command,
-                        output=untrusted_stdout_and_stderr[0]
-                        + untrusted_stdout_and_stderr[1],
-                    )
             else:
-                untrusted_stdout_and_stderr = target.run_with_args(
-                    *command, user="root"
+                proc = target.run_service(
+                    "qubes.VMExec+"
+                    + qubesadmin.utils.encode_for_vmexec(command),
+                    user="root",
+                )
+            untrusted_stdout_and_stderr = self._communicate_limited(proc)
+            if proc.returncode:
+                raise CalledProcessError(
+                    proc.returncode,
+                    command,
+                    output=untrusted_stdout_and_stderr[0]
+                    + untrusted_stdout_and_stderr[1],
                 )
             result += ProcessResult.from_untrusted_out_err(
                 *untrusted_stdout_and_stderr
@@ -311,9 +335,7 @@ class QubeConnection:
         progress_finished = False
         if proc.stderr is None:
             return b""
-        for untrusted_line in iter(proc.stderr.readline, b""):
-            if not untrusted_line:
-                continue
+        for untrusted_line in self._limited_lines(proc.stderr):
             line = ProcessResult.sanitize_output(untrusted_line, single=True)
             if not line:
                 continue
@@ -347,17 +369,86 @@ class QubeConnection:
     def _collect_stdout(self, proc: subprocess.Popen) -> bytes:
         if proc.stdout is None:
             return b""
-        for untrusted_line in iter(proc.stdout.readline, b""):
-            if untrusted_line:
-                line = ProcessResult.sanitize_output(
-                    untrusted_line, single=True
+        for untrusted_line in self._limited_lines(proc.stdout):
+            line = ProcessResult.sanitize_output(untrusted_line, single=True)
+            if line:
+                self.status_notifier.put(
+                    FormatedLine(self.qube.name, "out", line)
                 )
-                if line:
-                    self.status_notifier.put(
-                        FormatedLine(self.qube.name, "out", line)
-                    )
 
         proc.stdout.close()
         self.logger.debug("Agent stdout closed.")
 
         return b""
+
+    @classmethod
+    def _limited_lines(cls, untrusted_stream: IO[bytes]) -> Iterator[bytes]:
+        """
+        Yield the lines of the stream, cut to MAX_LINE_BYTES. After
+        MAX_OUTPUT_LINES lines or MAX_OUTPUT_BYTES bytes, yield TRUNCATED_LINE
+        and drop the rest of the stream.
+        """
+        lines = size = 0
+        while True:
+            untrusted_line = untrusted_stream.readline(cls.MAX_LINE_BYTES)
+            if not untrusted_line:
+                return
+            rest = untrusted_line
+            while not rest.endswith(b"\n"):
+                # drop the rest of an overlong line
+                rest = untrusted_stream.readline(cls.MAX_LINE_BYTES)
+                if not rest:
+                    break
+            lines += 1
+            size += len(untrusted_line)
+            if lines > cls.MAX_OUTPUT_LINES or size > cls.MAX_OUTPUT_BYTES:
+                yield cls.TRUNCATED_LINE
+                cls._drop(untrusted_stream)
+                return
+            yield untrusted_line
+
+    @classmethod
+    def _read_limited(cls, untrusted_stream: IO[bytes]) -> bytes:
+        """
+        Read the stream to its end, keeping its first MAX_OUTPUT_BYTES bytes.
+        """
+        untrusted_data = untrusted_stream.read(cls.MAX_OUTPUT_BYTES)
+        if untrusted_stream.read(1):
+            cls._drop(untrusted_stream)
+            untrusted_data += b"\n" + cls.TRUNCATED_LINE
+        return untrusted_data
+
+    @classmethod
+    def _drop(cls, untrusted_stream: IO[bytes]) -> None:
+        """
+        Read the rest of the stream and discard it, so that the command in the
+        qube can finish.
+        """
+        while untrusted_stream.read(cls.MAX_LINE_BYTES):
+            pass
+
+    def _communicate_limited(
+        self, proc: subprocess.Popen, stdin_data: Optional[bytes] = None
+    ) -> Tuple[bytes, bytes]:
+        """
+        Like `proc.communicate(stdin_data)`, but keep at most MAX_OUTPUT_BYTES
+        of each of stdout and stderr.
+        """
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future_out = executor.submit(self._read_limited, proc.stdout)
+            future_err = executor.submit(self._read_limited, proc.stderr)
+            if proc.stdin is not None:
+                try:
+                    if stdin_data:
+                        proc.stdin.write(stdin_data)
+                    proc.stdin.close()
+                except BrokenPipeError:
+                    pass
+            untrusted_stdout_and_stderr = (
+                future_out.result(),
+                future_err.result(),
+            )
+        proc.stdout.close()
+        proc.stderr.close()
+        proc.wait()
+        return untrusted_stdout_and_stderr
