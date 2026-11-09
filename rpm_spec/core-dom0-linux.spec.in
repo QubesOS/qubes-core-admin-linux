@@ -109,6 +109,10 @@ make install DESTDIR=$RPM_BUILD_ROOT
 install -m 0755 -D -- dom0-updates/qubes-dom0-updates.cron "$RPM_BUILD_ROOT/etc/cron.daily/qubes-dom0-updates.cron"
 install -D dom0-updates/qubes-dom0-update $RPM_BUILD_ROOT/usr/bin/qubes-dom0-update
 install -D dom0-updates/qubes-receive-updates $RPM_BUILD_ROOT/usr/libexec/qubes/qubes-receive-updates
+install -m 0755 -D dom0-updates/qubes-check-reboot-required \
+    $RPM_BUILD_ROOT/usr/lib/qubes/qubes-check-reboot-required
+install -m 0644 -D dom0-updates/qubes-check-reboot-required.service \
+    $RPM_BUILD_ROOT%_unitdir/qubes-check-reboot-required.service
 install -m 0644 -D dom0-updates/20-qubes-dom0.conf $RPM_BUILD_ROOT/usr/share/dnf5/libdnf.conf.d/20-qubes-dom0.conf
 install -m 0644 -D dom0-updates/qubes-cached.repo $RPM_BUILD_ROOT/etc/yum.real.repos.d/qubes-cached.repo
 install -D dom0-updates/qfile-dom0-unpacker $RPM_BUILD_ROOT/usr/libexec/qubes/qfile-dom0-unpacker
@@ -220,6 +224,7 @@ set -eo pipefail
 systemctl --quiet enable qubes-suspend.service
 systemctl --quiet preset usbguard.service
 systemctl --quiet preset qubes-starfighter-display-quirk.service
+systemctl --quiet preset qubes-check-reboot-required.service
 
 # migrate dom0-updates check disable flag
 if [ $1 -ge 2 ]; then
@@ -259,6 +264,7 @@ if [ "$1" = 0 ] ; then
 
     systemctl disable qubes-suspend.service > /dev/null 2>&1
     systemctl disable qubes-starfighter-display-quirk.service > /dev/null 2>&1
+    systemctl disable qubes-check-reboot-required.service > /dev/null 2>&1
     rm -f /etc/X11/xorg.conf.d/10-qubes-starfighter-4k.conf
 fi
 
@@ -281,6 +287,8 @@ chmod -x /etc/grub.d/10_linux
 /usr/share/dnf5/libdnf.conf.d/20-qubes-dom0.conf
 %attr(4750,root,qubes) /usr/libexec/qubes/qfile-dom0-unpacker
 /usr/libexec/qubes/qubes-receive-updates
+/usr/lib/qubes/qubes-check-reboot-required
+%_unitdir/qubes-check-reboot-required.service
 /etc/qubes-rpc/qubes.ReceiveUpdates
 %attr(0664,root,qubes) %config(noreplace) /etc/qubes/policy.d/90-default-linux.policy
 %attr(0770,root,qubes) %dir /var/lib/qubes/updates
