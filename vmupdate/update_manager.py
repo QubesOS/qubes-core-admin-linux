@@ -66,7 +66,8 @@ class UpdateManager:
         self.just_print_progress = args.just_print_progress
         self.download_only = args.download_only
         self.buffered = not args.just_print_progress and not args.no_progress
-        self.buffer = ""
+        # printed at the end; a list, as `str +=` per line is quadratic
+        self.buffer: list[str] = []
         self.cleanup = not args.no_cleanup
         self.ret_code = EXIT.OK
         self.log = log
@@ -138,7 +139,7 @@ class UpdateManager:
             self.ret_code = max(self.ret_code, EXIT.ERR_QREXEX)
 
         if self.buffer:
-            print(self.buffer)
+            print("".join(self.buffer))
 
         return self.ret_code, progress_bar.statuses
 
@@ -166,7 +167,7 @@ class UpdateManager:
 
     def print(self, *args: Any) -> None:
         if self.buffered:
-            self.buffer += " ".join(map(str, args)) + "\n"
+            self.buffer.append(" ".join(map(str, args)) + "\n")
         else:
             print(*args, file=sys.stdout, flush=True)
 
