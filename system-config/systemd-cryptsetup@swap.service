@@ -1,0 +1,35 @@
+[Unit]
+Description=Qubes OS Encrypted Swap
+
+# This is a dependency of sysinit.target, so it cannot depend on it (deadlock).
+DefaultDependencies=no
+
+# Do not stop this when trying to isolate a unit.
+IgnoreOnIsolate=true
+
+# Default dependencies for any encrypted volume.
+After=cryptsetup-pre.target systemd-udevd-kernel.socket systemd-random-seed.service
+
+# Ensure that this unit comes after its backing device,
+# and is shut down if its backing device is shut down.
+After=dev-qubes_dom0-swap.device
+BindsTo=dev-qubes_dom0-swap.device
+
+# Ensure that this unit is started before the block device gets used.
+Before=blockdev@dev-mapper-%i.target
+Wants=blockdev@dev-mapper-%i.target
+Requires=systemd-random-seed.service
+
+# Stop this unit when umounting volumes on shutdown.
+Conflicts=umount.target
+Before=umount.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+TimeoutSec=infinity
+ExecStart=/usr/lib/systemd/systemd-cryptsetup attach 'swap' '/dev/qubes_dom0/swap' '/dev/urandom' 'plain,swap,cipher=aes-xts-plain64'
+ExecStop=/usr/lib/systemd/systemd-cryptsetup detach 'swap'
+ExecStartPost=/usr/lib/systemd/systemd-makefs swap '/dev/mapper/swap'
+# Prevent mlock() of the whole locale archive.
+Environment=LC_ALL=C
