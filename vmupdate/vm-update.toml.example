@@ -1,0 +1,20 @@
+# The update service reads its configuration from /etc/qubes/vm-update.toml.
+# By removing the .example extension you can activate this configuration
+
+# set options globally for all groups in the special "global_options" section
+# Any option set here applies to all groups unless a group overrides it.
+[global_options]
+logging_level = "info"
+# Show a desktop notification when a group update fails (default: true).
+notify_on_failure = true
+
+# group: each section is a batch of VMs updated together.
+# Options set inside a group override the global defaults for that group only.
+[work]
+vms = ["work-vm", "work-vm2"]
+
+[personal]
+vms = ["personal-vm", "media-vm"]
+logging_level = "debug"
+# Override global notification setting for this group only.
+notify_on_failure = true

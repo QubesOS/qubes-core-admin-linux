@@ -1,0 +1,12 @@
+[Unit]
+Description=Qubes VM Automatic Update
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/qubes_group_update
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=default.target

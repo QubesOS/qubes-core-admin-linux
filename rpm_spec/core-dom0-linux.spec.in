@@ -175,6 +175,16 @@ install -m 644 -D system-config/75-qubes-dom0-user.preset \
     $RPM_BUILD_ROOT%_userpresetdir/75-qubes-dom0-user.preset
 install -m 644 -D system-config/99-qubes-default-disable.preset \
     $RPM_BUILD_ROOT%_presetdir/99-qubes-default-disable.preset
+
+install -m 0755 -D vmupdate/qubes_group_update.py \
+    $RPM_BUILD_ROOT%_bindir/qubes_group_update
+install -m 0644 -D vmupdate/qubes-vm-update.service \
+    $RPM_BUILD_ROOT%_userunitdir/qubes-vm-update.service
+install -m 0644 -D vmupdate/qubes-vm-update.timer \
+    $RPM_BUILD_ROOT%_userunitdir/qubes-vm-update.timer
+install -m 0644 -D vmupdate/vm-update.toml.example \
+    $RPM_BUILD_ROOT/etc/qubes/vm-update.toml.example
+
 install -d $RPM_BUILD_ROOT/etc/dnf/protected.d
 install -m 0644 system-config/dnf-protected-qubes-core-dom0.conf  \
         $RPM_BUILD_ROOT/etc/dnf/protected.d/qubes-core-dom0.conf
@@ -225,6 +235,7 @@ systemctl --quiet enable qubes-suspend.service
 systemctl --quiet preset usbguard.service
 systemctl --quiet preset qubes-starfighter-display-quirk.service
 systemctl --quiet preset qubes-check-reboot-required.service
+systemctl --user --quiet preset qubes-vm-update.timer
 
 # migrate dom0-updates check disable flag
 if [ $1 -ge 2 ]; then
@@ -265,6 +276,7 @@ if [ "$1" = 0 ] ; then
     systemctl disable qubes-suspend.service > /dev/null 2>&1
     systemctl disable qubes-starfighter-display-quirk.service > /dev/null 2>&1
     systemctl disable qubes-check-reboot-required.service > /dev/null 2>&1
+    systemctl --user disable qubes-vm-update.timer > /dev/null 2>&1
     rm -f /etc/X11/xorg.conf.d/10-qubes-starfighter-4k.conf
 fi
 
@@ -333,6 +345,10 @@ chmod -x /etc/grub.d/10_linux
 %attr(0755,root,root) %_prefix/lib/udev/zvol_is_qubes_volume
 /usr/lib/qubes/qubes-starfighter-display-quirk
 %_unitdir/qubes-starfighter-display-quirk.service
+%_userunitdir/qubes-vm-update.service
+%_userunitdir/qubes-vm-update.timer
+%_bindir/qubes_group_update
+%config(noreplace) /etc/qubes/vm-update.toml.example
 %attr(0644,root,root) /etc/cron.d/qubes-sync-clock.cron
 /etc/cron.daily/lvm-cleanup
 %config(noreplace) /etc/profile.d/zz-disable-lesspipe.sh

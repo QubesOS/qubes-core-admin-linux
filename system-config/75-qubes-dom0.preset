@@ -72,6 +72,8 @@ enable qubes-preload-dispvm.service
 enable qubesd.service
 enable qubes-starfighter-display-quirk.service
 enable qubes-check-reboot-required.service
+enable qubes-vm-update.service
+enable qubes-vm-update.timer
 enable anti-evil-maid-unseal.service
 enable anti-evil-maid-check-mount-devs.service
 enable anti-evil-maid-seal.service
