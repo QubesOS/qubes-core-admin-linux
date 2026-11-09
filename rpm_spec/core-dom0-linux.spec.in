@@ -38,6 +38,7 @@ BuildRequires:  make
 BuildRequires:  pandoc
 BuildRequires:  qubes-utils-devel >= 3.1.3
 BuildRequires:  gcc
+BuildRequires:  xen-devel
 BuildRequires:  systemd-rpm-macros
 BuildRequires: python3-devel
 BuildRequires: python3-setuptools
@@ -97,6 +98,7 @@ suspend/resume.
 export BACKEND_VMM=@BACKEND_VMM@
 make -C dom0-updates
 make -C file-copy-vm
+make -C pci-quarantine
 make -C doc manpages
 make all
 
@@ -141,6 +143,8 @@ cp dracut/dracut.conf.d/* $RPM_BUILD_ROOT/usr/lib/dracut/dracut.conf.d/
 
 mkdir -p $RPM_BUILD_ROOT%{_dracutmoddir}
 cp -r dracut/modules.d/* $RPM_BUILD_ROOT%{_dracutmoddir}/
+install -m 0755 -D pci-quarantine/qubes-pci-quarantine \
+    $RPM_BUILD_ROOT/usr/lib/qubes/qubes-pci-quarantine
 
 ### Others
 mkdir -p $RPM_BUILD_ROOT/etc/sysconfig
@@ -295,6 +299,7 @@ chmod -x /etc/grub.d/10_linux
 %{_dracutmoddir}/90macbook12-spi-driver/*
 %dir %{_dracutmoddir}/90qubes-pciback
 %{_dracutmoddir}/90qubes-pciback/*
+/usr/lib/qubes/qubes-pci-quarantine
 %dir %{_dracutmoddir}/90extra-modules
 %{_dracutmoddir}/90extra-modules/*
 %dir %{_dracutmoddir}/90qubes-udev
