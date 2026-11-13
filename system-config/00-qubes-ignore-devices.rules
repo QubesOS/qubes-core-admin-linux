@@ -18,7 +18,16 @@ ATTR{dm/name}=="loop*p*", ENV{DM_UDEV_DISABLE_DISK_RULES_FLAG}="1"
 GOTO="qubes-ignore-devices-end"
 
 LABEL="qubes-devices-check-export"
-ATTR{loop/backing_file}!="*/appvms/*/*.img*|*/vm-templates/*/*.img*", ENV{QUBES_EXPORT_BLOCK_DEVICE}="1"
+TEST!="loop/backing_file", GOTO="qubes-ignore-devices-end"
+
+# Export all loop devices backed by files that do not belong to Qubes VMs.
+ATTR{loop/backing_file}!="*/appvms/*/*.img*|*/vm-templates/*/*.img*", ENV{QUBES_EXPORT_BLOCK_DEVICE}="1", GOTO="qubes-ignore-devices-end"
+
+# Set the name of the VM that owns this image file.
+PROGRAM=="/bin/sh -c 'V=$attr{loop/backing_file}; V=$${V##*/appvms/}; V=$${V##*/vm-templates/}; echo $${V%%/*}", ENV{.QUBES_VM}="%c"
+# If the VM owning the image is halted, allow the loop device backed by the
+# image to be available for attaching to other VMs.
+PROGRAM=="/bin/sh -c 'qvm-ls --raw-data --halted \"$env{.QUBES_VM}\" | grep -q .'", ENV{QUBES_EXPORT_BLOCK_DEVICE}="1"
 
 LABEL="qubes-ignore-devices-end"
 
