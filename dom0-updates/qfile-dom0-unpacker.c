@@ -12,12 +12,33 @@
 #include <errno.h>
 #include <limits.h>
 #include <libqubes-rpc-filecopy.h>
+#include <qubes/pure.h>
 
 #define DEFAULT_MAX_UPDATES_BYTES (4LL<<30)
 #define DEFAULT_MAX_UPDATES_FILES 4096
  
 #define min(a,b) ((a) < (b) ? (a) : (b))
 #define max(a,b) ((a) > (b) ? (a) : (b))
+
+static long long parse_limit_env(const char *name, long long fallback)
+{
+    const char *value = getenv(name);
+    if (!value)
+        return fallback;
+
+    long long limit;
+    int rc = qubes_pure_parse_nonneg_ll(value, &limit);
+    if (rc == -ERANGE) {
+        fprintf(stderr, "Invalid value for %s: %s: out of range\n", name, value);
+        exit(1);
+    }
+    if (rc != 0) {
+        fprintf(stderr, "Invalid value for %s: %s: not a valid non-negative integer\n", name, value);
+        exit(1);
+    }
+
+    return limit;
+}
 
 int prepare_creds_return_uid(const char *username)
 {
@@ -88,10 +109,8 @@ int main(int argc, char ** argv)
         perror("Failed to check free space");
     }
 
-    if ((var=getenv("UPDATES_MAX_BYTES")))
-        bytes_limit = atoll(var);
-    if ((var=getenv("UPDATES_MAX_FILES")))
-        files_limit = atoll(var);
+    bytes_limit = parse_limit_env("UPDATES_MAX_BYTES", bytes_limit);
+    files_limit = parse_limit_env("UPDATES_MAX_FILES", files_limit);
 
     set_size_limit(bytes_limit, files_limit);
 
