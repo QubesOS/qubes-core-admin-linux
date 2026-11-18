@@ -18,7 +18,7 @@ ATTR{dm/name}=="loop*p*", ENV{DM_UDEV_DISABLE_DISK_RULES_FLAG}="1"
 GOTO="qubes-ignore-devices-end"
 
 LABEL="qubes-devices-check-export"
-ATTR{loop/backing_file}!="*/appvms/*/*.img*|*/vm-templates/*/*.img*", ENV{QUBES_EXPORT_BLOCK_DEVICE}="1"
+ATTR{loop/backing_file}!="*/appvms/*/*.img*|*/vm-templates/*/*.img*|*/vm-kernels/*/*.img", ENV{QUBES_EXPORT_BLOCK_DEVICE}="1"
 
 LABEL="qubes-ignore-devices-end"
 
