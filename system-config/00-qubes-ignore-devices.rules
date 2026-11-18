@@ -20,6 +20,14 @@ GOTO="qubes-ignore-devices-end"
 LABEL="qubes-devices-check-export"
 ATTR{loop/backing_file}!="*/appvms/*/*.img*|*/vm-templates/*/*.img*", ENV{QUBES_EXPORT_BLOCK_DEVICE}="1"
 
+# An ATTR{loop/backing_file}!="..." will never match when the attr does not
+# exist. However, empty loop devices need to have ENV{QUBES_EXPORT_BLOCK_DEVICE}="1",
+# so that they will be unexported.
+ENV{.LOOP_SETUP}="$attr{loop/backing_file}"
+# Only match on loop devices, just in case non-loop devices come through
+# here in the future.
+KERNEL=="loop*", ENV{.LOOP_SETUP}=="", ENV{QUBES_EXPORT_BLOCK_DEVICE}="1"
+
 LABEL="qubes-ignore-devices-end"
 
 # vim: set ft=udevrules ff=unix fenc=UTF-8 eol:
