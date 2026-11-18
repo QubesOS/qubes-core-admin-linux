@@ -3,7 +3,7 @@ ACTION=="remove", GOTO="qubes-rule-end"
 
 # Skip devices that might contain untrusted data.  We won’t be doing any other
 # processing on them (and rightly so).
-KERNEL=="loop*", ATTR{loop/backing_file}!="/var/lib/qubes/vm-kernels/*", ENV{SYSTEMD_READY}="1"
+KERNEL=="loop*", ENV{SYSTEMD_READY}="1"
 ENV{DM_LV_NAME}=="vm-*", ENV{SYSTEMD_READY}="1"
 ENV{DM_UUID}=="CRYPT-*", ENV{DM_NAME}!="swap|luks-*", ENV{SYSTEMD_READY}="1"
 
