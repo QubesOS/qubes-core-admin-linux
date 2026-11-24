@@ -95,22 +95,33 @@ main() {
 
     echo "apt not fixed, updating it ..."
 
-    apt-get \
-        -o "Acquire::Retries=0" \
-        update
+    # DSA-6607 is exploited through apt's own retries (Acquire::Retries),
+    # so retry with new apt runs instead.
+    for attempt in 1 2 3; do
+        if [ "$attempt" -gt 1 ]; then
+            echo "Attempt $((attempt - 1)) failed, trying again ..."
+            sleep 10
+        fi
 
-    apt-get \
-        -o "Acquire::Retries=0" \
-        --no-remove \
-        --only-upgrade \
-        -y \
-        install apt
+        # don't resume what a failed run left, as apt's own retry would
+        rm -rf /var/lib/apt/lists/partial/* /var/cache/apt/archives/partial/*
 
-    if ! check_apt_version; then
-        error 'apt version is still not fixed!'
-    fi
+        # another repo's index may fail; check_apt_version decides
+        apt-get \
+            -o "Acquire::Retries=0" \
+            update || true
 
-    exit_ok "apt has been successfully updated."
+        if apt-get \
+            -o "Acquire::Retries=0" \
+            --no-remove \
+            --only-upgrade \
+            -y \
+            install apt && check_apt_version; then
+            exit_ok "apt has been successfully updated."
+        fi
+    done
+
+    error 'apt version is still not fixed!'
 }
 
 main
